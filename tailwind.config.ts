@@ -61,6 +61,20 @@ export default {
 					'accent-foreground': 'hsl(var(--sidebar-accent-foreground))',
 					border: 'hsl(var(--sidebar-border))',
 					ring: 'hsl(var(--sidebar-ring))'
+				},
+				// Fantasy football app colors
+				nfl: {
+					dark: '#0B1018',
+					darker: '#070D14',
+					blue: '#0099F7',
+					lightblue: '#33CCFF',
+					accent: '#5465FF',
+					red: '#FF5757',
+					green: '#00C49A',
+					yellow: '#FFD166',
+					gray: '#1F2937',
+					'dark-gray': '#111827',
+					'light-gray': '#374151'
 				}
 			},
 			borderRadius: {
