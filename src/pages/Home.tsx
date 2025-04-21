@@ -1,8 +1,7 @@
-
 import { Button } from "@/components/ui/button";
 import { ArrowRight, Star, Check, Users } from "lucide-react";
 import { Link } from "react-router-dom";
-import { HeroGeometric } from "@/components/ui/shape-landing-hero";
+import { HeroStadium } from "@/components/ui/shape-landing-hero";
 import { Layout } from "@/components/Layout";
 import { TestimonialSection } from "@/components/TestimonialSection";
 import { motion } from "framer-motion";
@@ -12,12 +11,8 @@ export default function Home() {
   return (
     <Layout>
       <div className="flex flex-col bg-nfl-dark">
-        {/* Enhanced Hero Section */}
-        <HeroGeometric 
-          badge="Survivor Fantasy Football" 
-          title1="Survive. Draft."
-          title2="Be The Last One Standing"
-        />
+        {/* Modern Hero Section */}
+        <HeroStadium />
         
         {/* Features Section */}
         <div className="relative py-24 overflow-hidden">
