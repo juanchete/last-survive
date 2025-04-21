@@ -6,21 +6,21 @@ const testimonials = [
   {
     name: "Jessica Sullivan",
     text: "The Survivor Fantasy league is such a game-changer—every week feels thrilling! The weekly eliminations keep me on my toes all season long.",
-    img: "/lovable-uploads/photo-1649972904349-6e44c42644a7",
+    img: "/lovable-uploads/8f7246f9-e9ba-4e0d-ad20-e9cdf227d352.png",
     team: "Gridiron Mavericks",
     rating: 5
   },
   {
     name: "Evan Roberts",
     text: "I love the drama of the eliminations! Watching my friends sweat as their teams get knocked out is the best part. It's elegant, fun, and easy to use.",
-    img: "/lovable-uploads/photo-1581091226825-a6a2a5aee158",
+    img: "/lovable-uploads/d73ff315-86ef-426e-890f-487fda080507.png",
     team: "End Zone Elite",
     rating: 5
   },
   {
     name: "Priya Nair",
     text: "Survivor Fantasy keeps me engaged the whole season, and the interface is beautiful. Draft night is an absolute blast every time!",
-    img: "/lovable-uploads/photo-1486312338219-ce68d2c6f44d",
+    img: "/lovable-uploads/be3df809-7452-4bf9-a83f-716f61c69a18.png",
     team: "Touchdown Titans",
     rating: 4
   },

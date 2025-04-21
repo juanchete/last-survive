@@ -1,19 +1,24 @@
 
 import { Button } from "@/components/ui/button";
 import { useLeagueStore } from "@/store/leagueStore";
-import { Award, ChevronDown, Menu } from "lucide-react";
+import { ChevronDown, Menu } from "lucide-react";
 import { Link } from "react-router-dom";
 
 export function Header() {
   const currentWeek = useLeagueStore(state => state.currentWeek);
 
   return (
-    <header className="sticky top-0 z-50 shadow-md backdrop-blur-md bg-white/10">
+    <header className="sticky top-0 z-50 backdrop-blur-md bg-transparent">
       <div className="container mx-auto px-6 py-4 flex items-center justify-between">
         {/* Logo Section */}
         <div className="flex items-center">
           <Link to="/" className="flex items-center">
-            <Award className="w-10 h-10 text-nfl-gold" />
+            <img 
+              src="/lovable-uploads/c98f0db9-c234-4e8c-be65-19438a4ac393.png"
+              alt="Survive Week Logo"
+              className="w-14 h-14 object-contain"
+              style={{ minWidth: "56px" }}
+            />
           </Link>
         </div>
 
