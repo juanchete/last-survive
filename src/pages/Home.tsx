@@ -4,6 +4,7 @@ import { ArrowRight } from "lucide-react";
 import { Link } from "react-router-dom";
 import { HeroGeometric } from "@/components/ui/shape-landing-hero";
 import { Layout } from "@/components/Layout";
+import { TestimonialSection } from "@/components/TestimonialSection";
 
 export default function Home() {
   return (
@@ -15,39 +16,6 @@ export default function Home() {
           title1="Survive. Draft."
           title2="Be The Last One Standing"
         />
-        
-        {/* Original hero section - commented out */}
-        {/* 
-        <div className="relative isolate overflow-hidden">
-          <div className="absolute inset-0 bg-gradient-to-b from-nfl-darker via-nfl-dark to-nfl-darker"></div>
-          <div className="absolute inset-0 bg-[url('/lovable-uploads/268daebf-2493-407e-b4cd-5899539acc17.png')] bg-cover opacity-10 mix-blend-lighten"></div>
-          
-          <div className="container mx-auto px-4 pt-32 pb-24 relative z-10">
-            <div className="max-w-3xl mx-auto text-center">
-              <h1 className="text-5xl font-bold mb-6 text-white">
-                <span className="bg-gradient-to-r from-nfl-blue to-nfl-lightblue bg-clip-text text-transparent">
-                  Survivor Fantasy Football
-                </span>
-              </h1>
-              <p className="text-xl text-gray-300 mb-8">
-                A new way to play fantasy football. Each week, one NFL team is eliminated, 
-                and their players return to the draft pool. Adapt your strategy to survive 
-                and dominate the league.
-              </p>
-              <div className="flex flex-col sm:flex-row justify-center gap-4">
-                <Button className="bg-nfl-blue hover:bg-nfl-lightblue text-lg h-12 px-8 rounded-md flex items-center gap-2">
-                  <Link to="/dashboard" className="flex items-center gap-2">
-                    Get Started <ArrowRight className="w-5 h-5" />
-                  </Link>
-                </Button>
-                <Button variant="outline" className="border-nfl-blue text-nfl-blue hover:bg-nfl-blue/10 text-lg h-12 px-8 rounded-md">
-                  <Link to="/how-it-works">How It Works</Link>
-                </Button>
-              </div>
-            </div>
-          </div>
-        </div>
-        */}
         
         {/* Features Section */}
         <div className="bg-nfl-darker py-16">
@@ -93,6 +61,9 @@ export default function Home() {
           </div>
         </div>
         
+        {/* Testimonial Section */}
+        <TestimonialSection />
+
         {/* Stats Section */}
         <div className="py-16 bg-nfl-dark">
           <div className="container mx-auto px-4">
@@ -134,3 +105,4 @@ export default function Home() {
     </Layout>
   );
 }
+
