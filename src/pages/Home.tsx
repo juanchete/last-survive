@@ -1,12 +1,19 @@
-
 import { Button } from "@/components/ui/button";
 import { ArrowRight } from "lucide-react";
 import { Link } from "react-router-dom";
+import { HeroGeometric } from "@/components/ui/shape-landing-hero";
 
 export default function Home() {
   return (
     <div className="min-h-screen flex flex-col bg-nfl-dark">
-      {/* Hero Section */}
+      {/* Enhanced Hero Section */}
+      <HeroGeometric 
+        badge="Survivor Fantasy Football" 
+        title1="Survive. Draft."
+        title2="Be The Last One Standing"
+      />
+      {/* Hero Section (original content, below landing shape) */}
+      {/* 
       <div className="relative isolate overflow-hidden">
         {/* Background gradient */}
         <div className="absolute inset-0 bg-gradient-to-b from-nfl-darker via-nfl-dark to-nfl-darker"></div>
