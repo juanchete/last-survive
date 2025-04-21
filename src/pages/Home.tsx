@@ -1,3 +1,4 @@
+
 import { Button } from "@/components/ui/button";
 import { ArrowRight } from "lucide-react";
 import { Link } from "react-router-dom";
@@ -12,14 +13,13 @@ export default function Home() {
         title1="Survive. Draft."
         title2="Be The Last One Standing"
       />
-      {/* Hero Section (original content, below landing shape) */}
+      
+      {/* Original hero section - commented out */}
       {/* 
       <div className="relative isolate overflow-hidden">
-        {/* Background gradient */}
         <div className="absolute inset-0 bg-gradient-to-b from-nfl-darker via-nfl-dark to-nfl-darker"></div>
         <div className="absolute inset-0 bg-[url('/lovable-uploads/268daebf-2493-407e-b4cd-5899539acc17.png')] bg-cover opacity-10 mix-blend-lighten"></div>
         
-        {/* Content */}
         <div className="container mx-auto px-4 pt-32 pb-24 relative z-10">
           <div className="max-w-3xl mx-auto text-center">
             <h1 className="text-5xl font-bold mb-6 text-white">
@@ -45,6 +45,7 @@ export default function Home() {
           </div>
         </div>
       </div>
+      */}
       
       {/* Features Section */}
       <div className="bg-nfl-darker py-16">
