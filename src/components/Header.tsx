@@ -8,7 +8,7 @@ export function Header() {
   const currentWeek = useLeagueStore(state => state.currentWeek);
 
   return (
-    <header className="bg-black sticky top-0 z-50 shadow-md">
+    <header className="sticky top-0 z-50 shadow-md">
       <div className="container mx-auto px-6 py-4 flex items-center justify-between">
         {/* Logo Section */}
         <div className="flex items-center">
