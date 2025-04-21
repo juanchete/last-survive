@@ -1,55 +1,60 @@
 
 import { Button } from "@/components/ui/button";
 import { useLeagueStore } from "@/store/leagueStore";
-import { Award, Trophy } from "lucide-react";
+import { Award, ChevronDown, Menu } from "lucide-react";
 import { Link } from "react-router-dom";
 
 export function Header() {
   const currentWeek = useLeagueStore(state => state.currentWeek);
 
   return (
-    <header className="bg-nfl-darker border-b border-nfl-light-gray sticky top-0 z-50">
-      <div className="container mx-auto px-4 py-3 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <Link to="/" className="flex items-center gap-2">
-            {/* Updated Award icon to white-blue */}
-            <Award className="w-8 h-8" style={{ color: "#33C3F0" }} />
-            <h1 className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-[#33C3F0] via-white to-[#1EAEDB]">
-              Survivor Fantasy
-            </h1>
+    <header className="bg-black sticky top-0 z-50 shadow-md">
+      <div className="container mx-auto px-6 py-4 flex items-center justify-between">
+        {/* Logo Section */}
+        <div className="flex items-center">
+          <Link to="/" className="flex items-center">
+            <Award className="w-10 h-10 text-nfl-gold" />
           </Link>
-          <div className="hidden md:block ml-6 h-6 w-[1px] bg-nfl-light-gray/20"></div>
-          <div className="hidden md:flex items-center gap-1 ml-6">
-            <span className="text-nfl-lightblue font-bold">WEEK</span>
-            <span className="text-white font-bold text-lg">{currentWeek}</span>
-          </div>
         </div>
 
-        <nav>
-          <ul className="flex items-center gap-6">
-            <li>
-              <Link to="/dashboard" className="text-gray-300 hover:text-white transition duration-200">
-                Dashboard
+        {/* Navigation Section */}
+        <nav className="hidden md:block">
+          <ul className="flex items-center gap-8">
+            <li className="group">
+              <Link to="/dashboard" className="text-white font-medium hover:text-nfl-gold transition flex items-center gap-1">
+                Products <ChevronDown className="w-4 h-4 opacity-70" />
+              </Link>
+            </li>
+            <li className="group">
+              <Link to="/standings" className="text-white font-medium hover:text-[#FFD700] transition flex items-center gap-1">
+                Features <ChevronDown className="w-4 h-4 opacity-70" />
+              </Link>
+            </li>
+            <li className="group">
+              <Link to="/draft" className="text-white font-medium hover:text-[#FFD700] transition flex items-center gap-1">
+                Plans <ChevronDown className="w-4 h-4 opacity-70" />
               </Link>
             </li>
             <li>
-              <Link to="/standings" className="text-gray-300 hover:text-white transition duration-200">
-                Standings
+              <Link to="/how-it-works" className="text-white font-medium hover:text-[#FFD700] transition">
+                About
               </Link>
-            </li>
-            <li>
-              <Link to="/draft" className="text-gray-300 hover:text-white transition duration-200">
-                Draft
-              </Link>
-            </li>
-            <li>
-              <Button variant="default" className="bg-[#33C3F0] hover:bg-[#1EAEDB] flex gap-2 items-center">
-                <Trophy className="w-4 h-4" />
-                <span>My Team</span>
-              </Button>
             </li>
           </ul>
         </nav>
+
+        {/* Action Section */}
+        <div className="flex items-center gap-6">
+          <button className="text-white md:hidden">
+            <Menu className="w-6 h-6" />
+          </button>
+          <Link to="/login" className="text-white font-medium hover:text-nfl-gold transition hidden sm:block">
+            Login
+          </Link>
+          <Button className="bg-white text-black hover:bg-gray-100 rounded-full font-medium px-6 py-2 transition-all duration-300 hover:shadow-md">
+            Start now
+          </Button>
+        </div>
       </div>
     </header>
   );

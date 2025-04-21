@@ -72,6 +72,7 @@ export default {
 					red: '#FF5757',
 					green: '#00C49A',
 					yellow: '#FFD166',
+					gold: '#FFD700',
 					gray: '#1F2937',
 					'dark-gray': '#111827',
 					'light-gray': '#374151'
