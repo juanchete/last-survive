@@ -8,7 +8,7 @@ export function Header() {
   const currentWeek = useLeagueStore(state => state.currentWeek);
 
   return (
-    <header className="sticky top-0 z-50 shadow-md">
+    <header className="sticky top-0 z-50 shadow-md backdrop-blur-md bg-white/10">
       <div className="container mx-auto px-6 py-4 flex items-center justify-between">
         {/* Logo Section */}
         <div className="flex items-center">
@@ -36,7 +36,7 @@ export function Header() {
               </Link>
             </li>
             <li>
-              <Link to="/how-it-works" className="text-white font-medium hover:text-[#FFD700] transition">
+              <Link to="/how-it-works" className="text-white font-medium hover:text-nfl-gold transition">
                 About
               </Link>
             </li>
