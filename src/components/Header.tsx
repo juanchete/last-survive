@@ -6,14 +6,15 @@ import { Link } from "react-router-dom";
 
 export function Header() {
   const currentWeek = useLeagueStore(state => state.currentWeek);
-  
+
   return (
     <header className="bg-nfl-darker border-b border-nfl-light-gray sticky top-0 z-50">
       <div className="container mx-auto px-4 py-3 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Link to="/" className="flex items-center gap-2">
-            <Award className="w-8 h-8 text-nfl-blue" />
-            <h1 className="text-2xl font-bold bg-gradient-to-r from-nfl-blue to-nfl-lightblue bg-clip-text text-transparent">
+            {/* Updated Award icon to new electric blue */}
+            <Award className="w-8 h-8" style={{ color: "#1EAEDB" }} />
+            <h1 className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-[#8B5CF6] via-[#1EAEDB] to-[#D946EF]">
               Survivor Fantasy
             </h1>
           </Link>
@@ -42,7 +43,7 @@ export function Header() {
               </Link>
             </li>
             <li>
-              <Button variant="default" className="bg-nfl-blue hover:bg-nfl-lightblue flex gap-2 items-center">
+              <Button variant="default" className="bg-[#1EAEDB] hover:bg-[#0FA0CE] flex gap-2 items-center">
                 <Trophy className="w-4 h-4" />
                 <span>My Team</span>
               </Button>

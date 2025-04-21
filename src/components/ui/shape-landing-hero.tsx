@@ -1,4 +1,3 @@
-
 "use client";
 
 import { motion } from "framer-motion";
@@ -172,7 +171,8 @@ function HeroGeometric({
                             <br />
                             <span
                                 className={cn(
-                                    "bg-clip-text text-transparent bg-gradient-to-r from-indigo-300 via-white/90 to-rose-300 "
+                                    "bg-clip-text text-transparent",
+                                    "bg-gradient-to-r from-[#8B5CF6] via-[#1EAEDB] to-[#D946EF]"
                                 )}
                             >
                                 {title2}
