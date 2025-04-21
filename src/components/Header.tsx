@@ -12,9 +12,9 @@ export function Header() {
       <div className="container mx-auto px-4 py-3 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Link to="/" className="flex items-center gap-2">
-            {/* Updated Award icon to new electric blue */}
-            <Award className="w-8 h-8" style={{ color: "#1EAEDB" }} />
-            <h1 className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-[#8B5CF6] via-[#1EAEDB] to-[#D946EF]">
+            {/* Updated Award icon to white-blue */}
+            <Award className="w-8 h-8" style={{ color: "#33C3F0" }} />
+            <h1 className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-[#33C3F0] via-white to-[#1EAEDB]">
               Survivor Fantasy
             </h1>
           </Link>
@@ -24,7 +24,7 @@ export function Header() {
             <span className="text-white font-bold text-lg">{currentWeek}</span>
           </div>
         </div>
-        
+
         <nav>
           <ul className="flex items-center gap-6">
             <li>
@@ -43,7 +43,7 @@ export function Header() {
               </Link>
             </li>
             <li>
-              <Button variant="default" className="bg-[#1EAEDB] hover:bg-[#0FA0CE] flex gap-2 items-center">
+              <Button variant="default" className="bg-[#33C3F0] hover:bg-[#1EAEDB] flex gap-2 items-center">
                 <Trophy className="w-4 h-4" />
                 <span>My Team</span>
               </Button>
