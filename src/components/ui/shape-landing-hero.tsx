@@ -199,4 +199,3 @@ function HeroGeometric({
 }
 
 export { HeroGeometric };
-
