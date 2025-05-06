@@ -26,23 +26,18 @@ export function Header() {
         <nav className="hidden md:block">
           <ul className="flex items-center gap-8">
             <li className="group">
-              <Link to="/dashboard" className="text-white font-medium hover:text-nfl-gold transition flex items-center gap-1">
-                Products <ChevronDown className="w-4 h-4 opacity-70" />
+              <Link to="/how-it-works" className="text-white font-medium hover:text-nfl-gold transition flex items-center gap-1">
+                How It Works
               </Link>
             </li>
             <li className="group">
               <Link to="/standings" className="text-white font-medium hover:text-[#FFD700] transition flex items-center gap-1">
-                Features <ChevronDown className="w-4 h-4 opacity-70" />
+                Leaderboard 
               </Link>
             </li>
             <li className="group">
-              <Link to="/draft" className="text-white font-medium hover:text-[#FFD700] transition flex items-center gap-1">
-                Plans <ChevronDown className="w-4 h-4 opacity-70" />
-              </Link>
-            </li>
-            <li>
-              <Link to="/how-it-works" className="text-white font-medium hover:text-nfl-gold transition">
-                About
+              <Link to="/hub" className="text-white font-medium hover:text-[#FFD700] transition flex items-center gap-1">
+                My Leagues <ChevronDown className="w-4 h-4 opacity-70" />
               </Link>
             </li>
           </ul>

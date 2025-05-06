@@ -13,6 +13,7 @@ import Standings from "./pages/Standings";
 import HowItWorks from "./pages/HowItWorks";
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
+import Hub from "./pages/Hub";
 
 const queryClient = new QueryClient();
 
@@ -23,6 +24,7 @@ const App = () => (
         <BrowserRouter>
           <Routes>
             <Route path="/" element={<Home />} />
+            <Route path="/hub" element={<Hub />} />
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/draft" element={<Draft />} />
             <Route path="/standings" element={<Standings />} />
