@@ -1,11 +1,9 @@
-
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
 import { ArrowRight, LogIn, User } from "lucide-react";
-
 import { Layout } from "@/components/Layout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,50 +11,47 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
-
 const loginFormSchema = z.object({
-  email: z.string().email({ message: "Please enter a valid email address" }),
-  password: z.string().min(6, {
-    message: "Password must be at least 6 characters",
+  email: z.string().email({
+    message: "Please enter a valid email address"
   }),
+  password: z.string().min(6, {
+    message: "Password must be at least 6 characters"
+  })
 });
-
 type LoginFormValues = z.infer<typeof loginFormSchema>;
-
 export default function Login() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const { toast } = useToast();
-
+  const {
+    toast
+  } = useToast();
   const form = useForm<LoginFormValues>({
     resolver: zodResolver(loginFormSchema),
     defaultValues: {
       email: "",
-      password: "",
-    },
+      password: ""
+    }
   });
-
   const onSubmit = async (values: LoginFormValues) => {
     setIsLoading(true);
     setError(null);
-
     try {
       // This is where you would typically connect to an authentication service
       console.log("Login attempt with:", values);
-      
       toast({
         title: "Login Demo",
-        description: "In a real app, this would authenticate with your backend.",
+        description: "In a real app, this would authenticate with your backend."
       });
 
       // Simulate API delay
       await new Promise(resolve => setTimeout(resolve, 1000));
-      
+
       // For demo purposes only - in a real app you would validate credentials against your backend
       if (values.email === "demo@example.com" && values.password === "password") {
         toast({
           title: "Login successful",
-          description: "Welcome back!",
+          description: "Welcome back!"
         });
       } else {
         setError("Invalid email or password. Try demo@example.com / password");
@@ -68,9 +63,7 @@ export default function Login() {
       setIsLoading(false);
     }
   };
-
-  return (
-    <Layout>
+  return <Layout>
       <div className="container max-w-6xl mx-auto px-4 py-12">
         <div className="flex flex-col lg:flex-row gap-8 items-center">
           <div className="flex-1 w-full">
@@ -85,44 +78,30 @@ export default function Login() {
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                {error && (
-                  <Alert variant="destructive">
+                {error && <Alert variant="destructive">
                     <AlertDescription>{error}</AlertDescription>
-                  </Alert>
-                )}
+                  </Alert>}
                 <Form {...form}>
                   <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-                    <FormField
-                      control={form.control}
-                      name="email"
-                      render={({ field }) => (
-                        <FormItem>
+                    <FormField control={form.control} name="email" render={({
+                    field
+                  }) => <FormItem>
                           <FormLabel>Email</FormLabel>
                           <FormControl>
                             <Input placeholder="your.email@example.com" {...field} />
                           </FormControl>
                           <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={form.control}
-                      name="password"
-                      render={({ field }) => (
-                        <FormItem>
+                        </FormItem>} />
+                    <FormField control={form.control} name="password" render={({
+                    field
+                  }) => <FormItem>
                           <FormLabel>Password</FormLabel>
                           <FormControl>
                             <Input type="password" placeholder="••••••••" {...field} />
                           </FormControl>
                           <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <Button 
-                      type="submit" 
-                      className="w-full" 
-                      disabled={isLoading}
-                    >
+                        </FormItem>} />
+                    <Button type="submit" className="w-full" disabled={isLoading}>
                       {isLoading ? "Signing in..." : "Sign In"}
                     </Button>
                   </form>
@@ -162,11 +141,7 @@ export default function Login() {
           
           <div className="flex-1 hidden lg:block">
             <div className="rounded-lg overflow-hidden shadow-xl">
-              <img
-                src="/lovable-uploads/be3df809-7452-4bf9-a83f-716f61c69a18.png"
-                alt="Authentication"
-                className="w-full object-cover rounded-lg"
-              />
+              <img alt="Authentication" className="w-full object-cover rounded-lg" src="https://plus.unsplash.com/premium_photo-1685088062526-067d3e88c0e0?q=80&w=1742&auto=format&fit=crop&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D" />
             </div>
             <div className="mt-6 space-y-4">
               <h2 className="text-2xl font-bold text-white/90">Welcome to Survive Week</h2>
@@ -190,6 +165,5 @@ export default function Login() {
           </div>
         </div>
       </div>
-    </Layout>
-  );
+    </Layout>;
 }
