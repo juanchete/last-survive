@@ -1,11 +1,9 @@
-
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
 import { ArrowRight, LogIn, User } from "lucide-react";
-
 import { Layout } from "@/components/Layout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,33 +12,33 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
-
 const signupFormSchema = z.object({
   fullName: z.string().min(2, {
-    message: "Name must be at least 2 characters",
+    message: "Name must be at least 2 characters"
   }),
-  email: z.string().email({ message: "Please enter a valid email address" }),
+  email: z.string().email({
+    message: "Please enter a valid email address"
+  }),
   password: z.string().min(6, {
-    message: "Password must be at least 6 characters",
+    message: "Password must be at least 6 characters"
   }),
   confirmPassword: z.string().min(6, {
-    message: "Password must be at least 6 characters",
+    message: "Password must be at least 6 characters"
   }),
   acceptTerms: z.boolean().refine(val => val === true, {
-    message: "You must accept the terms and conditions",
-  }),
-}).refine((data) => data.password === data.confirmPassword, {
+    message: "You must accept the terms and conditions"
+  })
+}).refine(data => data.password === data.confirmPassword, {
   message: "Passwords do not match",
-  path: ["confirmPassword"],
+  path: ["confirmPassword"]
 });
-
 type SignupFormValues = z.infer<typeof signupFormSchema>;
-
 export default function Signup() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const { toast } = useToast();
-
+  const {
+    toast
+  } = useToast();
   const form = useForm<SignupFormValues>({
     resolver: zodResolver(signupFormSchema),
     defaultValues: {
@@ -48,31 +46,27 @@ export default function Signup() {
       email: "",
       password: "",
       confirmPassword: "",
-      acceptTerms: false,
-    },
+      acceptTerms: false
+    }
   });
-
   const onSubmit = async (values: SignupFormValues) => {
     setIsLoading(true);
     setError(null);
-
     try {
       // This is where you would typically connect to an authentication service
       console.log("Signup attempt with:", values);
-      
       toast({
         title: "Signup Demo",
-        description: "In a real app, this would register your account with the backend.",
+        description: "In a real app, this would register your account with the backend."
       });
 
       // Simulate API delay
       await new Promise(resolve => setTimeout(resolve, 1000));
-      
       toast({
         title: "Account created",
-        description: "Your account has been created successfully!",
+        description: "Your account has been created successfully!"
       });
-      
+
       // In a real app, you would typically redirect to login or dashboard here
     } catch (err) {
       setError("An unexpected error occurred. Please try again.");
@@ -81,9 +75,7 @@ export default function Signup() {
       setIsLoading(false);
     }
   };
-
-  return (
-    <Layout>
+  return <Layout>
       <div className="container max-w-6xl mx-auto px-4 py-12">
         <div className="flex flex-col lg:flex-row-reverse gap-8 items-center">
           <div className="flex-1 w-full">
@@ -98,75 +90,52 @@ export default function Signup() {
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                {error && (
-                  <Alert variant="destructive">
+                {error && <Alert variant="destructive">
                     <AlertDescription>{error}</AlertDescription>
-                  </Alert>
-                )}
+                  </Alert>}
                 <Form {...form}>
                   <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-                    <FormField
-                      control={form.control}
-                      name="fullName"
-                      render={({ field }) => (
-                        <FormItem>
+                    <FormField control={form.control} name="fullName" render={({
+                    field
+                  }) => <FormItem>
                           <FormLabel>Full Name</FormLabel>
                           <FormControl>
                             <Input placeholder="John Doe" {...field} />
                           </FormControl>
                           <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={form.control}
-                      name="email"
-                      render={({ field }) => (
-                        <FormItem>
+                        </FormItem>} />
+                    <FormField control={form.control} name="email" render={({
+                    field
+                  }) => <FormItem>
                           <FormLabel>Email</FormLabel>
                           <FormControl>
                             <Input placeholder="your.email@example.com" {...field} />
                           </FormControl>
                           <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={form.control}
-                      name="password"
-                      render={({ field }) => (
-                        <FormItem>
+                        </FormItem>} />
+                    <FormField control={form.control} name="password" render={({
+                    field
+                  }) => <FormItem>
                           <FormLabel>Password</FormLabel>
                           <FormControl>
                             <Input type="password" placeholder="••••••••" {...field} />
                           </FormControl>
                           <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={form.control}
-                      name="confirmPassword"
-                      render={({ field }) => (
-                        <FormItem>
+                        </FormItem>} />
+                    <FormField control={form.control} name="confirmPassword" render={({
+                    field
+                  }) => <FormItem>
                           <FormLabel>Confirm Password</FormLabel>
                           <FormControl>
                             <Input type="password" placeholder="••••••••" {...field} />
                           </FormControl>
                           <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={form.control}
-                      name="acceptTerms"
-                      render={({ field }) => (
-                        <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md p-4 bg-nfl-dark-gray/50">
+                        </FormItem>} />
+                    <FormField control={form.control} name="acceptTerms" render={({
+                    field
+                  }) => <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md p-4 bg-nfl-dark-gray/50">
                           <FormControl>
-                            <Checkbox
-                              checked={field.value}
-                              onCheckedChange={field.onChange}
-                            />
+                            <Checkbox checked={field.value} onCheckedChange={field.onChange} />
                           </FormControl>
                           <div className="space-y-1 leading-none">
                             <FormLabel>
@@ -174,14 +143,8 @@ export default function Signup() {
                             </FormLabel>
                             <FormMessage />
                           </div>
-                        </FormItem>
-                      )}
-                    />
-                    <Button 
-                      type="submit" 
-                      className="w-full" 
-                      disabled={isLoading}
-                    >
+                        </FormItem>} />
+                    <Button type="submit" className="w-full" disabled={isLoading}>
                       {isLoading ? "Creating account..." : "Create Account"}
                     </Button>
                   </form>
@@ -216,11 +179,7 @@ export default function Signup() {
           
           <div className="flex-1 hidden lg:block">
             <div className="rounded-lg overflow-hidden shadow-xl">
-              <img
-                src="/lovable-uploads/d73ff315-86ef-426e-890f-487fda080507.png"
-                alt="Authentication"
-                className="w-full object-cover rounded-lg"
-              />
+              <img alt="Authentication" className="w-full object-cover rounded-lg" src="/lovable-uploads/733f7192-8cdb-4b98-8f55-0f737f78fdbd.jpg" />
             </div>
             <div className="mt-6 space-y-4">
               <h2 className="text-2xl font-bold text-white/90">Join Survive Week Today</h2>
@@ -244,6 +203,5 @@ export default function Signup() {
           </div>
         </div>
       </div>
-    </Layout>
-  );
+    </Layout>;
 }
