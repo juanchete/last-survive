@@ -13,7 +13,6 @@ interface LeagueStore extends LeagueState {
   endDraft: () => void;
   updateTeamPoints: () => void;
   setCurrentWeek: (weekNumber: number) => void;
-  addLeague: (leagueName: string) => void; // Added the missing method
 }
 
 export const useLeagueStore = create<LeagueStore>((set, get) => ({
@@ -217,16 +216,6 @@ export const useLeagueStore = create<LeagueStore>((set, get) => ({
         currentWeek: weekNumber,
         weeks: updatedWeeks
       };
-    });
-  },
-
-  // Add the implementation of the addLeague method
-  addLeague: (leagueName: string) => {
-    set((state) => {
-      // For now, just log that a league was added
-      console.log(`Added league: ${leagueName}`);
-      return state; // Return unchanged state for now
-      // In a real implementation, we would add the league to some list in the state
     });
   }
 }));
