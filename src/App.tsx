@@ -14,6 +14,7 @@ import HowItWorks from "./pages/HowItWorks";
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
 import Hub from "./pages/Hub";
+import BrowseLeagues from "./pages/BrowseLeagues";
 
 const queryClient = new QueryClient();
 
@@ -31,6 +32,7 @@ const App = () => (
             <Route path="/how-it-works" element={<HowItWorks />} />
             <Route path="/login" element={<Login />} />
             <Route path="/signup" element={<Signup />} />
+            <Route path="/browse-leagues" element={<BrowseLeagues />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>
