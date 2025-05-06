@@ -11,6 +11,8 @@ import Dashboard from "./pages/Dashboard";
 import Draft from "./pages/Draft";
 import Standings from "./pages/Standings";
 import HowItWorks from "./pages/HowItWorks";
+import Login from "./pages/Login";
+import Signup from "./pages/Signup";
 
 const queryClient = new QueryClient();
 
@@ -25,6 +27,8 @@ const App = () => (
             <Route path="/draft" element={<Draft />} />
             <Route path="/standings" element={<Standings />} />
             <Route path="/how-it-works" element={<HowItWorks />} />
+            <Route path="/login" element={<Login />} />
+            <Route path="/signup" element={<Signup />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>

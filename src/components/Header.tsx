@@ -56,9 +56,11 @@ export function Header() {
           <Link to="/login" className="text-white font-medium hover:text-nfl-gold transition hidden sm:block">
             Login
           </Link>
-          <Button className="bg-white text-black hover:bg-gray-100 rounded-full font-medium px-6 py-2 transition-all duration-300 hover:shadow-md">
-            Start now
-          </Button>
+          <Link to="/signup">
+            <Button className="bg-white text-black hover:bg-gray-100 rounded-full font-medium px-6 py-2 transition-all duration-300 hover:shadow-md">
+              Start now
+            </Button>
+          </Link>
         </div>
       </div>
     </header>
