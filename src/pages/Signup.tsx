@@ -179,7 +179,7 @@ export default function Signup() {
           
           <div className="flex-1 hidden lg:block">
             <div className="rounded-lg overflow-hidden shadow-xl">
-              <img alt="Authentication" className="w-full object-cover rounded-lg" src="/lovable-uploads/733f7192-8cdb-4b98-8f55-0f737f78fdbd.jpg" />
+              <img alt="Authentication" className="w-full object-cover rounded-lg" src="/lovable-uploads/0c44cd25-0dfc-4563-9eb6-efdb3f54144f.jpg" />
             </div>
             <div className="mt-6 space-y-4">
               <h2 className="text-2xl font-bold text-white/90">Join Survive Week Today</h2>
