@@ -1,8 +1,27 @@
+
 import { create } from 'zustand';
 import { FantasyTeam, LeagueState, NFLTeam, Player, Week } from '@/types';
 import { initialLeagueState } from '@/data/mockData';
 
+interface League {
+  id: string;
+  name: string;
+  description: string;
+  entryFee: number;
+  image: string | null;
+  isPrivate: boolean;
+  privateCode: string | null;
+  owner: string;
+  members: string[];
+  createdAt: Date;
+}
+
 interface LeagueStore extends LeagueState {
+  // League management
+  leagues: League[];
+  createLeague: (league: Omit<League, 'id' | 'owner' | 'members' | 'createdAt'>) => void;
+  joinLeague: (leagueId: string, code?: string) => boolean;
+  
   // Actions
   draftPlayer: (playerId: string, teamId: string) => void;
   advanceWeek: () => void;
@@ -17,6 +36,67 @@ interface LeagueStore extends LeagueState {
 
 export const useLeagueStore = create<LeagueStore>((set, get) => ({
   ...initialLeagueState,
+  leagues: [],
+  
+  createLeague: (league) => {
+    set((state) => {
+      const newLeague: League = {
+        id: crypto.randomUUID(),
+        name: league.name,
+        description: league.description,
+        entryFee: league.entryFee,
+        image: league.image,
+        isPrivate: league.isPrivate,
+        privateCode: league.privateCode,
+        owner: 'current-user', // In a real app, this would be the current user's ID
+        members: ['current-user'], // Owner is automatically a member
+        createdAt: new Date(),
+      };
+      
+      return {
+        ...state,
+        leagues: [...state.leagues, newLeague]
+      };
+    });
+  },
+  
+  joinLeague: (leagueId, code) => {
+    let success = false;
+    
+    set((state) => {
+      const league = state.leagues.find(l => l.id === leagueId);
+      
+      if (!league) {
+        return state;
+      }
+      
+      // Check if it's a private league and the code matches
+      if (league.isPrivate && league.privateCode !== code) {
+        return state;
+      }
+      
+      // Check if user is already a member
+      if (league.members.includes('current-user')) {
+        return state;
+      }
+      
+      success = true;
+      
+      // Add user to league members
+      const updatedLeagues = state.leagues.map(l => 
+        l.id === leagueId 
+          ? { ...l, members: [...l.members, 'current-user'] } 
+          : l
+      );
+      
+      return {
+        ...state,
+        leagues: updatedLeagues
+      };
+    });
+    
+    return success;
+  },
 
   draftPlayer: (playerId: string, teamId: string) => {
     set((state) => {
