@@ -16,6 +16,7 @@ import Signup from "./pages/Signup";
 import Hub from "./pages/Hub";
 import BrowseLeagues from "./pages/BrowseLeagues";
 import CreateLeague from "./pages/CreateLeague";
+import Profile from "./pages/Profile";
 
 const queryClient = new QueryClient();
 
@@ -35,6 +36,7 @@ const App = () => (
             <Route path="/signup" element={<Signup />} />
             <Route path="/browse-leagues" element={<BrowseLeagues />} />
             <Route path="/create-league" element={<CreateLeague />} />
+            <Route path="/profile" element={<Profile />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>
