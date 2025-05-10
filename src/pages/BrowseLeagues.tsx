@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { Layout } from "@/components/Layout";
 import { Card, CardContent } from "@/components/ui/card";
@@ -170,7 +169,7 @@ export default function BrowseLeagues() {
       toast({
         title: "Success!",
         description: `You've joined ${selectedLeague?.name}`,
-        variant: "success",
+        variant: "default",
       });
       setIsDialogOpen(false);
     }
@@ -181,7 +180,7 @@ export default function BrowseLeagues() {
     toast({
       title: "Request sent!",
       description: `Your request to join ${selectedLeague?.name} has been sent to the league owner.`,
-      variant: "success",
+      variant: "default",
     });
     setIsRequestDialogOpen(false);
     setRequestMessage("");
