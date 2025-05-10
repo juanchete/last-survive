@@ -1,11 +1,12 @@
-
 import { Button } from "@/components/ui/button";
 import { useLeagueStore } from "@/store/leagueStore";
 import { ChevronDown, Menu } from "lucide-react";
 import { Link } from "react-router-dom";
+import { useAuth } from "@/hooks/useAuth";
 
 export function Header() {
   const currentWeek = useLeagueStore(state => state.currentWeek);
+  const { user, logout, loading } = useAuth();
 
   return (
     <header className="sticky top-0 z-50 backdrop-blur-md bg-transparent">
@@ -48,14 +49,29 @@ export function Header() {
           <button className="text-white md:hidden">
             <Menu className="w-6 h-6" />
           </button>
-          <Link to="/login" className="text-white font-medium hover:text-nfl-gold transition hidden sm:block">
-            Login
-          </Link>
-          <Link to="/signup">
-            <Button className="bg-white text-black hover:bg-gray-100 rounded-full font-medium px-6 py-2 transition-all duration-300 hover:shadow-md">
-              Start now
-            </Button>
-          </Link>
+          {loading ? null : user ? (
+            <>
+              <span className="text-white font-medium hidden sm:block">{user.email}</span>
+              <Button
+                variant="outline"
+                className="border-white text-white hover:bg-nfl-blue/10"
+                onClick={logout}
+              >
+                Logout
+              </Button>
+            </>
+          ) : (
+            <>
+              <Link to="/login" className="text-white font-medium hover:text-nfl-gold transition hidden sm:block">
+                Login
+              </Link>
+              <Link to="/signup">
+                <Button className="bg-white text-black hover:bg-gray-100 rounded-full font-medium px-6 py-2 transition-all duration-300 hover:shadow-md">
+                  Start now
+                </Button>
+              </Link>
+            </>
+          )}
         </div>
       </div>
     </header>

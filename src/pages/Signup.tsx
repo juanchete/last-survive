@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
@@ -12,6 +12,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/useAuth";
 const signupFormSchema = z.object({
   fullName: z.string().min(2, {
     message: "Name must be at least 2 characters"
@@ -36,9 +37,9 @@ type SignupFormValues = z.infer<typeof signupFormSchema>;
 export default function Signup() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const {
-    toast
-  } = useToast();
+  const { toast } = useToast();
+  const { signup } = useAuth();
+  const navigate = useNavigate();
   const form = useForm<SignupFormValues>({
     resolver: zodResolver(signupFormSchema),
     defaultValues: {
@@ -53,23 +54,18 @@ export default function Signup() {
     setIsLoading(true);
     setError(null);
     try {
-      // This is where you would typically connect to an authentication service
-      console.log("Signup attempt with:", values);
-      toast({
-        title: "Signup Demo",
-        description: "In a real app, this would register your account with the backend."
-      });
-
-      // Simulate API delay
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      toast({
-        title: "Account created",
-        description: "Your account has been created successfully!"
-      });
-
-      // In a real app, you would typically redirect to login or dashboard here
+      const { error } = await signup(values.email, values.password, values.fullName);
+      if (error) {
+        setError(error);
+      } else {
+        toast({
+          title: "Cuenta creada",
+          description: "¡Tu cuenta ha sido creada exitosamente!"
+        });
+        navigate("/dashboard");
+      }
     } catch (err) {
-      setError("An unexpected error occurred. Please try again.");
+      setError("Ocurrió un error inesperado. Intenta de nuevo.");
       console.error(err);
     } finally {
       setIsLoading(false);

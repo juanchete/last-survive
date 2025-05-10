@@ -1,4 +1,3 @@
-
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -17,6 +16,8 @@ import Hub from "./pages/Hub";
 import BrowseLeagues from "./pages/BrowseLeagues";
 import CreateLeague from "./pages/CreateLeague";
 import Profile from "./pages/Profile";
+import { AuthProvider } from "@/hooks/useAuth";
+import PrivateRoute from "@/components/PrivateRoute";
 
 const queryClient = new QueryClient();
 
@@ -24,24 +25,28 @@ const App = () => (
   <QueryClientProvider client={queryClient}>
     <MotionConfig reducedMotion="user">
       <TooltipProvider>
-        <BrowserRouter>
-          <Routes>
-            <Route path="/" element={<Home />} />
-            <Route path="/hub" element={<Hub />} />
-            <Route path="/dashboard" element={<Dashboard />} />
-            <Route path="/draft" element={<Draft />} />
-            <Route path="/standings" element={<Standings />} />
-            <Route path="/how-it-works" element={<HowItWorks />} />
-            <Route path="/login" element={<Login />} />
-            <Route path="/signup" element={<Signup />} />
-            <Route path="/browse-leagues" element={<BrowseLeagues />} />
-            <Route path="/create-league" element={<CreateLeague />} />
-            <Route path="/profile" element={<Profile />} />
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-        </BrowserRouter>
-        <Toaster />
-        <Sonner />
+        <AuthProvider>
+          <BrowserRouter>
+            <Routes>
+              <Route path="/" element={<Home />} />
+              <Route path="/how-it-works" element={<HowItWorks />} />
+              <Route path="/login" element={<Login />} />
+              <Route path="/signup" element={<Signup />} />
+              <Route element={<PrivateRoute />}>
+                <Route path="/dashboard" element={<Dashboard />} />
+                <Route path="/draft" element={<Draft />} />
+                <Route path="/standings" element={<Standings />} />
+                <Route path="/hub" element={<Hub />} />
+                <Route path="/browse-leagues" element={<BrowseLeagues />} />
+                <Route path="/create-league" element={<CreateLeague />} />
+                <Route path="/profile" element={<Profile />} />
+              </Route>
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </BrowserRouter>
+          <Toaster />
+          <Sonner />
+        </AuthProvider>
       </TooltipProvider>
     </MotionConfig>
   </QueryClientProvider>

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
@@ -11,11 +11,12 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/useAuth";
 const loginFormSchema = z.object({
   email: z.string().email({
     message: "Please enter a valid email address"
   }),
-  password: z.string().min(6, {
+  password: z.string().min(4, {
     message: "Password must be at least 6 characters"
   })
 });
@@ -23,9 +24,9 @@ type LoginFormValues = z.infer<typeof loginFormSchema>;
 export default function Login() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const {
-    toast
-  } = useToast();
+  const { toast } = useToast();
+  const { login } = useAuth();
+  const navigate = useNavigate();
   const form = useForm<LoginFormValues>({
     resolver: zodResolver(loginFormSchema),
     defaultValues: {
@@ -37,27 +38,18 @@ export default function Login() {
     setIsLoading(true);
     setError(null);
     try {
-      // This is where you would typically connect to an authentication service
-      console.log("Login attempt with:", values);
-      toast({
-        title: "Login Demo",
-        description: "In a real app, this would authenticate with your backend."
-      });
-
-      // Simulate API delay
-      await new Promise(resolve => setTimeout(resolve, 1000));
-
-      // For demo purposes only - in a real app you would validate credentials against your backend
-      if (values.email === "demo@example.com" && values.password === "password") {
-        toast({
-          title: "Login successful",
-          description: "Welcome back!"
-        });
+      const { error } = await login(values.email, values.password);
+      if (error) {
+        setError(error);
       } else {
-        setError("Invalid email or password. Try demo@example.com / password");
+        toast({
+          title: "¡Bienvenido!",
+          description: "Inicio de sesión exitoso."
+        });
+        navigate("/dashboard");
       }
     } catch (err) {
-      setError("An unexpected error occurred. Please try again.");
+      setError("Ocurrió un error inesperado. Intenta de nuevo.");
       console.error(err);
     } finally {
       setIsLoading(false);
