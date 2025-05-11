@@ -1,4 +1,3 @@
-
 import { Layout } from "@/components/Layout";
 import { useLeagueStore } from "@/store/leagueStore";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -8,10 +7,16 @@ import { TeamCard } from "@/components/TeamCard";
 import { PlayerCard } from "@/components/PlayerCard";
 import { WeeklyElimination } from "@/components/WeeklyElimination";
 import { ArrowRight, User, Trophy, Calendar } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
+import { LeagueNav } from "@/components/LeagueNav";
 
 export default function Dashboard() {
   const { teams, availablePlayers, currentWeek } = useLeagueStore();
+  
+  // Get URL params to identify league context
+  const location = useLocation();
+  const searchParams = new URLSearchParams(location.search);
+  const leagueId = searchParams.get("league") || "default";
   
   // Get user's team (first team for demo)
   const userTeam = teams[0];
@@ -27,7 +32,10 @@ export default function Dashboard() {
   
   return (
     <Layout>
-      <div className="container mx-auto px-4 py-8">
+      {/* Add LeagueNav for context-specific navigation */}
+      <LeagueNav leagueId={leagueId} />
+      
+      <div className="container mx-auto px-4 py-4">
         {/* Welcome Section */}
         <Card className="mb-8 bg-gradient-to-br from-nfl-blue/10 to-nfl-blue/5 border-nfl-light-gray/20">
           <CardHeader className="pb-2">
@@ -43,10 +51,10 @@ export default function Dashboard() {
             </p>
             <div className="flex flex-wrap gap-3">
               <Button asChild variant="default" className="bg-nfl-blue hover:bg-nfl-lightblue">
-                <Link to="/draft">Draft Players</Link>
+                <Link to={`/draft?league=${leagueId}`}>Draft Players</Link>
               </Button>
               <Button asChild variant="outline" className="border-nfl-blue text-nfl-blue hover:bg-nfl-blue/10">
-                <Link to="/standings">View Standings</Link>
+                <Link to={`/standings?league=${leagueId}`}>View Standings</Link>
               </Button>
             </div>
           </CardContent>
@@ -73,7 +81,7 @@ export default function Dashboard() {
               <div className="flex justify-between items-center mb-4">
                 <h2 className="text-xl font-semibold text-white/90">Top Available Players</h2>
                 <Button asChild variant="link" className="text-nfl-blue p-0">
-                  <Link to="/draft" className="flex items-center gap-1">
+                  <Link to={`/draft?league=${leagueId}`} className="flex items-center gap-1">
                     View All <ArrowRight className="w-4 h-4" />
                   </Link>
                 </Button>
@@ -119,7 +127,7 @@ export default function Dashboard() {
                   ))}
                 </div>
                 <Button asChild variant="outline" className="w-full mt-4 text-nfl-blue border-nfl-blue hover:bg-nfl-blue/10">
-                  <Link to="/standings">View All Teams</Link>
+                  <Link to={`/standings?league=${leagueId}`}>View All Teams</Link>
                 </Button>
               </CardContent>
             </Card>

@@ -1,11 +1,21 @@
+
 import { Button } from "@/components/ui/button";
 import { useLeagueStore } from "@/store/leagueStore";
-import { ChevronDown, Menu } from "lucide-react";
+import { ChevronDown, Menu, Plus, Trophy, Users } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 export function Header() {
   const currentWeek = useLeagueStore(state => state.currentWeek);
+  const leagues = useLeagueStore(state => state.leagues);
   const { user, logout, loading } = useAuth();
 
   return (
@@ -32,14 +42,64 @@ export function Header() {
               </Link>
             </li>
             <li className="group">
-              <Link to="/standings" className="text-white font-medium hover:text-[#FFD700] transition flex items-center gap-1">
-                Leaderboard 
-              </Link>
-            </li>
-            <li className="group">
-              <Link to="/hub" className="text-white font-medium hover:text-[#FFD700] transition flex items-center gap-1">
-                My Leagues <ChevronDown className="w-4 h-4 opacity-70" />
-              </Link>
+              <DropdownMenu>
+                <DropdownMenuTrigger className="text-white font-medium hover:text-[#FFD700] transition flex items-center gap-1 focus:outline-none">
+                  My Leagues <ChevronDown className="w-4 h-4 opacity-70" />
+                </DropdownMenuTrigger>
+                <DropdownMenuContent className="w-56 bg-nfl-gray border border-nfl-light-gray/20 shadow-lg">
+                  <DropdownMenuLabel className="text-white">Your Leagues</DropdownMenuLabel>
+                  <DropdownMenuSeparator className="bg-nfl-light-gray/20" />
+                  
+                  {leagues.length > 0 ? (
+                    leagues.slice(0, 5).map((league) => (
+                      <DropdownMenuItem key={league.id} asChild>
+                        <Link 
+                          to={`/dashboard?league=${league.id}`}
+                          className="flex items-center cursor-pointer hover:bg-nfl-blue/10"
+                        >
+                          <Trophy className="w-4 h-4 mr-2 text-nfl-blue" />
+                          <span className="truncate">{league.name}</span>
+                        </Link>
+                      </DropdownMenuItem>
+                    ))
+                  ) : (
+                    <DropdownMenuItem disabled className="text-gray-400">
+                      No leagues joined yet
+                    </DropdownMenuItem>
+                  )}
+                  
+                  {leagues.length > 5 && (
+                    <DropdownMenuItem asChild>
+                      <Link to="/hub" className="text-nfl-blue">
+                        View all leagues
+                      </Link>
+                    </DropdownMenuItem>
+                  )}
+                  
+                  <DropdownMenuSeparator className="bg-nfl-light-gray/20" />
+                  
+                  <DropdownMenuItem asChild>
+                    <Link to="/hub" className="flex items-center cursor-pointer hover:bg-nfl-blue/10">
+                      <Users className="w-4 h-4 mr-2 text-nfl-gold" />
+                      <span>League Hub</span>
+                    </Link>
+                  </DropdownMenuItem>
+                  
+                  <DropdownMenuItem asChild>
+                    <Link to="/browse-leagues" className="flex items-center cursor-pointer hover:bg-nfl-blue/10">
+                      <Trophy className="w-4 h-4 mr-2 text-nfl-gold" />
+                      <span>Browse Leagues</span>
+                    </Link>
+                  </DropdownMenuItem>
+                  
+                  <DropdownMenuItem asChild>
+                    <Link to="/create-league" className="flex items-center cursor-pointer hover:bg-nfl-blue/10">
+                      <Plus className="w-4 h-4 mr-2 text-nfl-green" />
+                      <span>Create New League</span>
+                    </Link>
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </li>
           </ul>
         </nav>

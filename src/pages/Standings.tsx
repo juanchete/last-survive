@@ -6,9 +6,16 @@ import { Badge } from "@/components/ui/badge";
 import { TeamCard } from "@/components/TeamCard";
 import { WeeklyElimination } from "@/components/WeeklyElimination";
 import { Trophy, User } from "lucide-react";
+import { useLocation } from "react-router-dom";
+import { LeagueNav } from "@/components/LeagueNav";
 
 export default function Standings() {
   const { teams } = useLeagueStore();
+  
+  // Get URL params to identify league context
+  const location = useLocation();
+  const searchParams = new URLSearchParams(location.search);
+  const leagueId = searchParams.get("league") || "default";
   
   // Sort teams by rank
   const sortedTeams = [...teams].sort((a, b) => a.rank - b.rank);
@@ -22,7 +29,10 @@ export default function Standings() {
   
   return (
     <Layout>
-      <div className="container mx-auto px-4 py-8">
+      {/* Add LeagueNav for context-specific navigation */}
+      <LeagueNav leagueId={leagueId} />
+      
+      <div className="container mx-auto px-4 py-4">
         <div className="grid lg:grid-cols-3 gap-8">
           {/* Main Content Column */}
           <div className="lg:col-span-2 space-y-8">
