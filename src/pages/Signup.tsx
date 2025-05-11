@@ -62,7 +62,7 @@ export default function Signup() {
           title: "Cuenta creada",
           description: "¡Tu cuenta ha sido creada exitosamente!"
         });
-        navigate("/dashboard");
+        navigate("/hub");
       }
     } catch (err) {
       setError("Ocurrió un error inesperado. Intenta de nuevo.");

@@ -22,6 +22,10 @@
 - `is_private` (boolean)
 - `private_code` (string, único, opcional)
 - `owner_id` (FK → users.id)
+- `max_members` (integer, opcional)
+- `status` (varchar(20), default 'upcoming')
+- `prize` (string, opcional)
+- `start_date` (timestamp, opcional)
 - `created_at` (timestamp)
 
 ---

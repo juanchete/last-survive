@@ -46,7 +46,7 @@ export default function Login() {
           title: "¡Bienvenido!",
           description: "Inicio de sesión exitoso."
         });
-        navigate("/dashboard");
+        navigate("/hub");
       }
     } catch (err) {
       setError("Ocurrió un error inesperado. Intenta de nuevo.");

@@ -26,26 +26,26 @@ const App = () => (
     <MotionConfig reducedMotion="user">
       <TooltipProvider>
         <AuthProvider>
-          <BrowserRouter>
-            <Routes>
-              <Route path="/" element={<Home />} />
+        <BrowserRouter>
+          <Routes>
+            <Route path="/" element={<Home />} />
               <Route path="/how-it-works" element={<HowItWorks />} />
               <Route path="/login" element={<Login />} />
               <Route path="/signup" element={<Signup />} />
               <Route element={<PrivateRoute />}>
-                <Route path="/dashboard" element={<Dashboard />} />
-                <Route path="/draft" element={<Draft />} />
-                <Route path="/standings" element={<Standings />} />
+            <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/draft" element={<Draft />} />
+            <Route path="/standings" element={<Standings />} />
                 <Route path="/hub" element={<Hub />} />
-                <Route path="/browse-leagues" element={<BrowseLeagues />} />
-                <Route path="/create-league" element={<CreateLeague />} />
-                <Route path="/profile" element={<Profile />} />
+            <Route path="/browse-leagues" element={<BrowseLeagues />} />
+            <Route path="/create-league" element={<CreateLeague />} />
+            <Route path="/profile" element={<Profile />} />
               </Route>
-              <Route path="*" element={<NotFound />} />
-            </Routes>
-          </BrowserRouter>
-          <Toaster />
-          <Sonner />
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </BrowserRouter>
+        <Toaster />
+        <Sonner />
         </AuthProvider>
       </TooltipProvider>
     </MotionConfig>

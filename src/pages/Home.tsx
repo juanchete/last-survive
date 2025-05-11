@@ -6,8 +6,16 @@ import { Layout } from "@/components/Layout";
 import { TestimonialSection } from "@/components/TestimonialSection";
 import { motion } from "framer-motion";
 import { Card, CardContent } from "@/components/ui/card";
+import { useAuth } from "@/hooks/useAuth";
+import { Navigate } from "react-router-dom";
 
 export default function Home() {
+
+  const { user, loading } = useAuth();
+  if (!loading && user) {
+    return <Navigate to="/hub" replace />;
+  }
+  
   return (
     <Layout>
       <div className="flex flex-col bg-nfl-dark">

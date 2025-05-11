@@ -23,7 +23,7 @@ export function Header() {
       <div className="container mx-auto px-6 py-4 flex items-center justify-between">
         {/* Logo Section */}
         <div className="flex items-center">
-          <Link to="/" className="flex items-center">
+          <Link to={ user ? "/hub" : "/"} className="flex items-center">
             <img 
               src="/lovable-uploads/c98f0db9-c234-4e8c-be65-19438a4ac393.png"
               alt="Survive Week Logo"
