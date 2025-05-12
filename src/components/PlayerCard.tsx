@@ -8,9 +8,10 @@ interface PlayerCardProps {
   player: Player;
   onDraft?: (playerId: string) => void;
   showDraftButton?: boolean;
+  buttonText?: string;
 }
 
-export function PlayerCard({ player, onDraft, showDraftButton = false }: PlayerCardProps) {
+export function PlayerCard({ player, onDraft, showDraftButton = false, buttonText = "Draft Player" }: PlayerCardProps) {
   const positionColors = {
     QB: "bg-nfl-blue",
     RB: "bg-nfl-green",
@@ -121,7 +122,7 @@ export function PlayerCard({ player, onDraft, showDraftButton = false }: PlayerC
                   className="w-full bg-nfl-blue hover:bg-nfl-lightblue" 
                   onClick={() => onDraft && onDraft(player.id)}
                 >
-                  Draft Player
+                  {buttonText}
                 </Button>
               </div>
             )}

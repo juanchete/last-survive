@@ -41,10 +41,16 @@ export function useRosterWithPlayerDetails(fantasyTeamId: string, week: number) 
       
       // Create a lookup map for players and stats
       const playersMap = new Map(players.map(player => {
-        // Ensure position is properly typed
+        // Map the database response to our Player type
         const typedPlayer = {
-          ...player,
-          position: player.position as "QB" | "RB" | "WR" | "TE" | "K" | "DEF"
+          id: player.id.toString(),
+          name: player.name,
+          position: player.position as "QB" | "RB" | "WR" | "TE" | "K" | "DEF",
+          team: player.nfl_team?.abbreviation || "",
+          available: false, // In a roster, so not available
+          eliminated: false, // This would need to be calculated from NFL team status
+          points: 0, // This would be updated from stats
+          photo: player.photo_url
         } as Player;
         return [player.id, typedPlayer];
       }));
@@ -54,6 +60,11 @@ export function useRosterWithPlayerDetails(fantasyTeamId: string, week: number) 
       return roster.map(rosterItem => {
         const player = playersMap.get(rosterItem.player_id);
         const playerStats = statsMap.get(rosterItem.player_id);
+        
+        // If we have statistics, update the player points
+        if (player && playerStats) {
+          player.points = playerStats.fantasy_points || 0;
+        }
         
         return {
           ...rosterItem,

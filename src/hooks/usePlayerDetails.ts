@@ -21,12 +21,19 @@ export function usePlayerDetails(playerId: number) {
       if (data) {
         // Ensure position is properly typed
         const position = data.position as "QB" | "RB" | "WR" | "TE" | "K" | "DEF";
+        // Map the database response to our Player type
         return {
-          ...data,
-          position
+          id: data.id.toString(),
+          name: data.name,
+          position,
+          team: data.nfl_team?.abbreviation || "",
+          available: true, // We assume it's available since we're fetching it
+          eliminated: false, // This would need to be calculated from NFL team status
+          points: 0, // This would need to be fetched from stats
+          photo: data.photo_url
         } as Player;
       }
-      return data as Player | null;
+      return null;
     },
     enabled: !!playerId,
   });

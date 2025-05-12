@@ -1,25 +1,51 @@
+
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import type { Player } from "@/types";
 
 export function useWaiverPlayers(leagueId: string, week: number) {
   return useQuery({
     queryKey: ["waiverPlayers", leagueId, week],
     queryFn: async () => {
-      // Obtener IDs de jugadores ya asignados en la semana
+      // Get IDs of players already assigned in the week
       const { data: rosters, error: rostersError } = await supabase
         .from("team_rosters")
         .select("player_id")
         .eq("week", week);
       if (rostersError) throw rostersError;
       const assignedIds = rosters?.map((r) => r.player_id) || [];
-      // Obtener jugadores no asignados
-      let query = supabase.from("players").select("*");
+      
+      // Get unassigned players
+      let query = supabase.from("players").select("*, nfl_team:nfl_teams(abbreviation)");
       if (assignedIds.length > 0) {
         query = query.not("id", "in", `(${assignedIds.join(",")})`);
       }
       const { data: players, error } = await query;
       if (error) throw error;
-      return players;
+      
+      // Get player stats for the current week
+      const { data: stats, error: statsError } = await supabase
+        .from("player_stats")
+        .select("player_id, fantasy_points")
+        .eq("week", week);
+      if (statsError) throw statsError;
+      
+      // Create a map of player points
+      const pointsMap = new Map(stats?.map((s) => [s.player_id, s.fantasy_points]) || []);
+      
+      // Convert to typed Player objects
+      return players.map((player) => {
+        return {
+          id: player.id.toString(),
+          name: player.name,
+          position: player.position as "QB" | "RB" | "WR" | "TE" | "K" | "DEF",
+          team: player.nfl_team?.abbreviation || "",
+          available: true, // Not in roster, so available
+          eliminated: false, // This would need to be calculated from NFL team status
+          points: pointsMap.get(player.id) || 0,
+          photo: player.photo_url
+        } as Player;
+      });
     },
     enabled: !!leagueId && !!week,
   });

@@ -17,6 +17,8 @@ export function LeagueNav({ leagueId }: LeagueNavProps) {
     if (pathname.includes("/dashboard")) return "dashboard";
     if (pathname.includes("/standings")) return "standings";
     if (pathname.includes("/draft")) return "draft";
+    if (pathname.includes("/waivers")) return "waivers";
+    if (pathname.includes("/picks")) return "picks";
     return "dashboard"; // Default
   };
   
@@ -40,6 +42,12 @@ export function LeagueNav({ leagueId }: LeagueNavProps) {
             <Link to={`/draft?league=${leagueId}`} className="flex items-center gap-1.5">
               <Users className="w-4 h-4" />
               Draft
+            </Link>
+          </TabsTrigger>
+          <TabsTrigger value="waivers" asChild className="data-[state=active]:bg-nfl-blue data-[state=active]:text-white">
+            <Link to={`/waivers?league=${leagueId}`} className="flex items-center gap-1.5">
+              <ListChecks className="w-4 h-4" />
+              Waivers
             </Link>
           </TabsTrigger>
           <TabsTrigger value="picks" asChild className="data-[state=active]:bg-nfl-blue data-[state=active]:text-white">

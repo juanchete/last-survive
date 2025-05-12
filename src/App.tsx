@@ -11,6 +11,7 @@ import Dashboard from "./pages/Dashboard";
 import Draft from "./pages/Draft";
 import Standings from "./pages/Standings";
 import Picks from "./pages/Picks";
+import Waivers from "./pages/Waivers";
 import HowItWorks from "./pages/HowItWorks";
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
@@ -39,6 +40,7 @@ const App = () => (
             <Route path="/draft" element={<Draft />} />
             <Route path="/standings" element={<Standings />} />
             <Route path="/picks" element={<Picks />} />
+            <Route path="/waivers" element={<Waivers />} />
                 <Route path="/hub" element={<Hub />} />
             <Route path="/browse-leagues" element={<BrowseLeagues />} />
             <Route path="/create-league" element={<CreateLeague />} />
