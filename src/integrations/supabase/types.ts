@@ -119,36 +119,57 @@ export type Database = {
       leagues: {
         Row: {
           created_at: string | null
+          current_pick: number | null
           description: string | null
+          draft_order: string[] | null
+          draft_status: string | null
           entry_fee: number | null
           id: string
           image_url: string | null
           is_private: boolean
+          max_members: number | null
           name: string
           owner_id: string | null
           private_code: string | null
+          prize: string | null
+          start_date: string | null
+          status: string | null
         }
         Insert: {
           created_at?: string | null
+          current_pick?: number | null
           description?: string | null
+          draft_order?: string[] | null
+          draft_status?: string | null
           entry_fee?: number | null
           id?: string
           image_url?: string | null
           is_private?: boolean
+          max_members?: number | null
           name: string
           owner_id?: string | null
           private_code?: string | null
+          prize?: string | null
+          start_date?: string | null
+          status?: string | null
         }
         Update: {
           created_at?: string | null
+          current_pick?: number | null
           description?: string | null
+          draft_order?: string[] | null
+          draft_status?: string | null
           entry_fee?: number | null
           id?: string
           image_url?: string | null
           is_private?: boolean
+          max_members?: number | null
           name?: string
           owner_id?: string | null
           private_code?: string | null
+          prize?: string | null
+          start_date?: string | null
+          status?: string | null
         }
         Relationships: [
           {
@@ -281,6 +302,75 @@ export type Database = {
           },
         ]
       }
+      roster_moves: {
+        Row: {
+          acquired_type: string | null
+          action: string | null
+          created_at: string | null
+          fantasy_team_id: string | null
+          id: string
+          player_id: number | null
+          previous_team_id: string | null
+          week: number | null
+        }
+        Insert: {
+          acquired_type?: string | null
+          action?: string | null
+          created_at?: string | null
+          fantasy_team_id?: string | null
+          id?: string
+          player_id?: number | null
+          previous_team_id?: string | null
+          week?: number | null
+        }
+        Update: {
+          acquired_type?: string | null
+          action?: string | null
+          created_at?: string | null
+          fantasy_team_id?: string | null
+          id?: string
+          player_id?: number | null
+          previous_team_id?: string | null
+          week?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "roster_moves_fantasy_team_id_fkey"
+            columns: ["fantasy_team_id"]
+            isOneToOne: false
+            referencedRelation: "fantasy_teams"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "roster_moves_fantasy_team_id_fkey"
+            columns: ["fantasy_team_id"]
+            isOneToOne: false
+            referencedRelation: "league_fantasy_team_ranking"
+            referencedColumns: ["fantasy_team_id"]
+          },
+          {
+            foreignKeyName: "roster_moves_player_id_fkey"
+            columns: ["player_id"]
+            isOneToOne: false
+            referencedRelation: "players"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "roster_moves_previous_team_id_fkey"
+            columns: ["previous_team_id"]
+            isOneToOne: false
+            referencedRelation: "fantasy_teams"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "roster_moves_previous_team_id_fkey"
+            columns: ["previous_team_id"]
+            isOneToOne: false
+            referencedRelation: "league_fantasy_team_ranking"
+            referencedColumns: ["fantasy_team_id"]
+          },
+        ]
+      }
       team_rosters: {
         Row: {
           acquired_type: string
@@ -289,6 +379,7 @@ export type Database = {
           id: number
           is_active: boolean | null
           player_id: number | null
+          slot: string | null
           week: number
         }
         Insert: {
@@ -298,6 +389,7 @@ export type Database = {
           id?: number
           is_active?: boolean | null
           player_id?: number | null
+          slot?: string | null
           week: number
         }
         Update: {
@@ -307,6 +399,7 @@ export type Database = {
           id?: number
           is_active?: boolean | null
           player_id?: number | null
+          slot?: string | null
           week?: number
         }
         Relationships: [

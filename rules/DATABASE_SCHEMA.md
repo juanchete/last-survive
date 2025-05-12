@@ -27,6 +27,9 @@
 - `prize` (string, opcional)
 - `start_date` (timestamp, opcional)
 - `created_at` (timestamp)
+- `draft_order` (UUID[], opcional) // Orden de picks para el draft
+- `current_pick` (integer, opcional) // Índice del turno actual en el draft
+- `draft_status` (varchar(20), default 'pending') // 'pending', 'in_progress', 'completed'
 
 ---
 
@@ -101,6 +104,7 @@
 - `is_active` (boolean)
 - `acquired_type` (enum: 'draft', 'waivers', 'free_agent')
 - `acquired_week` (integer)
+- `slot` (varchar(10), opcional) // Posición en el roster: 'QB', 'RB1', 'FLEX', 'BENCH', etc.
 
 ---
 
@@ -121,6 +125,18 @@
 - `player_id` (FK → players.id)
 - `status` (enum: 'pending', 'approved', 'rejected')
 - `created_at` (timestamp)
+
+---
+
+## 12. roster_moves
+- `id` (PK, UUID)
+- `fantasy_team_id` (FK → fantasy_teams.id)
+- `player_id` (FK → players.id, INTEGER)
+- `week` (integer)
+- `action` (varchar(20)) // 'add', 'drop', 'waiver_claim', 'draft_pick', etc.
+- `acquired_type` (varchar(20)) // 'draft', 'waivers', 'free_agent'
+- `created_at` (timestamp)
+- `previous_team_id` (FK → fantasy_teams.id, opcional)
 
 ---
 
