@@ -26,7 +26,7 @@ export default function BrowseLeagues() {
   const [loading, setLoading] = useState(true);
   const [leagueMembers, setLeagueMembers] = useState<LeagueMember[]>([]);
 
-  // Obtener ligas y membresías reales
+  // Obtener ligas and memberships reales
   useEffect(() => {
     const fetchLeagues = async () => {
       setLoading(true);
@@ -59,7 +59,7 @@ export default function BrowseLeagues() {
       }
       setLeagueMembers(allMembers || []);
 
-      // Obtener ligas donde el usuario es miembro
+      // Obtener ligas where the user is member
       if (user) {
         const myLeagueIds = allMembers?.filter((m) => m.user_id === user.id).map((m) => m.league_id) || [];
         setMyLeagues(typedLeagues.filter((l) => myLeagueIds.includes(l.id)));
@@ -90,7 +90,7 @@ export default function BrowseLeagues() {
   // Unirse a una liga real
   const handleJoinLeague = async () => {
     if (!user) {
-      toast({ title: "Debes iniciar sesión para unirte a una liga", variant: "destructive" });
+      toast({ title: "You must log in to join a league", variant: "destructive" });
       return;
     }
     if (selectedLeague?.is_private) {
@@ -109,11 +109,11 @@ export default function BrowseLeagues() {
           }
         ]);
       if (error) {
-        toast({ title: "Error al unirse", description: error.message, variant: "destructive" });
+        toast({ title: "Error joining", description: error.message, variant: "destructive" });
       } else {
         toast({
-          title: "¡Te has unido a la liga!",
-          description: `Ahora eres miembro de ${selectedLeague.name}`,
+          title: "¡You have joined the league!",
+          description: `Now you are a member of ${selectedLeague.name}`,
           variant: "default",
         });
         setIsDialogOpen(false);
@@ -127,8 +127,8 @@ export default function BrowseLeagues() {
   const handleSendRequest = () => {
     // Aquí podrías implementar lógica para enviar una solicitud real al owner
     toast({
-      title: "¡Solicitud enviada!",
-      description: `Tu solicitud para unirte a ${selectedLeague?.name} ha sido enviada al owner de la liga.`,
+      title: "¡Request sent!",
+      description: `Your request to join ${selectedLeague?.name} has been sent to the owner of the league.`,
       variant: "default",
     });
     setIsRequestDialogOpen(false);
@@ -144,13 +144,13 @@ export default function BrowseLeagues() {
       <div className="container mx-auto px-4 py-8">
         <div className="flex flex-col md:flex-row md:items-center justify-between mb-8">
           <div>
-            <h1 className="text-3xl font-bold text-white">Explorar Ligas</h1>
-            <p className="text-gray-400 mt-1">Encuentra y únete a ligas NFL Survivor</p>
+            <h1 className="text-3xl font-bold text-white">Explore Leagues</h1>
+            <p className="text-gray-400 mt-1">Find and join NFL Survivor leagues</p>
           </div>
           <div className="mt-4 md:mt-0 relative w-full md:w-64">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
             <Input 
-              placeholder="Buscar ligas..." 
+              placeholder="Search leagues..." 
               className="pl-10 bg-nfl-gray/50 border-nfl-light-gray/20 text-white" 
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
@@ -160,8 +160,8 @@ export default function BrowseLeagues() {
 
         <Tabs defaultValue="available" className="w-full">
           <TabsList className="bg-nfl-dark-gray/50 border border-nfl-light-gray/20 mb-6">
-            <TabsTrigger value="available" className="data-[state=active]:bg-nfl-blue data-[state=active]:text-white">Ligas Disponibles</TabsTrigger>
-            <TabsTrigger value="my-leagues" className="data-[state=active]:bg-nfl-blue data-[state=active]:text-white">Mis Ligas ({myLeagues.length})</TabsTrigger>
+            <TabsTrigger value="available" className="data-[state=active]:bg-nfl-blue data-[state=active]:text-white">Available Leagues</TabsTrigger>
+            <TabsTrigger value="my-leagues" className="data-[state=active]:bg-nfl-blue data-[state=active]:text-white">My Leagues ({myLeagues.length})</TabsTrigger>
           </TabsList>
           
           <TabsContent value="available" className="mt-0">
@@ -180,7 +180,7 @@ export default function BrowseLeagues() {
                         <h3 className="text-xl font-bold text-white">{league.name}</h3>
                         {league.is_private && (
                           <Badge variant="outline" className="bg-transparent border-yellow-500/70 text-yellow-400">
-                            <Lock className="w-3 h-3 mr-1" /> Privada
+                            <Lock className="w-3 h-3 mr-1" /> Private
                           </Badge>
                         )}
                       </div>
@@ -194,7 +194,7 @@ export default function BrowseLeagues() {
                       </div>
                       <div className="flex items-center gap-1">
                         <Calendar className="w-3.5 h-3.5 text-nfl-blue" />
-                        <span className="text-gray-300">Empieza {new Date(league.start_date).toLocaleDateString()}</span>
+                        <span className="text-gray-300">Starts {new Date(league.start_date).toLocaleDateString()}</span>
                       </div>
                     </div>
                     <div className="flex items-center justify-between mb-4">
@@ -216,13 +216,13 @@ export default function BrowseLeagues() {
                             : "bg-gray-500/20 text-gray-400 border-gray-500/30"
                       }`}
                     >
-                      {league.status === "active" ? "Activa" : league.status === "upcoming" ? "Próxima" : "Finalizada"}
+                      {league.status === "active" ? "Active" : league.status === "upcoming" ? "Upcoming" : "Finished"}
                     </Badge>
                     <Button 
                       className="w-full bg-nfl-blue hover:bg-nfl-lightblue mt-2" 
                       onClick={() => handleOpenLeagueDetails(league)}
                     >
-                      Ver Detalles
+                      View Details
                     </Button>
                   </CardContent>
                 </Card>
@@ -231,7 +231,7 @@ export default function BrowseLeagues() {
             
             {filteredAvailableLeagues.length === 0 && (
               <div className="text-center py-12">
-                <p className="text-gray-400 text-lg">No hay ligas que coincidan con tu búsqueda.</p>
+                <p className="text-gray-400 text-lg">No leagues found that match your search.</p>
               </div>
             )}
           </TabsContent>
@@ -266,7 +266,7 @@ export default function BrowseLeagues() {
                       </div>
                       <div className="flex items-center gap-1">
                         <Calendar className="w-3.5 h-3.5 text-nfl-blue" />
-                        <span className="text-gray-300">Empieza {new Date(league.start_date).toLocaleDateString()}</span>
+                        <span className="text-gray-300">Starts {new Date(league.start_date).toLocaleDateString()}</span>
                       </div>
                     </div>
                     <Badge 
@@ -278,13 +278,13 @@ export default function BrowseLeagues() {
                             : "bg-gray-500/20 text-gray-400 border-gray-500/30"
                       }`}
                     >
-                      {league.status === "active" ? "Activa" : league.status === "upcoming" ? "Próxima" : "Finalizada"}
+                      {league.status === "active" ? "Active" : league.status === "upcoming" ? "Upcoming" : "Finished"}
                     </Badge>
                     <Button 
                       className="w-full bg-nfl-blue hover:bg-nfl-lightblue mt-2" 
                       onClick={() => handleOpenLeagueDetails(league)}
                     >
-                      {league.status === "active" ? "Ir al Dashboard" : "Ver Detalles"}
+                      {league.status === "active" ? "Go to Dashboard" : "View Details"}
                     </Button>
                   </CardContent>
                 </Card>
@@ -293,7 +293,7 @@ export default function BrowseLeagues() {
             
             {filteredUserLeagues.length === 0 && (
               <div className="text-center py-12">
-                <p className="text-gray-400 text-lg">No hay ligas que coincidan con tu búsqueda.</p>
+                <p className="text-gray-400 text-lg">No leagues found that match your search.</p>
               </div>
             )}
           </TabsContent>
@@ -310,12 +310,12 @@ export default function BrowseLeagues() {
                   <DialogTitle className="text-2xl font-bold">{selectedLeague.name}</DialogTitle>
                   {selectedLeague.is_private && (
                     <Badge variant="outline" className="bg-transparent border-yellow-500/70 text-yellow-400">
-                      <Lock className="w-3 h-3 mr-1" /> Privada
+                      <Lock className="w-3 h-3 mr-1" /> Private
                     </Badge>
                   )}
                 </div>
                 <DialogDescription className="text-gray-300">
-                  Creada por {selectedLeague.owner?.full_name || selectedLeague.owner?.email || "Desconocido"}
+                  Created by {selectedLeague.owner?.full_name || selectedLeague.owner?.email || "Unknown"}
                 </DialogDescription>
               </DialogHeader>
               
@@ -333,22 +333,22 @@ export default function BrowseLeagues() {
                 
                 <div className="grid grid-cols-2 gap-4">
                   <div className="bg-nfl-dark-gray/50 p-3 rounded-lg">
-                    <div className="text-sm text-gray-400">Miembros</div>
+                    <div className="text-sm text-gray-400">Members</div>
                     <div className="text-lg font-medium">{getMemberCount(selectedLeague.id)}/{selectedLeague.max_members}</div>
                   </div>
                   <div className="bg-nfl-dark-gray/50 p-3 rounded-lg">
-                    <div className="text-sm text-gray-400">Fecha de inicio</div>
+                    <div className="text-sm text-gray-400">Start Date</div>
                     <div className="text-lg font-medium">{new Date(selectedLeague.start_date).toLocaleDateString()}</div>
                   </div>
                 </div>
                 {selectedLeague.entry_fee && (
                   <div className="flex items-center justify-between bg-nfl-dark-gray/50 p-3 rounded-lg">
                     <div>
-                      <div className="text-sm text-gray-400">Costo de entrada</div>
+                      <div className="text-sm text-gray-400">Entry Fee</div>
                       <div className="text-lg font-medium">{selectedLeague.entry_fee}</div>
                     </div>
                     <div className="text-right">
-                      <div className="text-sm text-gray-400">Premio</div>
+                      <div className="text-sm text-gray-400">Prize</div>
                       <div className="text-lg font-bold text-nfl-gold">{selectedLeague.prize}</div>
                     </div>
                   </div>
@@ -362,7 +362,7 @@ export default function BrowseLeagues() {
                         : "bg-gray-500/20 text-gray-400 border-gray-500/30"
                   }`}
                 >
-                  {selectedLeague.status === "active" ? "Activa" : selectedLeague.status === "upcoming" ? "Próxima" : "Finalizada"}
+                  {selectedLeague.status === "active" ? "Active" : selectedLeague.status === "upcoming" ? "Upcoming" : "Finished"}
                 </Badge>
               </div>
               
@@ -371,7 +371,7 @@ export default function BrowseLeagues() {
                 {myLeagues.some(league => league.id === selectedLeague.id) ? (
                   <Button asChild className="bg-nfl-blue hover:bg-nfl-lightblue w-full sm:w-auto">
                     <a href={`/dashboard?league=${selectedLeague.id}`}>
-                      Ir al Dashboard
+                      Go to Dashboard
                     </a>
                   </Button>
                 ) : (
@@ -379,7 +379,7 @@ export default function BrowseLeagues() {
                     className="bg-nfl-blue hover:bg-nfl-lightblue w-full sm:w-auto" 
                     onClick={handleJoinLeague}
                   >
-                    {selectedLeague.is_private ? "Solicitar acceso" : "Unirse a la liga"}
+                    {selectedLeague.is_private ? "Request Access" : "Join the League"}
                   </Button>
                 )}
               </DialogFooter>
@@ -392,19 +392,19 @@ export default function BrowseLeagues() {
       <AlertDialog open={isRequestDialogOpen} onOpenChange={setIsRequestDialogOpen}>
         <AlertDialogContent className="bg-nfl-gray border-nfl-light-gray/30 text-white">
           <AlertDialogHeader>
-            <AlertDialogTitle>Solicitar acceso a {selectedLeague?.name}</AlertDialogTitle>
+            <AlertDialogTitle>Request Access to {selectedLeague?.name}</AlertDialogTitle>
             <AlertDialogDescription className="text-gray-300">
-              Esta es una liga privada. Tu solicitud será enviada al owner para su aprobación.
+              This is a private league. Your request will be sent to the owner for approval.
             </AlertDialogDescription>
           </AlertDialogHeader>
           
           <div className="my-4">
             <label htmlFor="request-message" className="text-sm font-medium text-gray-200 block mb-2">
-              Mensaje (opcional)
+              Message (optional)
             </label>
             <Input
               id="request-message"
-              placeholder="Agrega un mensaje para el owner de la liga..."
+              placeholder="Add a message to the owner of the league..."
               className="bg-nfl-dark-gray border-nfl-light-gray/30 text-white"
               value={requestMessage}
               onChange={(e) => setRequestMessage(e.target.value)}
@@ -413,13 +413,13 @@ export default function BrowseLeagues() {
           
           <AlertDialogFooter>
             <AlertDialogCancel className="bg-transparent border-gray-600 text-white hover:bg-nfl-dark-gray/50">
-              Cancelar
+              Cancel
             </AlertDialogCancel>
             <AlertDialogAction 
               className="bg-nfl-blue hover:bg-nfl-lightblue text-white"
               onClick={handleSendRequest}
             >
-              Enviar Solicitud
+              Send Request
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

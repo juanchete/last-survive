@@ -208,6 +208,51 @@ export type Database = {
         }
         Relationships: []
       }
+      notifications: {
+        Row: {
+          date: string
+          id: string
+          league_id: string | null
+          message: string
+          read: boolean
+          type: string
+          user_id: string | null
+        }
+        Insert: {
+          date?: string
+          id?: string
+          league_id?: string | null
+          message: string
+          read?: boolean
+          type: string
+          user_id?: string | null
+        }
+        Update: {
+          date?: string
+          id?: string
+          league_id?: string | null
+          message?: string
+          read?: boolean
+          type?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notifications_league_id_fkey"
+            columns: ["league_id"]
+            isOneToOne: false
+            referencedRelation: "leagues"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "notifications_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       player_stats: {
         Row: {
           fantasy_points: number | null

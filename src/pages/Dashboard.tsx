@@ -51,29 +51,29 @@ export default function Dashboard() {
           <CardHeader className="pb-2">
             <CardTitle className="flex items-center gap-2">
               <User className="w-5 h-5 text-nfl-blue" />
-              <span className="text-xl">Bienvenido a la Semana {currentWeek}</span>
+              <span className="text-xl">Welcome to Week {currentWeek}</span>
             </CardTitle>
           </CardHeader>
           <CardContent className="p-6">
             {isLoading ? (
-              <p className="text-gray-300 mb-4">Cargando datos...</p>
+              <p className="text-gray-300 mb-4">Loading data...</p>
             ) : userTeam ? (
               <>
                 <p className="text-gray-300 mb-4">
-                  Tu equipo "{userTeam.name}" está actualmente en el puesto #{userTeam.rank}.
-                  Consulta los enfrentamientos de esta semana y los jugadores disponibles.
+                  Your team "{userTeam.name}" is currently in position #{userTeam.rank}.
+                  Check out this week's matchups and available players.
                 </p>
                 <div className="flex flex-wrap gap-3">
                   <Button asChild variant="default" className="bg-nfl-blue hover:bg-nfl-lightblue">
-                    <Link to={`/draft?league=${leagueId}`}>Draftear Jugadores</Link>
+                    <Link to={`/draft?league=${leagueId}`}>Draft Players</Link>
                   </Button>
                   <Button asChild variant="outline" className="border-nfl-blue text-nfl-blue hover:bg-nfl-blue/10">
-                    <Link to={`/standings?league=${leagueId}`}>Ver Clasificación</Link>
+                    <Link to={`/standings?league=${leagueId}`}>View Standings</Link>
                   </Button>
                 </div>
               </>
             ) : (
-              <p className="text-gray-300 mb-4">No tienes equipo en esta liga.</p>
+              <p className="text-gray-300 mb-4">You don't have a team in this league.</p>
             )}
           </CardContent>
         </Card>
@@ -84,38 +84,38 @@ export default function Dashboard() {
             {/* Your Team Section */}
             <section>
               <div className="flex justify-between items-center mb-4">
-                <h2 className="text-xl font-semibold text-white/90">Tu Equipo</h2>
+                <h2 className="text-xl font-semibold text-white/90">Your Team</h2>
                 <Button asChild variant="link" className="text-nfl-blue p-0">
                   <Link to="/team" className="flex items-center gap-1">
-                    Gestionar Equipo <ArrowRight className="w-4 h-4" />
+                    Manage Team <ArrowRight className="w-4 h-4" />
                   </Link>
                 </Button>
               </div>
               {loadingUserTeam ? (
-                <p className="text-gray-400">Cargando equipo...</p>
+                <p className="text-gray-400">Loading team...</p>
               ) : userTeam ? (
                 <TeamCard team={userTeam} isUser={true} />
               ) : (
-                <p className="text-gray-400">No tienes equipo en esta liga.</p>
+                <p className="text-gray-400">You don't have a team in this league.</p>
               )}
             </section>
 
             {/* Top Available Players */}
             <section>
               <div className="flex justify-between items-center mb-4">
-                <h2 className="text-xl font-semibold text-white/90">Mejores Jugadores Disponibles</h2>
+                <h2 className="text-xl font-semibold text-white/90">Top Available Players</h2>
                 <Button asChild variant="link" className="text-nfl-blue p-0">
                   <Link to={`/draft?league=${leagueId}`} className="flex items-center gap-1">
-                    Ver Todos <ArrowRight className="w-4 h-4" />
+                    View All <ArrowRight className="w-4 h-4" />
                   </Link>
                 </Button>
               </div>
               {loadingPlayers ? (
-                <p className="text-gray-400">Cargando jugadores...</p>
+                <p className="text-gray-400">Loading players...</p>
               ) : (
                 <div className="grid sm:grid-cols-2 gap-4">
                   {topAvailablePlayers.length === 0 ? (
-                    <p className="text-gray-400 col-span-2">No hay jugadores disponibles.</p>
+                    <p className="text-gray-400 col-span-2">No players available.</p>
                   ) : (
                     topAvailablePlayers.map(player => (
                       <PlayerCard key={player.id} player={player} />
@@ -136,12 +136,12 @@ export default function Dashboard() {
               <CardHeader className="bg-nfl-dark-gray/50 border-b border-nfl-light-gray/20">
                 <CardTitle className="flex items-center gap-2 text-lg">
                   <Trophy className="w-5 h-5 text-nfl-blue" />
-                  <span>Mejores Equipos</span>
+                  <span>Top Teams</span>
                 </CardTitle>
               </CardHeader>
               <CardContent className="p-4">
                 {loadingTeams ? (
-                  <p className="text-gray-400">Cargando equipos...</p>
+                  <p className="text-gray-400">Loading teams...</p>
                 ) : (
                   <div className="space-y-4">
                     {topTeams.map((team, index) => (
@@ -163,7 +163,7 @@ export default function Dashboard() {
                   </div>
                 )}
                 <Button asChild variant="outline" className="w-full mt-4 text-nfl-blue border-nfl-blue hover:bg-nfl-blue/10">
-                  <Link to={`/standings?league=${leagueId}`}>Ver Todos los Equipos</Link>
+                  <Link to={`/standings?league=${leagueId}`}>View All Teams</Link>
                 </Button>
               </CardContent>
             </Card>
@@ -173,7 +173,7 @@ export default function Dashboard() {
               <CardHeader className="bg-nfl-dark-gray/50 border-b border-nfl-light-gray/20">
                 <CardTitle className="flex items-center gap-2 text-lg">
                   <Calendar className="w-5 h-5 text-nfl-blue" />
-                  <span>Calendario de la Temporada</span>
+                  <span>Season Timeline</span>
                 </CardTitle>
               </CardHeader>
               <CardContent className="p-4">
@@ -189,16 +189,16 @@ export default function Dashboard() {
                         }>
                           S{week}
                         </Badge>
-                        <span className="text-sm">Semana {week}</span>
+                        <span className="text-sm">Week {week}</span>
                       </div>
                       <Badge variant="outline" className={`bg-transparent text-xs ${
                         week < currentWeek ? "text-nfl-green" :
                         week === currentWeek ? "text-nfl-blue" :
                         "text-gray-400"
                       }`}>
-                        {week < currentWeek ? 'Completada' : 
-                         week === currentWeek ? 'Activa' : 
-                         'Próxima'}
+                        {week < currentWeek ? 'Completed' : 
+                         week === currentWeek ? 'Active' : 
+                         'Upcoming'}
                       </Badge>
                     </div>
                   ))}

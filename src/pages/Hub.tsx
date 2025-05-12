@@ -29,7 +29,7 @@ const Hub = () => {
         setLoading(false);
         return;
       }
-      // Obtener las ligas donde el usuario es miembro
+      // Obtener las ligas where the user is a member
       const { data: memberRows, error: memberError } = await supabase
         .from("league_members")
         .select("league_id")
@@ -66,32 +66,32 @@ const Hub = () => {
       <Header />
       <div className="container mx-auto px-6 py-8">
         <div className="flex items-center justify-between mb-8">
-          <h1 className="text-3xl font-bold">Mis Ligas</h1>
+          <h1 className="text-3xl font-bold">My Leagues</h1>
           <Link to="/create-league">
             <Button>
               <Plus className="w-4 h-4 mr-2" />
-              Crear Liga
+              Create League
             </Button>
           </Link>
         </div>
 
         {loading ? (
-          <div className="text-center py-16">Cargando ligas...</div>
+          <div className="text-center py-16">Loading leagues...</div>
         ) : leagues.length === 0 ? (
           <div className="text-center py-16 bg-muted/50 rounded-lg">
-            <h2 className="text-2xl font-bold mb-2">Aún no tienes ligas</h2>
+            <h2 className="text-2xl font-bold mb-2">You have no leagues</h2>
             <p className="text-muted-foreground mb-6 max-w-md mx-auto">
-              Crea tu primera liga o explora ligas existentes para unirte
+              Create your first league or explore existing leagues to join
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <Link to="/create-league">
                 <Button>
                   <Plus className="w-4 h-4 mr-2" />
-                  Crear una Liga
+                  Create a League
                 </Button>
               </Link>
               <Link to="/browse-leagues">
-                <Button variant="outline">Explorar Ligas</Button>
+                <Button variant="outline">Explore Leagues</Button>
               </Link>
             </div>
           </div>
@@ -120,20 +120,20 @@ const Hub = () => {
                 <div className="p-6">
                   <h3 className="font-bold text-xl mb-2">{league.name}</h3>
                   <p className="text-muted-foreground line-clamp-2 mb-4">
-                    {league.description || "Sin descripción"}
+                    {league.description || "No description"}
                   </p>
                   <div className="flex justify-between items-center">
                     <div className="text-sm text-muted-foreground">
-                      {league.max_members ? `${league.max_members} miembros máx.` : ""}
+                      {league.max_members ? `${league.max_members} max members` : ""}
                     </div>
                     <Link to={`/dashboard?league=${league.id}`}>
                       <Button variant="outline" size="sm">
-                        Ver Liga
+                        View League
                       </Button>
                     </Link>
                   </div>
                   {league.status && (
-                    <div className="mt-2 text-xs text-gray-500">Estado: {league.status === "active" ? "Activa" : league.status === "upcoming" ? "Próxima" : "Finalizada"}</div>
+                    <div className="mt-2 text-xs text-gray-500">Status: {league.status === "active" ? "Active" : league.status === "upcoming" ? "Upcoming" : "Finished"}</div>
                   )}
                 </div>
               </div>

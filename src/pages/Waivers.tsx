@@ -1,178 +1,160 @@
 import { useEffect, useState } from "react";
 import { Layout } from "@/components/Layout";
+import { LeagueNav } from "@/components/LeagueNav";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { useLeagueStore } from "@/store/leagueStore";
 import { Button } from "@/components/ui/button";
 import { useWaiverPlayers } from "@/hooks/useWaiverPlayers";
-import { supabase } from "@/integrations/supabase/client";
+import { useWaiverPriority } from "@/hooks/useWaiverPriority";
+import { useUserFantasyTeam } from "@/hooks/useUserFantasyTeam";
+import { useMyWaiverRequests } from "@/hooks/useMyWaiverRequests";
+import { requestWaiver } from "@/lib/draft";
 import { toast } from "@/components/ui/use-toast";
-import {
-  Table,
-  TableBody,
-  TableCaption,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
-import { Player } from "@/types";
+import { Badge } from "@/components/ui/badge";
+import { Loader2 } from "lucide-react";
+import type { Player } from "@/types";
 
 const Waivers = () => {
-  const leagueId = useLeagueStore((state) => state.selectedLeagueId);
-  const currentWeek = useLeagueStore((state) => state.currentWeek);
-  const [waiverOrder, setWaiverOrder] = useState<
-    { team_id: string; priority: number; team_name: string }[]
-  >([]);
-  const [selectedPlayers, setSelectedPlayers] = useState<{
-    [teamId: string]: string | null;
-  }>({});
-  const { data: waiverPlayers, isLoading } = useWaiverPlayers(
-    leagueId || "",
-    currentWeek
-  );
+  // Aquí debes obtener leagueId y currentWeek de tu store global o props
+  const leagueId = ""; // Reemplaza por tu lógica real
+  const currentWeek = 1; // Reemplaza por tu lógica real
+  const { data: userTeam } = useUserFantasyTeam(leagueId);
+  const { data: waiverPlayers = [], isLoading: loadingPlayers } = useWaiverPlayers(leagueId, currentWeek);
+  const { data: waiverPriority = [], isLoading: loadingPriority } = useWaiverPriority(leagueId, currentWeek);
+  const { data: myWaiverRequests = [], isLoading: loadingRequests, refetch } = useMyWaiverRequests(leagueId, currentWeek, userTeam?.id || "");
+  const [selectedPlayerId, setSelectedPlayerId] = useState<string>("");
+  const [loadingRequest, setLoadingRequest] = useState(false);
+  const [waiverPlayersState, setWaiverPlayersState] = useState<Player[]>([]);
 
-  useEffect(() => {
-    const fetchWaiverOrder = async () => {
-      if (!leagueId) return;
-      const { data, error } = await supabase
-        .from("waiver_order")
-        .select("*")
-        .eq("league_id", leagueId)
-        .order("priority", { ascending: true });
-      if (error) {
-        toast({
-          title: "Error fetching waiver order",
-          description: error.message,
-          variant: "destructive",
-        });
-        return;
-      }
-      setWaiverOrder(data);
-      // Initialize selectedPlayers state
-      const initialSelectedPlayers: { [teamId: string]: string | null } = {};
-      data.forEach((team) => {
-        initialSelectedPlayers[team.team_id] = null;
-      });
-      setSelectedPlayers(initialSelectedPlayers);
-    };
-
-    fetchWaiverOrder();
-  }, [leagueId]);
-
-  const handlePlayerSelect = (teamId: string, playerId: string) => {
-    setSelectedPlayers((prevSelectedPlayers) => ({
-      ...prevSelectedPlayers,
-      [teamId]: playerId,
-    }));
-  };
-
-  const handleSubmitWaivers = async () => {
-    if (!leagueId) {
-      toast({
-        title: "No league selected",
-        description: "Please select a league to submit waivers.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    const waiverRequests = waiverOrder.map((team) => {
-      const playerId = selectedPlayers[team.team_id];
-      return {
-        league_id: leagueId,
-        team_id: team.team_id,
-        player_id: playerId,
+  const handleRequest = async () => {
+    if (!selectedPlayerId || !userTeam) return;
+    setLoadingRequest(true);
+    try {
+      await requestWaiver({
+        leagueId,
         week: currentWeek,
-        priority: team.priority,
-      };
-    });
-
-    // Filter out null player_id values
-    const validWaiverRequests = waiverRequests.filter(
-      (req) => req.player_id !== null && req.player_id !== undefined
-    );
-
-    if (validWaiverRequests.length === 0) {
-      toast({
-        title: "No players selected",
-        description: "Please select at least one player to submit waivers.",
-        variant: "destructive",
+        fantasyTeamId: userTeam.id,
+        playerId: Number(selectedPlayerId),
       });
-      return;
+      toast({ title: "Solicitud enviada", description: "Tu waiver fue registrado." });
+      setSelectedPlayerId("");
+      refetch();
+    } catch (e: unknown) {
+      let message = "Unknown error";
+      if (e && typeof e === "object" && "message" in e && typeof (e as { message?: unknown }).message === "string") {
+        message = (e as { message: string }).message;
+      }
+      toast({ title: "Error", description: message, variant: "destructive" });
+    } finally {
+      setLoadingRequest(false);
     }
-
-    const { error } = await supabase.from("waiver_requests").insert(validWaiverRequests);
-
-    if (error) {
-      toast({
-        title: "Error submitting waivers",
-        description: error.message,
-        variant: "destructive",
-      });
-      return;
-    }
-
-    toast({
-      title: "Waivers submitted",
-      description: "Your waiver requests have been submitted.",
-    });
   };
+
+  const alreadyRequested = myWaiverRequests.some(req => req.player_id?.toString() === selectedPlayerId);
 
   return (
     <Layout>
+      <LeagueNav leagueId={leagueId} />
       <div className="container mx-auto px-4 py-8">
         <h1 className="text-3xl font-bold mb-8 text-center">Waivers - Week {currentWeek}</h1>
-
-        <Card className="bg-card border-border shadow-lg">
-          <CardHeader className="pb-0">
-            <CardTitle className="text-2xl font-semibold text-center">
-              Waiver Order
-            </CardTitle>
+        <Card className="mb-8">
+          <CardHeader>
+            <CardTitle>¿Cómo funciona el waiver?</CardTitle>
           </CardHeader>
-          <CardContent className="pt-6">
-            <Table>
-              <TableCaption>Waiver order for the current week.</TableCaption>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-[100px]">Priority</TableHead>
-                  <TableHead>Team Name</TableHead>
-                  <TableHead>Select Player</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {waiverOrder.map((waiver) => (
-                  <TableRow key={waiver.team_id}>
-                    <TableCell className="font-medium">{waiver.priority}</TableCell>
-                    <TableCell>{waiver.team_name}</TableCell>
-                    <TableCell>
-                      <select
-                        className="w-full h-10 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                        value={selectedPlayers[waiver.team_id] || ""}
-                        onChange={(e) =>
-                          handlePlayerSelect(waiver.team_id, e.target.value)
-                        }
-                      >
-                        <option value="">Select a player</option>
-                        {waiverPlayers?.map((player) => (
-                          <option key={player.id} value={player.id}>
-                            {player.name} ({player.position} - {player.team})
-                          </option>
-                        ))}
-                      </select>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-            <Button
-              className="mt-4 bg-nfl-blue hover:bg-nfl-blue/90"
-              onClick={handleSubmitWaivers}
-              disabled={isLoading}
-            >
-              Submit Waiver Requests
-            </Button>
+          <CardContent>
+            <ul className="list-disc pl-5 text-gray-300 text-sm space-y-1">
+              <li>Durante el periodo de waivers puedes solicitar jugadores que no estén en ningún equipo.</li>
+              <li>La prioridad determina quién recibe al jugador si hay varias solicitudes.</li>
+              <li>Cuando termina el periodo, los jugadores no reclamados pasan a ser agentes libres.</li>
+              <li>Puedes ver el estado de tus solicitudes abajo.</li>
+            </ul>
           </CardContent>
         </Card>
+        <div className="grid md:grid-cols-2 gap-8">
+          {/* Prioridad de waivers */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Waivers Priority</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {loadingPriority ? (
+                <div className="flex items-center gap-2 text-gray-400"><Loader2 className="animate-spin" /> Loading priority...</div>
+              ) : (
+                <ul className="space-y-2">
+                  {waiverPriority.map((wp, idx) => (
+                    <li key={wp.fantasy_team_id} className="flex items-center gap-2">
+                      <Badge className={userTeam?.id === wp.fantasy_team_id ? "bg-nfl-blue text-white" : "bg-nfl-gray text-gray-300"}>
+                        {idx + 1}
+                      </Badge>
+                      <span className={userTeam?.id === wp.fantasy_team_id ? "font-bold text-nfl-blue" : ""}>
+                        Team {wp.fantasy_team_id}{userTeam?.id === wp.fantasy_team_id && " (You)"}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </CardContent>
+          </Card>
+          {/* Solicitar jugador */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Solicitar Jugador</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex flex-col gap-4">
+                <select
+                  value={selectedPlayerId}
+                  onChange={e => setSelectedPlayerId(e.target.value)}
+                  className="w-full h-10 rounded-md border px-3 py-2 text-sm"
+                  disabled={loadingPlayers || loadingRequest}
+                >
+                  <option value="">Selecciona un jugador</option>
+                  {waiverPlayers.map(player => (
+                    <option key={player.id} value={player.id} disabled={myWaiverRequests.some(req => req.player_id?.toString() === player.id)}>
+                      {player.name} ({player.position} - {player.team}) | {player.points} pts
+                    </option>
+                  ))}
+                </select>
+                <Button
+                  onClick={handleRequest}
+                  disabled={!selectedPlayerId || alreadyRequested || loadingRequest}
+                  className="w-full"
+                >
+                  {loadingRequest ? <Loader2 className="animate-spin w-4 h-4 mr-2 inline" /> : null}
+                  Solicitar Waiver
+                </Button>
+                {alreadyRequested && (
+                  <div className="text-xs text-yellow-500">Ya solicitaste este jugador esta semana.</div>
+                )}
+              </div>
+              <div className="mt-6">
+                <h3 className="font-semibold mb-2">Your Requests</h3>
+                {loadingRequests ? (
+                  <div className="flex items-center gap-2 text-gray-400"><Loader2 className="animate-spin" /> Loading requests...</div>
+                ) : (
+                  <div className="space-y-2">
+                    {myWaiverRequests.length === 0 && (
+                      <div className="text-gray-400">You have not requested any players this week.</div>
+                    )}
+                    {myWaiverRequests.map(req => (
+                      <div key={req.id} className="flex items-center gap-2">
+                        <span className="font-medium">
+                          {waiverPlayers.find(p => p.id === req.player_id?.toString())?.name || `Jugador ${req.player_id}`}
+                        </span>
+                        <Badge className={
+                          req.status === 'pending' ? 'bg-yellow-200 text-yellow-800' :
+                          req.status === 'approved' ? 'bg-green-200 text-green-800' :
+                          'bg-red-200 text-red-800'
+                        }>
+                          {req.status.charAt(0).toUpperCase() + req.status.slice(1)}
+                        </Badge>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
       </div>
     </Layout>
   );

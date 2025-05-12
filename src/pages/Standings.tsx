@@ -79,20 +79,20 @@ export default function Standings() {
 
           {/* Sidebar */}
           <div className="space-y-6">
-            {/* Eliminación semanal */}
+            {/* Weekly Elimination */}
             <WeeklyElimination />
 
-            {/* Resumen de posiciones */}
+            {/* Leaderboard */}
             <Card className="bg-gradient-to-br from-nfl-gray to-nfl-gray/90 border-nfl-light-gray/20">
               <CardHeader className="bg-nfl-dark-gray/50 border-b border-nfl-light-gray/20">
                 <CardTitle className="flex items-center gap-2 text-lg">
                   <Trophy className="w-5 h-5 text-nfl-blue" />
-                  <span>Resumen de Clasificación</span>
+                  <span>Standings Summary</span>
                 </CardTitle>
               </CardHeader>
               <CardContent className="p-4">
                 {loadingTeams ? (
-                  <p className="text-gray-400">Cargando equipos...</p>
+                  <p className="text-gray-400">Loading teams...</p>
                 ) : (
                   <div className="divide-y divide-nfl-light-gray/10">
                     {sortedTeams.map((team, index) => (
@@ -116,7 +116,7 @@ export default function Standings() {
                         </div>
                         <div className="text-right">
                           <div className="font-bold text-nfl-blue">{team.points}</div>
-                          <div className="text-xs text-gray-400">puntos</div>
+                          <div className="text-xs text-gray-400">points</div>
                         </div>
                       </div>
                     ))}

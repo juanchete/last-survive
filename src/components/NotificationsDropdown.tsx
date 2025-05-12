@@ -1,5 +1,4 @@
-
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { Bell } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -10,72 +9,25 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { useLeagueStore } from "@/store/leagueStore";
+import { useNotifications } from "@/hooks/useNotifications";
+import { markNotificationAsRead, markAllNotificationsAsRead } from "@/lib/utils";
+import { useAuth } from "@/hooks/useAuth";
 
-type Notification = {
-  id: string;
-  message: string;
-  type: "info" | "warning" | "success" | "error";
-  read: boolean;
-  date: string;
-};
-
-// This would typically come from a backend or state management system
-// For now we'll use mock data based on league store state
 export function NotificationsDropdown() {
-  const [notifications, setNotifications] = useState<Notification[]>([]);
-  const currentWeek = useLeagueStore((state) => state.currentWeek);
-  const leagues = useLeagueStore((state) => state.leagues);
-  
-  // Generate mock notifications based on league store state
-  useEffect(() => {
-    const mockNotifications: Notification[] = [];
-    
-    // Week update notification
-    mockNotifications.push({
-      id: "week-update",
-      message: `NFL Week ${currentWeek} has started!`,
-      type: "info",
-      read: false,
-      date: new Date().toISOString(),
-    });
-    
-    // League notifications
-    leagues.forEach(league => {
-      mockNotifications.push({
-        id: `league-${league.id}`,
-        message: `Don't forget to set your pick for ${league.name}!`,
-        type: "warning",
-        read: false,
-        date: new Date().toISOString(),
-      });
-      
-      // Check if league is upcoming - assuming there's a draft_status or similar property
-      // For now we'll just use a random condition to mock this
-      if (league.name.toLowerCase().includes("draft") || Math.random() > 0.7) {
-        mockNotifications.push({
-          id: `draft-${league.id}`,
-          message: `It's your turn to pick in the ${league.name} draft!`,
-          type: "success",
-          read: false,
-          date: new Date().toISOString(),
-        });
-      }
-    });
-    
-    setNotifications(mockNotifications);
-  }, [currentWeek, leagues]);
-  
+  const { user } = useAuth();
+  const userId = user?.id || "";
+  const { data: notifications = [], refetch } = useNotifications(userId);
+
   const unreadCount = notifications.filter(n => !n.read).length;
-  
-  const markAsRead = (id: string) => {
-    setNotifications(notifications.map(n => 
-      n.id === id ? { ...n, read: true } : n
-    ));
+
+  const handleMarkAsRead = async (id: string) => {
+    await markNotificationAsRead(id);
+    refetch();
   };
-  
-  const markAllAsRead = () => {
-    setNotifications(notifications.map(n => ({ ...n, read: true })));
+
+  const handleMarkAllAsRead = async () => {
+    await markAllNotificationsAsRead(userId);
+    refetch();
   };
 
   return (
@@ -92,23 +44,22 @@ export function NotificationsDropdown() {
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-80 bg-nfl-gray border border-nfl-light-gray/20 shadow-lg">
         <DropdownMenuLabel className="text-white flex justify-between items-center">
-          <span>Notifications</span>
+          <span>Notificaciones</span>
           {unreadCount > 0 && (
             <button 
-              onClick={markAllAsRead}
+              onClick={handleMarkAllAsRead}
               className="text-xs text-nfl-blue hover:text-white"
             >
-              Mark all as read
+              Marcar todo como leído
             </button>
           )}
         </DropdownMenuLabel>
         <DropdownMenuSeparator className="bg-nfl-light-gray/20" />
-        
         {notifications.length > 0 ? (
           notifications.map((notification) => (
             <DropdownMenuItem 
               key={notification.id} 
-              onClick={() => markAsRead(notification.id)}
+              onClick={() => handleMarkAsRead(notification.id)}
               className={`flex flex-col items-start p-3 cursor-pointer hover:bg-nfl-blue/10 ${!notification.read ? 'bg-nfl-blue/5' : ''}`}
             >
               <div className="w-full flex justify-between items-center gap-2">
@@ -125,7 +76,7 @@ export function NotificationsDropdown() {
             </DropdownMenuItem>
           ))
         ) : (
-          <div className="text-center p-4 text-gray-400">No notifications</div>
+          <div className="text-center p-4 text-gray-400">No hay notificaciones</div>
         )}
       </DropdownMenuContent>
     </DropdownMenu>

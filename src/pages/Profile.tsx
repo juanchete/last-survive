@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { Layout } from "@/components/Layout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -114,12 +113,12 @@ const Profile = () => {
   return (
     <Layout>
       <div className="container max-w-4xl mx-auto px-4 py-8">
-        <h1 className="text-3xl font-bold mb-8 text-center">Mi Perfil</h1>
+        <h1 className="text-3xl font-bold mb-8 text-center">My Profile</h1>
         
         <Card className="bg-card border-border shadow-lg">
           <CardHeader className="pb-0">
             <CardTitle className="text-2xl font-semibold text-center">
-              Información Personal
+              Personal Information
             </CardTitle>
           </CardHeader>
           
@@ -139,7 +138,7 @@ const Profile = () => {
                 </div>
               </Avatar>
               <p className="text-sm text-muted-foreground">
-                Click para cambiar tu foto
+                Click to change your photo
               </p>
             </div>
 
@@ -151,9 +150,9 @@ const Profile = () => {
                   name="fullName"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Nombre Completo</FormLabel>
+                      <FormLabel>Full Name</FormLabel>
                       <FormControl>
-                        <Input placeholder="Tu nombre" {...field} />
+                        <Input placeholder="Your name" {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -165,9 +164,9 @@ const Profile = () => {
                   name="teamName"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Nombre de tu Equipo</FormLabel>
+                      <FormLabel>Team Name</FormLabel>
                       <FormControl>
-                        <Input placeholder="Nombre de tu equipo fantasy" {...field} />
+                        <Input placeholder="Fantasy team name" {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -179,13 +178,13 @@ const Profile = () => {
                   name="favoriteTeam"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Equipo NFL Favorito</FormLabel>
+                      <FormLabel>Favorite NFL Team</FormLabel>
                       <FormControl>
                         <select 
                           className="w-full h-10 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                           {...field}
                         >
-                          <option value="">Selecciona un equipo</option>
+                          <option value="">Select a team</option>
                           {nflTeams.map((team) => (
                             <option key={team} value={team}>{team}</option>
                           ))}
@@ -202,7 +201,7 @@ const Profile = () => {
                     className="bg-nfl-blue hover:bg-nfl-blue/90"
                     disabled={isLoading}
                   >
-                    {isLoading ? "Guardando..." : "Guardar Cambios"}
+                    {isLoading ? "Saving..." : "Save Changes"}
                   </Button>
                 </div>
               </form>

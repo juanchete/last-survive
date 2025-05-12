@@ -1,4 +1,5 @@
 import { Layout } from "@/components/Layout";
+import { LeagueNav } from "@/components/LeagueNav";
 import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -77,13 +78,13 @@ export default function Draft() {
 
   // Mensaje de feedback para slots llenos
   const getSlotFeedback = (player: Player) => {
-    if (player.position === "QB" && !canDraftInSlot("QB")) return "Ya tienes el máximo de QBs titulares.";
-    if (player.position === "RB" && !canDraftInSlot("RB") && !canDraftInSlot("FLEX")) return "Ya tienes el máximo de RBs titulares y FLEX.";
-    if (player.position === "WR" && !canDraftInSlot("WR") && !canDraftInSlot("FLEX")) return "Ya tienes el máximo de WRs titulares y FLEX.";
-    if (player.position === "TE" && !canDraftInSlot("TE") && !canDraftInSlot("FLEX")) return "Ya tienes el máximo de TEs titulares y FLEX.";
-    if (player.position === "K" && !canDraftInSlot("K")) return "Ya tienes el máximo de Kickers.";
-    if (player.position === "DEF" && !canDraftInSlot("DEF")) return "Ya tienes el máximo de Defensas.";
-    if (!canDraftInSlot("BENCH")) return "Tu banca está llena.";
+    if (player.position === "QB" && !canDraftInSlot("QB")) return "You already have the maximum of starting QBs.";
+    if (player.position === "RB" && !canDraftInSlot("RB") && !canDraftInSlot("FLEX")) return "You already have the maximum of starting RBs and FLEX.";
+    if (player.position === "WR" && !canDraftInSlot("WR") && !canDraftInSlot("FLEX")) return "You already have the maximum of starting WRs and FLEX.";
+    if (player.position === "TE" && !canDraftInSlot("TE") && !canDraftInSlot("FLEX")) return "You already have the maximum of starting TEs and FLEX.";
+    if (player.position === "K" && !canDraftInSlot("K")) return "You already have the maximum of Kickers.";
+    if (player.position === "DEF" && !canDraftInSlot("DEF")) return "You already have the maximum of Defenses.";
+    if (!canDraftInSlot("BENCH")) return "Your bench is full.";
     return null;
   };
 
@@ -143,27 +144,28 @@ export default function Draft() {
 
   return (
     <Layout>
+      <LeagueNav leagueId={leagueId} />
       <div className="container mx-auto px-4 py-8">
         <div className="flex flex-col lg:flex-row justify-between items-start gap-8">
           {/* Main Content */}
           <div className="flex-1">
             <div className="flex justify-between items-center mb-6">
-              <h1 className="text-2xl font-bold">Draft de Jugadores</h1>
+              <h1 className="text-2xl font-bold">Player Draft</h1>
               <Badge className="bg-nfl-blue">
-                {userTeam?.players?.length || 0} Jugadores en Roster
+                {userTeam?.players?.length || 0} Players on Roster
               </Badge>
             </div>
-            {/* Estado del draft */}
+            {/* Draft state */}
             {loadingDraftState ? (
-              <p className="text-gray-400 mb-2">Cargando estado del draft...</p>
+              <p className="text-gray-400 mb-2">Loading draft state...</p>
             ) : draftState ? (
               <div className="mb-4">
                 <div className="mb-2">
-                  Estado: <span className="font-bold text-nfl-blue">{draftState.draft_status}</span>
+                  Status: <span className="font-bold text-nfl-blue">{draftState.draft_status}</span>
                 </div>
                 {renderDraftOrder()}
-                {isMyTurn && <div className="text-nfl-green font-bold">¡Es tu turno para elegir!</div>}
-                {!isMyTurn && <div className="text-gray-400">Esperando el turno...</div>}
+                {isMyTurn && <div className="text-nfl-green font-bold">It's your turn to pick!</div>}
+                {!isMyTurn && <div className="text-gray-400">Waiting for your turn...</div>}
               </div>
             ) : null}
             {/* Filtros */}
@@ -171,12 +173,12 @@ export default function Draft() {
               <CardContent className="p-4">
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div>
-                    <label htmlFor="search" className="text-sm text-gray-400 mb-1 block">Buscar Jugadores</label>
+                    <label htmlFor="search" className="text-sm text-gray-400 mb-1 block">Search Players</label>
                     <div className="relative">
                       <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
                       <Input
                         id="search"
-                        placeholder="Buscar por nombre o equipo..."
+                        placeholder="Search by name or team..."
                         className="pl-10"
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
@@ -184,32 +186,32 @@ export default function Draft() {
                     </div>
                   </div>
                   <div>
-                    <label htmlFor="position" className="text-sm text-gray-400 mb-1 block">Posición</label>
+                    <label htmlFor="position" className="text-sm text-gray-400 mb-1 block">Position</label>
                     <Select value={positionFilter} onValueChange={setPositionFilter}>
                       <SelectTrigger id="position">
-                        <SelectValue placeholder="Todas las posiciones" />
+                        <SelectValue placeholder="All Positions" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="all">Todas</SelectItem>
+                        <SelectItem value="all">All</SelectItem>
                         <SelectItem value="QB">Quarterback (QB)</SelectItem>
                         <SelectItem value="RB">Running Back (RB)</SelectItem>
                         <SelectItem value="WR">Wide Receiver (WR)</SelectItem>
                         <SelectItem value="TE">Tight End (TE)</SelectItem>
                         <SelectItem value="K">Kicker (K)</SelectItem>
-                        <SelectItem value="DEF">Defensa (DEF)</SelectItem>
+                        <SelectItem value="DEF">Defense (DEF)</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
                   <div>
-                    <label htmlFor="sort" className="text-sm text-gray-400 mb-1 block">Ordenar por</label>
+                    <label htmlFor="sort" className="text-sm text-gray-400 mb-1 block">Sort By</label>
                     <Select value={sortBy} onValueChange={setSortBy}>
                       <SelectTrigger id="sort">
-                        <SelectValue placeholder="Puntos (Mayor a menor)" />
+                        <SelectValue placeholder="Points (Highest to Lowest)" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="points">Puntos (Mayor a menor)</SelectItem>
-                        <SelectItem value="name">Nombre (A-Z)</SelectItem>
-                        <SelectItem value="position">Posición</SelectItem>
+                        <SelectItem value="points">Points (Highest to Lowest)</SelectItem>
+                        <SelectItem value="name">Name (A-Z)</SelectItem>
+                        <SelectItem value="position">Position</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -219,13 +221,13 @@ export default function Draft() {
             {/* Jugadores disponibles */}
             <div className="mb-4">
               <div className="flex items-center justify-between mb-4">
-                <h2 className="text-xl font-bold">Jugadores Disponibles</h2>
+                <h2 className="text-xl font-bold">Available Players</h2>
                 <Badge variant="outline" className="bg-transparent">
-                  {filteredPlayers.length} Jugadores
+                  {filteredPlayers.length} Players
                 </Badge>
               </div>
               {loadingPlayers ? (
-                <p className="text-gray-400">Cargando jugadores...</p>
+                <p className="text-gray-400">Loading players...</p>
               ) : filteredPlayers.length > 0 ? (
                 <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-4">
                   {sortedPlayers.map(player => {
@@ -248,7 +250,7 @@ export default function Draft() {
                 </div>
               ) : (
                 <Card className="bg-nfl-gray border-nfl-light-gray/20 p-8 text-center">
-                  <div className="text-gray-400 mb-2">No hay jugadores que coincidan con tu búsqueda</div>
+                  <div className="text-gray-400 mb-2">No players match your search</div>
                   <Button
                     variant="outline"
                     onClick={() => {
@@ -256,7 +258,7 @@ export default function Draft() {
                       setPositionFilter('all');
                     }}
                   >
-                    Resetear Filtros
+                    Reset Filters
                   </Button>
                 </Card>
               )}
@@ -265,27 +267,27 @@ export default function Draft() {
           {/* Sidebar */}
           <div className="lg:w-80 space-y-8">
             <WeeklyElimination />
-            {/* Reglas del draft */}
+            {/* Draft rules */}
             <Card className="bg-nfl-gray border-nfl-light-gray/20">
               <CardHeader className="bg-nfl-dark-gray border-b border-nfl-light-gray/20">
                 <CardTitle className="flex items-center gap-2">
                   <Award className="w-5 h-5 text-nfl-blue" />
-                  <span>Reglas del Draft</span>
+                  <span>Draft Rules</span>
                 </CardTitle>
               </CardHeader>
               <CardContent className="p-4">
                 <div className="space-y-4 text-sm text-gray-300">
                   <p>
-                    <span className="text-nfl-blue font-bold">•</span> Solo puedes seleccionar cuando sea tu turno.
+                    <span className="text-nfl-blue font-bold">•</span> You can only select when it's your turn.
                   </p>
                   <p>
-                    <span className="text-nfl-blue font-bold">•</span> El draft es en modo serpiente, el orden se invierte cada ronda.
+                    <span className="text-nfl-blue font-bold">•</span> The draft is in snake format, the order reverses each round.
                   </p>
                   <p>
-                    <span className="text-nfl-blue font-bold">•</span> Debes completar tu plantilla respetando los límites de cada posición.
+                    <span className="text-nfl-blue font-bold">•</span> You must complete your lineup respecting the limits of each position.
                   </p>
                   <p>
-                    <span className="text-nfl-blue font-bold">•</span> Si no eliges a tiempo, el sistema puede saltar tu turno.
+                    <span className="text-nfl-blue font-bold">•</span> If you don't pick in time, the system may skip your turn.
                   </p>
                 </div>
               </CardContent>

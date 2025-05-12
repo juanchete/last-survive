@@ -17,11 +17,11 @@ import { supabase } from "@/integrations/supabase/client";
 
 // Define form validation schema
 const createLeagueSchema = z.object({
-  name: z.string().min(3, "El nombre debe tener al menos 3 caracteres"),
+  name: z.string().min(3, "The name must have at least 3 characters"),
   description: z.string().optional(),
-  entryFee: z.number().min(0, "El costo no puede ser negativo").optional(),
+  entryFee: z.number().min(0, "The cost cannot be negative").optional(),
   isPrivate: z.boolean().default(false),
-  maxMembers: z.number().min(2, "Debe haber al menos 2 miembros").optional(),
+  maxMembers: z.number().min(2, "There must be at least 2 members").optional(),
   status: z.enum(["upcoming", "active", "finished"]).default("upcoming"),
   prize: z.string().optional(),
   startDate: z.string().optional(), // ISO string
@@ -74,7 +74,7 @@ const CreateLeague = () => {
 
   const onSubmit = async (data: CreateLeagueFormValues) => {
     if (!user) {
-      toast.error("Debes iniciar sesión para crear una liga.");
+      toast.error("You must log in to create a league.");
       return;
     }
     try {
@@ -106,7 +106,7 @@ const CreateLeague = () => {
           .upload(filePath, imageFile);
 
         if (uploadError) {
-          toast.error("Error subiendo imagen: " + uploadError.message);
+          toast.error("Error uploading image: " + uploadError.message);
           return;
         }
 
@@ -178,7 +178,7 @@ const CreateLeague = () => {
       }
     } catch (error: unknown) {
       const errMsg = error && typeof error === "object" && "message" in error ? (error as { message: string }).message : String(error);
-      toast.error("Error al crear la liga: " + errMsg);
+      toast.error("Error creating league: " + errMsg);
       console.error(error);
     }
   };
@@ -233,14 +233,14 @@ const CreateLeague = () => {
             </div>
           ) : (
             <>
-              <h1 className="text-3xl font-bold mb-6">Crear Nueva Liga</h1>
+              <h1 className="text-3xl font-bold mb-6">Create New League</h1>
               
               <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
                 <div className="space-y-2">
-                  <Label htmlFor="name">Nombre de la Liga</Label>
+                  <Label htmlFor="name">League Name</Label>
                   <Input
                     id="name"
-                    placeholder="Nombre de la liga"
+                    placeholder="League name"
                     {...register("name")}
                   />
                   {errors.name && (
@@ -249,17 +249,17 @@ const CreateLeague = () => {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="description">Descripción (opcional)</Label>
+                  <Label htmlFor="description">Description (optional)</Label>
                   <Textarea
                     id="description"
-                    placeholder="Describe tu liga..."
+                    placeholder="Describe your league..."
                     {...register("description")}
                     rows={3}
                   />
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="entryFee">Costo de entrada (opcional)</Label>
+                  <Label htmlFor="entryFee">Entry Fee (optional)</Label>
                   <Input
                     id="entryFee"
                     type="number"
@@ -274,7 +274,7 @@ const CreateLeague = () => {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="maxMembers">Máximo de miembros</Label>
+                  <Label htmlFor="maxMembers">Maximum Members</Label>
                   <Input
                     id="maxMembers"
                     type="number"
@@ -289,16 +289,16 @@ const CreateLeague = () => {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="prize">Premio (opcional)</Label>
+                  <Label htmlFor="prize">Prize (optional)</Label>
                   <Input
                     id="prize"
-                    placeholder="Premio para el ganador"
+                    placeholder="Prize for the winner"
                     {...register("prize")}
                   />
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="startDate">Fecha de inicio</Label>
+                  <Label htmlFor="startDate">Start Date</Label>
                   <Input
                     id="startDate"
                     type="date"
@@ -307,15 +307,15 @@ const CreateLeague = () => {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="status">Estado</Label>
+                  <Label htmlFor="status">Status</Label>
                   <select
                     id="status"
                     className="w-full border rounded-md p-2 bg-background text-foreground"
                     {...register("status")}
                   >
-                    <option value="upcoming">Próxima</option>
-                    <option value="active">Activa</option>
-                    <option value="finished">Finalizada</option>
+                    <option value="upcoming">Upcoming</option>
+                    <option value="active">Active</option>
+                    <option value="finished">Finished</option>
                   </select>
                   {errors.status && (
                     <p className="text-destructive text-sm">{errors.status.message}</p>
@@ -323,7 +323,7 @@ const CreateLeague = () => {
                 </div>
 
                 <div className="space-y-2">
-                  <Label>Imagen de la Liga (opcional)</Label>
+                  <Label>League Image (optional)</Label>
                   {imagePreview ? (
                     <div className="relative w-full h-48 rounded-md overflow-hidden bg-muted">
                       <img
@@ -344,7 +344,7 @@ const CreateLeague = () => {
                       <div className="border-2 border-dashed border-muted-foreground/25 rounded-md p-8 text-center hover:bg-muted/50 transition-colors">
                         <Image className="w-8 h-8 mx-auto mb-2 text-muted-foreground" />
                         <p className="text-sm text-muted-foreground">
-                          Haz clic para subir una imagen de la liga
+                          Click to upload a league image
                         </p>
                       </div>
                       <input
@@ -364,14 +364,14 @@ const CreateLeague = () => {
                     checked={isPrivate}
                     onCheckedChange={handlePrivateToggle}
                   />
-                  <Label htmlFor="isPrivate">Liga privada</Label>
+                  <Label htmlFor="isPrivate">Private League</Label>
                 </div>
                 
                 {isPrivate && (
                   <div className="rounded-md bg-muted p-4">
                     <p className="text-sm text-muted-foreground">
                       <ShieldCheck className="inline-block w-4 h-4 mr-1" />
-                      Las ligas privadas requieren un código de acceso. Se generará un código único al crear la liga.
+                      Private leagues require an access code. A unique code will be generated when you create the league.
                     </p>
                   </div>
                 )}
@@ -382,7 +382,7 @@ const CreateLeague = () => {
                     variant="outline"
                     onClick={() => navigate("/hub")}
                   >
-                    Cancelar
+                    Cancel
                   </Button>
                   <Button 
                     type="submit" 
@@ -390,7 +390,7 @@ const CreateLeague = () => {
                     className="flex-1"
                   >
                     <Plus className="w-4 h-4 mr-2" />
-                    Crear Liga
+                    Create League
                   </Button>
                 </div>
               </form>

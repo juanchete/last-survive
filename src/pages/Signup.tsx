@@ -59,13 +59,13 @@ export default function Signup() {
         setError(error);
       } else {
         toast({
-          title: "Cuenta creada",
-          description: "¡Tu cuenta ha sido creada exitosamente!"
+          title: "Account created",
+          description: "¡Your account has been created successfully!"
         });
         navigate("/hub");
       }
     } catch (err) {
-      setError("Ocurrió un error inesperado. Intenta de nuevo.");
+      setError("An unexpected error occurred. Please try again.");
       console.error(err);
     } finally {
       setIsLoading(false);
@@ -156,12 +156,6 @@ export default function Signup() {
                       Or continue with
                     </span>
                   </div>
-                </div>
-                <div className="flex flex-col space-y-2 w-full">
-                  <Button variant="outline" className="w-full bg-transparent hover:bg-nfl-light-gray/10">
-                    <User className="mr-2 h-4 w-4" />
-                    Demo Account
-                  </Button>
                 </div>
                 <div className="text-center text-sm mt-4">
                   Already have an account?{" "}

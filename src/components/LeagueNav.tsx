@@ -1,8 +1,8 @@
-
 import { useLocation, Link } from "react-router-dom";
 import { useLeagueStore } from "@/store/leagueStore";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ChartBar, ListChecks, Trophy, Users } from "lucide-react";
+import { useDraftState } from "@/hooks/useDraftState";
 
 interface LeagueNavProps {
   leagueId: string;
@@ -11,6 +11,7 @@ interface LeagueNavProps {
 export function LeagueNav({ leagueId }: LeagueNavProps) {
   const location = useLocation();
   const pathname = location.pathname;
+  const { data: draftState } = useDraftState(leagueId);
   
   // Determine which tab is active based on current path
   const getActiveTab = () => {
@@ -38,18 +39,24 @@ export function LeagueNav({ leagueId }: LeagueNavProps) {
               Standings
             </Link>
           </TabsTrigger>
-          <TabsTrigger value="draft" asChild className="data-[state=active]:bg-nfl-blue data-[state=active]:text-white">
-            <Link to={`/draft?league=${leagueId}`} className="flex items-center gap-1.5">
-              <Users className="w-4 h-4" />
-              Draft
-            </Link>
-          </TabsTrigger>
-          <TabsTrigger value="waivers" asChild className="data-[state=active]:bg-nfl-blue data-[state=active]:text-white">
-            <Link to={`/waivers?league=${leagueId}`} className="flex items-center gap-1.5">
-              <ListChecks className="w-4 h-4" />
-              Waivers
-            </Link>
-          </TabsTrigger>
+          {/* Show only Draft if the draft has not finished */}
+          {draftState?.draft_status !== "completed" && (
+            <TabsTrigger value="draft" asChild className="data-[state=active]:bg-nfl-blue data-[state=active]:text-white">
+              <Link to={`/draft?league=${leagueId}`} className="flex items-center gap-1.5">
+                <Users className="w-4 h-4" />
+                Draft
+              </Link>
+            </TabsTrigger>
+          )}
+          {/* Show only Waivers if the draft is finished */}
+          {draftState?.draft_status === "completed" && (
+            <TabsTrigger value="waivers" asChild className="data-[state=active]:bg-nfl-blue data-[state=active]:text-white">
+              <Link to={`/waivers?league=${leagueId}`} className="flex items-center gap-1.5">
+                <ListChecks className="w-4 h-4" />
+                Waivers
+              </Link>
+            </TabsTrigger>
+          )}
           <TabsTrigger value="picks" asChild className="data-[state=active]:bg-nfl-blue data-[state=active]:text-white">
             <Link to={`/picks?league=${leagueId}`} className="flex items-center gap-1.5">
               <ListChecks className="w-4 h-4" />

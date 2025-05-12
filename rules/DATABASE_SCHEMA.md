@@ -140,13 +140,16 @@
 
 ---
 
+## 13. notifications
+- `id` (PK, UUID)
+- `user_id` (FK → users.id)
+- `league_id` (FK → leagues.id, opcional)
+- `message` (string)
+- `type` (enum: 'info', 'warning', 'success', 'error')
+- `read` (boolean, default: false)
+- `date` (timestamp, default: now())
+
+---
+
 ## Notas
-- Cuando encuentres una API de jugadores de la NFL, deberás poblar la tabla `players` y, si es posible, la de `player_stats` semanalmente.
-- Usa la tabla `team_rosters` para mapear qué jugadores tiene cada equipo fantasy cada semana y calcular los puntos.
-- La tabla `waiver_priority` es clave para implementar la lógica de prioridad de agencia libre.
-- Un usuario puede estar en varias ligas y tener varios equipos fantasy (uno por liga).
-- Un equipo fantasy pertenece a una liga y a un usuario.
-- Un equipo fantasy tiene un roster de jugadores que puede cambiar cada semana.
-- Los jugadores pertenecen a un equipo de la NFL.
-- Cada semana, la liga tiene un equipo NFL eliminado y un equipo fantasy eliminado.
-- La prioridad de waivers/agencia libre se recalcula cada semana según el ranking. 
+- Cuando encuentres una API de jugadores de la NFL, deberás poblar la tabla `
