@@ -39,6 +39,10 @@ export interface FantasyTeam {
   points: number;
   rank: number;
   eliminated: boolean;
+  user?: {
+    full_name?: string;
+    email?: string;
+  };
 }
 
 export interface Week {
@@ -54,4 +58,29 @@ export interface LeagueState {
   nflTeams: NFLTeam[];
   weeks: Week[];
   draftInProgress: boolean;
+}
+
+export interface League {
+  id: string;
+  name: string;
+  description: string;
+  image_url: string | null;
+  is_private: boolean;
+  private_code?: string | null;
+  owner_id: string;
+  entry_fee: number;
+  max_members: number;
+  status: "active" | "upcoming" | "finished";
+  prize: string;
+  start_date: string;
+  created_at: string;
+  owner?: { email: string; full_name: string };
+}
+
+export interface LeagueMember {
+  league_id: string;
+  user_id: string;
+  role: string;
+  joined_at: string;
+  team_id?: string;
 }

@@ -97,12 +97,17 @@ export default function Draft() {
     }
     return true;
   });
+  
+  // Ensure positions are properly typed when sorting
   const sortedPlayers = [...filteredPlayers].sort((a, b) => {
     if (sortBy === 'points') return b.points - a.points;
     if (sortBy === 'name') return a.name.localeCompare(b.name);
     if (sortBy === 'position') return a.position.localeCompare(b.position);
     return 0;
-  });
+  }).map(player => ({
+    ...player,
+    position: player.position as "QB" | "RB" | "WR" | "TE" | "K" | "DEF"
+  }));
 
   // Manejar el pick de un jugador
   const handleDraft = async (playerId: number, slot: string) => {
@@ -230,10 +235,7 @@ export default function Draft() {
                     return (
                       <div key={player.id} className="flex flex-col gap-2">
                         <PlayerCard
-                          player={{
-                            ...player,
-                            position: player.position as 'QB' | 'RB' | 'WR' | 'TE' | 'K' | 'DEF',
-                          }}
+                          player={player}
                           onDraft={canDraft ? (playerId) => handleDraft(Number(playerId), slot!) : undefined}
                           showDraftButton={canDraft}
                         />

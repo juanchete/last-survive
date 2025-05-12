@@ -1,6 +1,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import type { Player } from "@/types";
 
 export function useRosterWithPlayerDetails(fantasyTeamId: string, week: number) {
   return useQuery({
@@ -39,7 +40,14 @@ export function useRosterWithPlayerDetails(fantasyTeamId: string, week: number) 
       if (statsError) throw statsError;
       
       // Create a lookup map for players and stats
-      const playersMap = new Map(players.map(player => [player.id, player]));
+      const playersMap = new Map(players.map(player => {
+        // Ensure position is properly typed
+        const typedPlayer = {
+          ...player,
+          position: player.position as "QB" | "RB" | "WR" | "TE" | "K" | "DEF"
+        };
+        return [player.id, typedPlayer];
+      }));
       const statsMap = new Map(stats.map(stat => [stat.player_id, stat]));
       
       // Combine roster with player details and stats

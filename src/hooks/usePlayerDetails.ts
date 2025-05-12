@@ -1,6 +1,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import type { Player } from "@/types";
 
 export function usePlayerDetails(playerId: number) {
   return useQuery({
@@ -15,6 +16,15 @@ export function usePlayerDetails(playerId: number) {
         .single();
         
       if (error) throw error;
+      
+      // Convert database position string to our Player type's position
+      if (data) {
+        const position = data.position as "QB" | "RB" | "WR" | "TE" | "K" | "DEF";
+        return {
+          ...data,
+          position
+        };
+      }
       return data;
     },
     enabled: !!playerId,

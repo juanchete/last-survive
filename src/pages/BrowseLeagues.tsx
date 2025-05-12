@@ -11,6 +11,7 @@ import { Search, Trophy, Users, ArrowRight, Lock, Calendar, DollarSign } from "l
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { League, LeagueMember } from "@/types";
 
 // Definición de tipos
 export type League = {
@@ -64,7 +65,14 @@ export default function BrowseLeagues() {
         setLoading(false);
         return;
       }
-      setLeagues(allLeagues || []);
+      
+      // Cast the status field to the correct type 
+      const typedLeagues = allLeagues?.map(league => ({
+        ...league,
+        status: league.status as "active" | "upcoming" | "finished"
+      })) || [];
+      
+      setLeagues(typedLeagues);
 
       // Obtener todos los miembros de todas las ligas
       const { data: allMembers, error: membersError } = await supabase
@@ -80,7 +88,7 @@ export default function BrowseLeagues() {
       // Obtener ligas donde el usuario es miembro
       if (user) {
         const myLeagueIds = allMembers?.filter((m) => m.user_id === user.id).map((m) => m.league_id) || [];
-        setMyLeagues((allLeagues || []).filter((l) => myLeagueIds.includes(l.id)));
+        setMyLeagues(typedLeagues.filter((l) => myLeagueIds.includes(l.id)));
       } else {
         setMyLeagues([]);
       }

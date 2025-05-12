@@ -1,3 +1,4 @@
+
 import { Layout } from "@/components/Layout";
 import { useCurrentWeek } from "@/hooks/useCurrentWeek";
 import { useFantasyTeams } from "@/hooks/useFantasyTeams";
@@ -31,7 +32,12 @@ export default function Dashboard() {
   // Top jugadores disponibles por puntos
   const topAvailablePlayers = availablePlayers
     .sort((a, b) => b.points - a.points)
-    .slice(0, 4);
+    .slice(0, 4)
+    .map(player => ({
+      ...player,
+      // Ensure position is properly typed
+      position: player.position as "QB" | "RB" | "WR" | "TE" | "K" | "DEF"
+    }));
 
   // Loading state global
   const isLoading = loadingWeek || loadingTeams || loadingUserTeam || loadingPlayers;
@@ -149,7 +155,7 @@ export default function Dashboard() {
                         </div>
                         <div className="flex-1">
                           <div className="font-bold">{team.name}</div>
-                          <div className="text-sm text-gray-400">{team.user?.full_name}</div>
+                          <div className="text-sm text-gray-400">{team.user?.full_name || team.owner}</div>
                         </div>
                         <div className="text-nfl-blue font-bold">{team.points}</div>
                       </div>
