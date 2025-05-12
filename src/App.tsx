@@ -1,3 +1,4 @@
+
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -9,6 +10,7 @@ import Home from "./pages/Home";
 import Dashboard from "./pages/Dashboard";
 import Draft from "./pages/Draft";
 import Standings from "./pages/Standings";
+import Picks from "./pages/Picks";
 import HowItWorks from "./pages/HowItWorks";
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
@@ -36,6 +38,7 @@ const App = () => (
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/draft" element={<Draft />} />
             <Route path="/standings" element={<Standings />} />
+            <Route path="/picks" element={<Picks />} />
                 <Route path="/hub" element={<Hub />} />
             <Route path="/browse-leagues" element={<BrowseLeagues />} />
             <Route path="/create-league" element={<CreateLeague />} />
