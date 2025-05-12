@@ -13,32 +13,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { League, LeagueMember } from "@/types";
 
-// Definición de tipos
-export type League = {
-  id: string;
-  name: string;
-  description: string;
-  image_url: string | null;
-  is_private: boolean;
-  private_code?: string | null;
-  owner_id: string;
-  entry_fee: number;
-  max_members: number;
-  status: "active" | "upcoming" | "finished";
-  prize: string;
-  start_date: string;
-  created_at: string;
-  owner?: { email: string; full_name: string };
-};
-
-export type LeagueMember = {
-  league_id: string;
-  user_id: string;
-  role: string;
-  joined_at: string;
-  team_id?: string;
-};
-
 export default function BrowseLeagues() {
   const { toast } = useToast();
   const { user } = useAuth();

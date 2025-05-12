@@ -19,13 +19,14 @@ export function usePlayerDetails(playerId: number) {
       
       // Convert database position string to our Player type's position
       if (data) {
+        // Ensure position is properly typed
         const position = data.position as "QB" | "RB" | "WR" | "TE" | "K" | "DEF";
         return {
           ...data,
           position
-        };
+        } as Player;
       }
-      return data;
+      return data as Player | null;
     },
     enabled: !!playerId,
   });

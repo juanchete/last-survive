@@ -1,4 +1,3 @@
-
 import { Layout } from "@/components/Layout";
 import { useCurrentWeek } from "@/hooks/useCurrentWeek";
 import { useFantasyTeams } from "@/hooks/useFantasyTeams";
@@ -13,6 +12,7 @@ import { WeeklyElimination } from "@/components/WeeklyElimination";
 import { ArrowRight, User, Trophy, Calendar } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import { LeagueNav } from "@/components/LeagueNav";
+import { FantasyTeam, Player } from "@/types";
 
 export default function Dashboard() {
   // Obtener el leagueId desde la URL
@@ -155,7 +155,7 @@ export default function Dashboard() {
                         </div>
                         <div className="flex-1">
                           <div className="font-bold">{team.name}</div>
-                          <div className="text-sm text-gray-400">{team.user?.full_name || team.owner}</div>
+                          <div className="text-sm text-gray-400">{team.owner}</div>
                         </div>
                         <div className="text-nfl-blue font-bold">{team.points}</div>
                       </div>

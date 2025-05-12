@@ -45,7 +45,7 @@ export function useRosterWithPlayerDetails(fantasyTeamId: string, week: number) 
         const typedPlayer = {
           ...player,
           position: player.position as "QB" | "RB" | "WR" | "TE" | "K" | "DEF"
-        };
+        } as Player;
         return [player.id, typedPlayer];
       }));
       const statsMap = new Map(stats.map(stat => [stat.player_id, stat]));
