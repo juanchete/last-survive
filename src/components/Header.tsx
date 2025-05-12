@@ -12,11 +12,19 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { NotificationsDropdown } from "./NotificationsDropdown";
 
 export function Header() {
   const currentWeek = useLeagueStore(state => state.currentWeek);
   const leagues = useLeagueStore(state => state.leagues);
   const { user, logout, loading } = useAuth();
+
+  // Get user initials for avatar fallback
+  const getUserInitials = () => {
+    if (!user || !user.email) return "U";
+    return user.email.substring(0, 1).toUpperCase();
+  };
 
   return (
     <header className="sticky top-0 z-50 backdrop-blur-md bg-transparent">
@@ -111,14 +119,32 @@ export function Header() {
           </button>
           {loading ? null : user ? (
             <>
-              <span className="text-white font-medium hidden sm:block">{user.email}</span>
-              <Button
-                variant="outline"
-                className="border-white text-white hover:bg-nfl-blue/10"
-                onClick={logout}
-              >
-                Logout
-              </Button>
+              {/* Notifications dropdown */}
+              <NotificationsDropdown />
+              
+              {/* User Menu */}
+              <DropdownMenu>
+                <DropdownMenuTrigger className="focus:outline-none">
+                  <Avatar className="h-9 w-9 border-2 border-nfl-gold transition-all hover:border-white">
+                    <AvatarImage src="" alt={user.email || ""} />
+                    <AvatarFallback className="bg-nfl-blue text-white">
+                      {getUserInitials()}
+                    </AvatarFallback>
+                  </Avatar>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-56 bg-nfl-gray border border-nfl-light-gray/20 shadow-lg">
+                  <DropdownMenuLabel className="text-white">{user.email}</DropdownMenuLabel>
+                  <DropdownMenuSeparator className="bg-nfl-light-gray/20" />
+                  <DropdownMenuItem asChild>
+                    <Link to="/profile" className="cursor-pointer hover:bg-nfl-blue/10">
+                      Profile Settings
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={logout} className="cursor-pointer hover:bg-nfl-blue/10 text-red-400">
+                    Logout
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </>
           ) : (
             <>

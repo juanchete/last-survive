@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { useLocation } from "react-router-dom";
 import { Layout } from "@/components/Layout";
@@ -159,7 +158,7 @@ export default function Picks() {
                                     {rosterItem.player?.name || `Player #${rosterItem.player_id}`}
                                   </TableCell>
                                   <TableCell>
-                                    {rosterItem.player?.nfl_team?.abbreviation || "N/A"}
+                                    {rosterItem.player?.team || "N/A"}
                                   </TableCell>
                                 </TableRow>
                               ))
@@ -206,7 +205,7 @@ export default function Picks() {
                                 {rosterItem.player?.name || `Player #${rosterItem.player_id}`}
                               </TableCell>
                               <TableCell>
-                                {rosterItem.player?.nfl_team?.abbreviation || "N/A"}
+                                {rosterItem.player?.team || "N/A"}
                               </TableCell>
                             </TableRow>
                           ))}
