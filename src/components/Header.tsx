@@ -45,13 +45,13 @@ export function Header() {
         <nav className="hidden md:block">
           <ul className="flex items-center gap-8">
             <li className="group">
-              <Link to="/how-it-works" className="text-white font-medium hover:text-nfl-gold transition flex items-center gap-1">
+              <Link to="/how-it-works" className="text-white font-medium hover:text-nfl-blue transition flex items-center gap-1">
                 How It Works
               </Link>
             </li>
             <li className="group">
               <DropdownMenu>
-                <DropdownMenuTrigger className="text-white font-medium hover:text-[#FFD700] transition flex items-center gap-1 focus:outline-none">
+                <DropdownMenuTrigger className="text-white font-medium hover:text-nfl-blue transition flex items-center gap-1 focus:outline-none">
                   My Leagues <ChevronDown className="w-4 h-4 opacity-70" />
                 </DropdownMenuTrigger>
                 <DropdownMenuContent className="w-56 bg-nfl-gray border border-nfl-light-gray/20 shadow-lg">
@@ -88,14 +88,14 @@ export function Header() {
                   
                   <DropdownMenuItem asChild>
                     <Link to="/hub" className="flex items-center cursor-pointer hover:bg-nfl-blue/10">
-                      <Users className="w-4 h-4 mr-2 text-nfl-gold" />
+                      <Users className="w-4 h-4 mr-2 text-nfl-blue" />
                       <span>League Hub</span>
                     </Link>
                   </DropdownMenuItem>
                   
                   <DropdownMenuItem asChild>
                     <Link to="/browse-leagues" className="flex items-center cursor-pointer hover:bg-nfl-blue/10">
-                      <Trophy className="w-4 h-4 mr-2 text-nfl-gold" />
+                      <Trophy className="w-4 h-4 mr-2 text-nfl-blue" />
                       <span>Browse Leagues</span>
                     </Link>
                   </DropdownMenuItem>
@@ -125,7 +125,7 @@ export function Header() {
               {/* User Menu */}
               <DropdownMenu>
                 <DropdownMenuTrigger className="focus:outline-none">
-                  <Avatar className="h-9 w-9 border-2 border-nfl-gold transition-all hover:border-white">
+                  <Avatar className="h-9 w-9 border-2 border-nfl-blue transition-all hover:border-white">
                     <AvatarImage src="" alt={user.email || ""} />
                     <AvatarFallback className="bg-nfl-blue text-white">
                       {getUserInitials()}
@@ -148,7 +148,7 @@ export function Header() {
             </>
           ) : (
             <>
-              <Link to="/login" className="text-white font-medium hover:text-nfl-gold transition hidden sm:block">
+              <Link to="/login" className="text-white font-medium hover:text-nfl-blue transition hidden sm:block">
                 Login
               </Link>
               <Link to="/signup">

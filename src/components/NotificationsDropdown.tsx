@@ -1,5 +1,5 @@
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Bell } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -28,7 +28,7 @@ export function NotificationsDropdown() {
   const leagues = useLeagueStore((state) => state.leagues);
   
   // Generate mock notifications based on league store state
-  useState(() => {
+  useEffect(() => {
     const mockNotifications: Notification[] = [];
     
     // Week update notification
@@ -49,19 +49,19 @@ export function NotificationsDropdown() {
         read: false,
         date: new Date().toISOString(),
       });
+      
+      // Check if league is upcoming - assuming there's a draft_status or similar property
+      // For now we'll just use a random condition to mock this
+      if (league.name.toLowerCase().includes("draft") || Math.random() > 0.7) {
+        mockNotifications.push({
+          id: `draft-${league.id}`,
+          message: `It's your turn to pick in the ${league.name} draft!`,
+          type: "success",
+          read: false,
+          date: new Date().toISOString(),
+        });
+      }
     });
-    
-    // Draft notification if any leagues are in draft mode
-    const draftLeague = leagues.find(l => l.status === "upcoming");
-    if (draftLeague) {
-      mockNotifications.push({
-        id: `draft-${draftLeague.id}`,
-        message: `It's your turn to pick in the ${draftLeague.name} draft!`,
-        type: "success",
-        read: false,
-        date: new Date().toISOString(),
-      });
-    }
     
     setNotifications(mockNotifications);
   }, [currentWeek, leagues]);
@@ -84,7 +84,7 @@ export function NotificationsDropdown() {
         <Bell className="w-5 h-5 text-white" />
         {unreadCount > 0 && (
           <Badge 
-            className="absolute -top-2 -right-2 h-5 min-w-[20px] bg-nfl-gold text-black text-xs flex items-center justify-center rounded-full px-1"
+            className="absolute -top-2 -right-2 h-5 min-w-[20px] bg-nfl-blue text-white text-xs flex items-center justify-center rounded-full px-1"
           >
             {unreadCount}
           </Badge>
@@ -96,7 +96,7 @@ export function NotificationsDropdown() {
           {unreadCount > 0 && (
             <button 
               onClick={markAllAsRead}
-              className="text-xs text-nfl-blue hover:text-nfl-gold"
+              className="text-xs text-nfl-blue hover:text-white"
             >
               Mark all as read
             </button>
@@ -116,7 +116,7 @@ export function NotificationsDropdown() {
                   {notification.message}
                 </span>
                 {!notification.read && (
-                  <div className="h-2 w-2 rounded-full bg-nfl-gold flex-shrink-0"></div>
+                  <div className="h-2 w-2 rounded-full bg-nfl-blue flex-shrink-0"></div>
                 )}
               </div>
               <span className="text-xs text-gray-400 mt-1">
