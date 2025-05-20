@@ -28,13 +28,11 @@ export default function HowItWorks() {
                       </div>
                       <h2 className="text-xl font-bold mb-3">Weekly Eliminations</h2>
                       <p className="text-gray-400 mb-4">
-                        Each week of the NFL season, one real NFL team is eliminated from our fantasy league.
-                        Their elimination is based on real-world performance, and once a team is eliminated,
-                        all of their players become available in the draft pool.
+                      Each week, the lowest-scoring fantasy team is eliminated from the league.
+                      Once eliminated, that team's entire roster is released into the waiver pool, creating high-stakes opportunities for the survivors.
                       </p>
                       <p className="text-gray-400">
-                        This creates a dynamic environment where the available player pool changes weekly,
-                        allowing you to adapt your strategy throughout the season.
+                      The player pool evolves weekly, pushing you to adapt fast, strategize smart, and outlast the competition.
                       </p>
                     </div>
                     <div className="bg-nfl-dark-gray flex items-center justify-center p-6">
@@ -92,13 +90,12 @@ export default function HowItWorks() {
                       </div>
                       <h2 className="text-xl font-bold mb-3">Strategic Redrafting</h2>
                       <p className="text-gray-400 mb-4">
-                        As players from eliminated teams become available, you'll have the opportunity
-                        to draft them to your roster. This allows you to replace underperforming players
-                        or fill positions where you need more production.
+                          When a team is eliminated, their players hit the waiver wire.
+                          Use your waiver priority to claim top talent, replace underperformers, and fill key roster gaps.
                       </p>
                       <p className="text-gray-400">
-                        The longer the season goes, the more talent becomes available, leading to
-                        increasingly competitive and strategic draft decisions each week.
+                          As the season progresses, the stakes rise — and so does the quality of available players.
+                          Smart pickups make the difference between surviving and being sent home.
                       </p>
                     </div>
                   </div>
@@ -114,13 +111,11 @@ export default function HowItWorks() {
                       </div>
                       <h2 className="text-xl font-bold mb-3">Team Eliminations & Winning</h2>
                       <p className="text-gray-400 mb-4">
-                        Each week, the fantasy team with the lowest score is eliminated from the competition.
-                        This creates increasing tension as the season progresses and the field narrows.
+                      Each week, the lowest-scoring fantasy team is eliminated — raising the stakes as the season unfolds and the competition tightens.
                       </p>
                       <p className="text-gray-400">
-                        The last team standing at the end of the season is crowned the Survivor Fantasy
-                        champion! Victory requires both initial drafting skill and the ability to adapt
-                        your team throughout the season.
+                        To be crowned the Survivor Fantasy Champion, you’ll need more than a strong draft.
+                        You must adapt, outmaneuver rivals, and survive every weekly showdown.
                       </p>
                     </div>
                     <div className="bg-nfl-dark-gray flex items-center justify-center p-6">

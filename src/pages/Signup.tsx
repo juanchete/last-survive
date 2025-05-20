@@ -172,10 +172,9 @@ export default function Signup() {
               <img alt="Authentication" className="w-full object-cover rounded-lg" src="/lovable-uploads/0c44cd25-0dfc-4563-9eb6-efdb3f54144f.jpg" />
             </div>
             <div className="mt-6 space-y-4">
-              <h2 className="text-2xl font-bold text-white/90">Join Survive Week Today</h2>
+              <h2 className="text-2xl font-bold text-white/90">Join Survive the Fantasy Today </h2>
               <p className="text-white/70">
-                Create your account to join exciting NFL survivor pools. Make your picks each week 
-                and compete against other football fans.
+                Create your account to join exciting NFL survivor pools. Make your picks each week and compete against other football fans.
               </p>
               <div className="flex items-center space-x-2 text-nfl-blue">
                 <ArrowRight className="h-4 w-4" />

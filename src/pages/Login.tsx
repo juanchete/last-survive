@@ -130,7 +130,7 @@ export default function Login() {
               <img alt="Authentication" className="w-full object-cover rounded-lg" src="https://plus.unsplash.com/premium_photo-1685088062526-067d3e88c0e0?q=80&w=1742&auto=format&fit=crop&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D" />
             </div>
             <div className="mt-6 space-y-4">
-              <h2 className="text-2xl font-bold text-white/90">Welcome to Survive Week</h2>
+              <h2 className="text-2xl font-bold text-white/90">Welcome to Survive The Fantasy</h2>
               <p className="text-white/70">
                 Join our NFL survivor pool platform and test your football knowledge. 
                 Make weekly picks and try to outlast other players through the season!

@@ -46,7 +46,7 @@ export default function Home() {
               </div>
               
               <h2 className="text-4xl md:text-5xl font-bold mb-6 bg-gradient-to-r from-white to-nfl-blue bg-clip-text text-transparent">
-                How Survivor Fantasy Works
+              How Survive The Fantasy Works
               </h2>
               
               <p className="text-lg text-gray-400 max-w-2xl mx-auto">
@@ -66,7 +66,7 @@ export default function Home() {
                           <span className="text-nfl-dark font-bold text-xl">1</span>
                         </motion.div>,
                   title: "Weekly Eliminations",
-                  description: "Each week, the team with the lowest score is eliminated from the league, making their players available for others."
+                  description: "Weekly Eliminations Each week, the team with the lowest score is eliminated — their roster becomes fair game for the rest."
                 },
                 {
                   icon: <motion.div 
@@ -77,8 +77,8 @@ export default function Home() {
                           className="w-12 h-12 bg-gradient-to-br from-nfl-blue to-white/70 rounded-xl flex items-center justify-center mb-6">
                           <span className="text-nfl-dark font-bold text-xl">2</span>
                         </motion.div>,
-                  title: "Strategic Redrafting",
-                  description: "Keep your team competitive by drafting newly available players to replace underperformers or fill roster gaps."
+                  title: "Claim & Adapt",
+                  description: "Claim & Adapt Stay alive by using waiver priority to claim top-performing free agents and replace weak spots on your roster."
                 },
                 {
                   icon: <motion.div 
@@ -90,7 +90,7 @@ export default function Home() {
                           <span className="text-nfl-dark font-bold text-xl">3</span>
                         </motion.div>,
                   title: "Survive & Win",
-                  description: "Accumulate points throughout the season. The last team standing with the most points wins the championship."
+                  description:  "Every week is a new battle. No carryover, no guarantees. Be the last team standing to win the championship."
                 }
               ].map((feature, i) => (
                 <motion.div
