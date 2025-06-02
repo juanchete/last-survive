@@ -1,8 +1,7 @@
-
 export interface Player {
   id: string;
   name: string;
-  position: 'QB' | 'RB' | 'WR' | 'TE' | 'K' | 'DEF';
+  position: "QB" | "RB" | "WR" | "TE" | "K" | "DEF";
   team: string;
   stats?: {
     passingYards?: number;
@@ -47,7 +46,7 @@ export interface FantasyTeam {
 
 export interface Week {
   number: number;
-  status: 'upcoming' | 'active' | 'completed';
+  status: "upcoming" | "active" | "completed";
   eliminatedTeam: NFLTeam | null;
 }
 
@@ -83,4 +82,18 @@ export interface LeagueMember {
   role: string;
   joined_at: string;
   team_id?: string;
+}
+
+// Tipos para sistema de invitaciones
+export interface LeagueInvitation {
+  id: string;
+  league_id: string;
+  inviter_id: string;
+  invitee_email: string;
+  invite_code: string;
+  status: "pending" | "accepted" | "declined" | "expired";
+  created_at: string;
+  expires_at: string;
+  league?: League;
+  inviter?: { full_name: string; email: string };
 }

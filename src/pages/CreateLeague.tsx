@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { X, Image, Plus, ShieldCheck } from "lucide-react";
+import { X, Image, Plus, ShieldCheck, Users, Crown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -14,6 +14,7 @@ import { useLeagueStore } from "@/store/leagueStore";
 import { Header } from "@/components/Header";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
+import { LeagueInvitations } from "@/components/LeagueInvitations";
 
 // Define form validation schema
 const createLeagueSchema = z.object({
@@ -21,6 +22,7 @@ const createLeagueSchema = z.object({
   description: z.string().optional(),
   entryFee: z.number().min(0, "The cost cannot be negative").optional(),
   isPrivate: z.boolean().default(false),
+  ownerPlays: z.boolean().default(true),
   maxMembers: z.number().min(2, "There must be at least 2 members").optional(),
   status: z.enum(["upcoming", "active", "finished"]).default("upcoming"),
   prize: z.string().optional(),
@@ -33,7 +35,9 @@ const CreateLeague = () => {
   const navigate = useNavigate();
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [isPrivate, setIsPrivate] = useState(false);
+  const [ownerPlays, setOwnerPlays] = useState(true);
   const [generatedCode, setGeneratedCode] = useState<string | null>(null);
+  const [createdLeagueId, setCreatedLeagueId] = useState<string | null>(null);
   const createLeague = useLeagueStore((state) => state.createLeague);
   const { user } = useAuth();
   const [imageFile, setImageFile] = useState<File | null>(null);
@@ -49,6 +53,7 @@ const CreateLeague = () => {
       description: "",
       entryFee: 0,
       isPrivate: false,
+      ownerPlays: true,
       maxMembers: 10,
       status: "upcoming",
       prize: "",
@@ -127,6 +132,7 @@ const CreateLeague = () => {
             is_private: isPrivate,
             private_code: privateCode,
             owner_id: user.id,
+            owner_plays: ownerPlays,
             max_members: data.maxMembers,
             status: data.status,
             prize: data.prize,
@@ -138,24 +144,6 @@ const CreateLeague = () => {
         .single();
       if (leagueError) throw leagueError;
 
-      // Crear equipo fantasy para el owner
-      const { data: fantasyTeam, error: teamError } = await supabase
-        .from("fantasy_teams")
-        .insert([
-          {
-            league_id: league.id,
-            user_id: user.id,
-            name: `${user.user_metadata?.full_name || user.email}'s Team`,
-            points: 0,
-            rank: 1,
-            eliminated: false,
-            created_at: new Date().toISOString(),
-          }
-        ])
-        .select()
-        .single();
-      if (teamError) throw teamError;
-
       // Insertar owner en league_members
       const { error: memberError } = await supabase
         .from("league_members")
@@ -165,10 +153,13 @@ const CreateLeague = () => {
             user_id: user.id,
             role: "owner",
             joined_at: new Date().toISOString(),
-            team_id: fantasyTeam.id,
           }
         ]);
       if (memberError) throw memberError;
+
+      // El fantasy_team se crea automáticamente via trigger si owner_plays = true
+      // No necesitamos crear manualmente porque el trigger auto_create_fantasy_team
+      // ya verifica should_user_have_team() y crea el equipo apropiadamente
 
       if (isPrivate) {
         setGeneratedCode(privateCode!);
@@ -176,6 +167,8 @@ const CreateLeague = () => {
         toast.success("League created successfully!");
         navigate("/hub");
       }
+
+      setCreatedLeagueId(league.id);
     } catch (error: unknown) {
       const errMsg = error && typeof error === "object" && "message" in error ? (error as { message: string }).message : String(error);
       toast.error("Error creating league: " + errMsg);
@@ -197,6 +190,10 @@ const CreateLeague = () => {
     setIsPrivate(checked);
   };
 
+  const handleOwnerPlaysToggle = (checked: boolean) => {
+    setOwnerPlays(checked);
+  };
+
   const handleCodeDone = () => {
     toast.success("League created successfully!");
     navigate("/hub");
@@ -208,28 +205,38 @@ const CreateLeague = () => {
       <div className="container mx-auto px-6 py-8">
         <div className="max-w-2xl mx-auto">
           {generatedCode ? (
-            <div className="bg-card rounded-lg p-8 shadow-lg">
-              <div className="text-center">
-                <ShieldCheck className="w-16 h-16 text-primary mx-auto mb-4" />
-                <h1 className="text-3xl font-bold mb-2">Private League Created!</h1>
-                <p className="text-muted-foreground mb-6">
-                  Share this code with players you want to invite to your league
-                </p>
-                
-                <div className="bg-muted p-6 rounded-md mb-6">
-                  <p className="text-4xl font-mono tracking-wider text-center">
-                    {generatedCode}
+            <div className="space-y-6">
+              <div className="bg-card rounded-lg p-8 shadow-lg">
+                <div className="text-center">
+                  <ShieldCheck className="w-16 h-16 text-primary mx-auto mb-4" />
+                  <h1 className="text-3xl font-bold mb-2">¡Liga Privada Creada!</h1>
+                  <p className="text-muted-foreground mb-6">
+                    Comparte este código con los jugadores que quieres invitar a tu liga
                   </p>
+                  
+                  <div className="bg-muted p-6 rounded-md mb-6">
+                    <p className="text-4xl font-mono tracking-wider text-center">
+                      {generatedCode}
+                    </p>
+                  </div>
+                  
+                  <p className="text-sm text-muted-foreground mb-6">
+                    ¡Asegúrate de guardar este código! Los jugadores lo necesitarán para unirse.
+                  </p>
+                  
+                  <Button onClick={handleCodeDone} size="lg">
+                    Continuar
+                  </Button>
                 </div>
-                
-                <p className="text-sm text-muted-foreground mb-6">
-                  Make sure to save this code! Players will need it to join your league.
-                </p>
-                
-                <Button onClick={handleCodeDone} size="lg">
-                  Done
-                </Button>
               </div>
+
+              {/* Sistema de Invitaciones */}
+              {createdLeagueId && (
+                <LeagueInvitations 
+                  leagueId={createdLeagueId} 
+                  isOwner={true} 
+                />
+              )}
             </div>
           ) : (
             <>
@@ -356,6 +363,41 @@ const CreateLeague = () => {
                       />
                     </label>
                   )}
+                </div>
+
+                {/* Owner Participation Toggle */}
+                <div className="space-y-4 p-4 border rounded-lg bg-muted/20">
+                  <div className="flex items-center space-x-2">
+                    <Switch
+                      id="ownerPlays" 
+                      checked={ownerPlays}
+                      onCheckedChange={handleOwnerPlaysToggle}
+                    />
+                    <Label htmlFor="ownerPlays" className="flex items-center gap-2">
+                      <Crown className="w-4 h-4" />
+                      I want to play in this league
+                    </Label>
+                  </div>
+                  
+                  <div className="text-sm text-muted-foreground">
+                    {ownerPlays ? (
+                      <div className="flex items-start gap-2">
+                        <Users className="w-4 h-4 mt-0.5 text-green-600" />
+                        <div>
+                          <p className="font-medium text-green-700">Playing as Owner</p>
+                          <p>You'll participate in the draft and compete with other players. You can also manage league settings.</p>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex items-start gap-2">
+                        <Crown className="w-4 h-4 mt-0.5 text-blue-600" />
+                        <div>
+                          <p className="font-medium text-blue-700">Commissioner Only</p>
+                          <p>You'll only manage the league settings and won't participate in the draft or compete. Perfect for organizing leagues for friends.</p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 <div className="flex items-center space-x-2">

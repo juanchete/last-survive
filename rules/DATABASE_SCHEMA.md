@@ -1,5 +1,8 @@
 # 📦 Esquema de Base de Datos — NFL Fantasy Survivor
 
+> **Actualizado:** 29 Enero 2025  
+> **Estado:** Incluye Sistema de Eliminación Automática, campo owner_plays, y puntajes automáticos
+
 ---
 
 ## 1. users
@@ -30,10 +33,24 @@
 - `draft_order` (UUID[], opcional) // Orden de picks para el draft
 - `current_pick` (integer, opcional) // Índice del turno actual en el draft
 - `draft_status` (varchar(20), default 'pending') // 'pending', 'in_progress', 'completed'
+- `owner_plays` (boolean, default true)
 
 ---
 
-## 3. league_members
+## 3. league_invitations
+- `id` (PK, UUID)
+- `league_id` (FK → leagues.id) ON DELETE CASCADE
+- `inviter_id` (FK → users.id) ON DELETE CASCADE
+- `invitee_email` (string)
+- `invite_code` (string, único)
+- `status` (enum: 'pending', 'accepted', 'declined', 'expired', 'cancelled')
+- `created_at` (timestamp, default NOW())
+- `expires_at` (timestamp)
+- UNIQUE(league_id, invitee_email) // Un email no puede tener múltiples invitaciones a la misma liga
+
+---
+
+## 4. league_members
 - `id` (PK, UUID)
 - `league_id` (FK → leagues.id)
 - `user_id` (FK → users.id)
@@ -43,7 +60,7 @@
 
 ---
 
-## 4. fantasy_teams
+## 5. fantasy_teams
 - `id` (PK, UUID)
 - `league_id` (FK → leagues.id)
 - `user_id` (FK → users.id)
@@ -56,7 +73,7 @@
 
 ---
 
-## 5. nfl_teams
+## 6. nfl_teams
 - `id` (PK, UUID o int)
 - `name` (string)
 - `abbreviation` (string)
@@ -66,7 +83,7 @@
 
 ---
 
-## 6. players
+## 7. players
 - `id` (PK, UUID o int)
 - `name` (string)
 - `position` (enum: 'QB', 'RB', 'WR', 'TE', 'K', 'DEF')
@@ -75,7 +92,7 @@
 
 ---
 
-## 7. player_stats (opcional)
+## 8. player_stats (opcional)
 - `id` (PK, UUID)
 - `player_id` (FK → players.id)
 - `week` (integer)
@@ -85,7 +102,7 @@
 
 ---
 
-## 8. weeks
+## 9. weeks
 - `id` (PK, UUID)
 - `league_id` (FK → leagues.id)
 - `number` (integer)
@@ -96,7 +113,7 @@
 
 ---
 
-## 9. team_rosters
+## 10. team_rosters
 - `id` (PK, UUID)
 - `fantasy_team_id` (FK → fantasy_teams.id)
 - `player_id` (FK → players.id)
@@ -108,7 +125,7 @@
 
 ---
 
-## 10. waiver_priority
+## 11. waiver_priority
 - `id` (PK, UUID)
 - `league_id` (FK → leagues.id)
 - `week` (integer)
@@ -117,7 +134,7 @@
 
 ---
 
-## 11. waiver_requests
+## 12. waiver_requests
 - `id` (PK, UUID)
 - `league_id` (FK → leagues.id)
 - `week` (integer)
@@ -128,7 +145,7 @@
 
 ---
 
-## 12. roster_moves
+## 13. roster_moves
 - `id` (PK, UUID)
 - `fantasy_team_id` (FK → fantasy_teams.id)
 - `player_id` (FK → players.id, INTEGER)
@@ -140,7 +157,7 @@
 
 ---
 
-## 13. notifications
+## 14. notifications
 - `id` (PK, UUID)
 - `user_id` (FK → users.id)
 - `league_id` (FK → leagues.id, opcional)
@@ -152,4 +169,133 @@
 ---
 
 ## Notas
-- Cuando encuentres una API de jugadores de la NFL, deberás poblar la tabla `
+- Cuando encuentres una API de jugadores de la NFL, deberás poblar la tabla `players` y `nfl_teams`
+- El sistema de invitaciones (`league_invitations`) permite tanto invitaciones por email como enlaces directos
+- Los códigos de invitación expiran automáticamente después de 7 días por defecto
+- La tabla `weeks` se usa para el sistema de eliminación semanal automático
+
+---
+
+## ⚙️ **Funciones Automáticas Implementadas**
+
+### 🎯 **Sistema de Eliminación Automática**
+```sql
+-- Calcula puntaje semanal de un equipo
+calculate_team_weekly_score(team_id UUID, week INTEGER, season INTEGER) RETURNS DECIMAL
+
+-- Detecta equipo con menor puntaje en una liga
+get_lowest_scoring_team(league_id UUID, week INTEGER, season INTEGER) RETURNS UUID
+
+-- Procesa eliminación automática semanal
+process_weekly_elimination(league_id UUID, week INTEGER, season INTEGER) RETURNS JSON
+
+-- Libera jugadores eliminados al waiver pool
+releasePlayersToWaivers(team_id UUID, week INTEGER) RETURNS VOID
+
+-- Crear notificación de eliminación
+createEliminationNotification(user_id UUID, league_id UUID, week INTEGER) RETURNS VOID
+```
+
+### 🔄 **Sistema de Puntajes Automáticos**
+```sql
+-- Trigger automático para actualizar puntajes en tiempo real
+update_fantasy_team_points() RETURNS TRIGGER
+
+-- Triggers aplicados a:
+-- - player_stats (cuando se actualizan estadísticas)
+-- - team_rosters (cuando cambian alineaciones)
+
+-- Función para refrescar puntajes de una liga completa
+refresh_league_points(league_id UUID, week INTEGER) RETURNS JSON
+```
+
+### 🏗️ **Sistema owner_plays**
+```sql
+-- Determina si un usuario debería tener fantasy_team
+should_user_have_team(user_id UUID, league_id UUID) RETURNS BOOLEAN
+
+-- Crea equipos faltantes automáticamente
+create_missing_fantasy_teams() RETURNS JSON
+
+-- Limpia equipos duplicados (bug fix)
+cleanup_duplicate_fantasy_teams() RETURNS JSON
+
+-- Trigger para crear equipos automáticamente
+auto_create_fantasy_team() RETURNS TRIGGER
+```
+
+### 🧪 **Funciones de Testing**
+```sql
+-- Configura rosters realistas para testing
+setup_realistic_test_rosters(league_id UUID) RETURNS JSON
+
+-- Verifica puntajes calculados
+verify_team_scores(league_id UUID, week INTEGER) RETURNS JSON
+
+-- Simula eliminación para testing
+simulate_elimination_for_testing(league_id UUID, week INTEGER) RETURNS JSON
+
+-- Reset datos de eliminación
+reset_league_eliminations(league_id UUID) RETURNS JSON
+```
+
+---
+
+## 🔗 Relationships Overview
+
+```
+users
+  ├── leagues (owner_id)
+  ├── league_members (user_id)
+  ├── fantasy_teams (user_id)
+  ├── league_invitations (inviter_id)
+  └── notifications (user_id)
+
+leagues
+  ├── league_members (league_id)
+  ├── fantasy_teams (league_id)
+  ├── waiver_priority (league_id)
+  ├── waiver_requests (league_id)
+  ├── league_invitations (league_id)
+  └── notifications (league_id)
+
+fantasy_teams
+  ├── team_rosters (fantasy_team_id) -- ✅ CON TRIGGER
+  ├── waiver_priority (fantasy_team_id)
+  ├── waiver_requests (fantasy_team_id)
+  ├── roster_moves (fantasy_team_id)
+  └── league_members (team_id) -- ✅ VIA TRIGGER
+
+players
+  ├── player_stats (player_id) -- ✅ CON TRIGGER
+  ├── team_rosters (player_id) -- ✅ CON TRIGGER
+  ├── waiver_requests (player_id)
+  └── roster_moves (player_id)
+```
+
+---
+
+## 📝 **Cambios Recientes - 29 Enero 2025**
+
+### ✅ **owner_plays Field**
+- Campo `owner_plays` agregado a `leagues`
+- Permite owners que solo administran vs. que juegan
+- Trigger automático `auto_create_fantasy_team()` mejorado
+- Función `cleanup_duplicate_fantasy_teams()` para bug fixes
+
+### ✅ **Sistema de Puntajes Automático**
+- Triggers en `player_stats` y `team_rosters`
+- Función `update_fantasy_team_points()` para actualización en tiempo real
+- Eliminación manual de actualización de puntajes
+
+### ✅ **Sistema de Eliminación Completo**
+- Funciones SQL completas para eliminación automática
+- Liberación automática de jugadores via `is_active = false`
+- Sistema de notificaciones integrado
+- Funciones de testing y verificación
+
+### ✅ **Optimizaciones**
+- Índices agregados para queries frecuentes
+- Funciones de utilidad para debugging
+- Validaciones mejoradas en triggers
+- Cleanup de datos duplicados automático

@@ -1,0 +1,26 @@
+id,name,position,nfl_team_id,photo_url
+1,Patrick Mahomes,QB,1,https://a.espncdn.com/i/headshots/nfl/players/full/3139477.png
+2,Christian McCaffrey,RB,2,https://a.espncdn.com/i/headshots/nfl/players/full/3116406.png
+3,Justin Jefferson,WR,3,https://a.espncdn.com/i/headshots/nfl/players/full/4362628.png
+4,Travis Kelce,TE,1,https://a.espncdn.com/i/headshots/nfl/players/full/14880.png
+5,Justin Tucker,K,4,https://a.espncdn.com/i/headshots/nfl/players/full/15683.png
+6,San Francisco 49ers,DEF,2,https://upload.wikimedia.org/wikipedia/commons/3/3a/San_Francisco_49ers_logo.svg
+10,Christian McCaffrey,RB,4,https://via.placeholder.com/150
+11,Austin Ekeler,RB,5,https://via.placeholder.com/150
+12,Derrick Henry,RB,2,https://via.placeholder.com/150
+13,Isiah Pacheco,RB,1,https://via.placeholder.com/150
+14,Miles Sanders,RB,3,https://via.placeholder.com/150
+20,Tyreek Hill,WR,5,https://via.placeholder.com/150
+21,Stefon Diggs,WR,2,https://via.placeholder.com/150
+22,A.J. Brown,WR,3,https://via.placeholder.com/150
+23,Travis Kelce,TE,1,https://via.placeholder.com/150
+24,Deebo Samuel,WR,4,https://via.placeholder.com/150
+30,Mark Andrews,TE,2,https://via.placeholder.com/150
+31,Dallas Goedert,TE,3,https://via.placeholder.com/150
+32,George Kittle,TE,4,https://via.placeholder.com/150
+40,Harrison Butker,K,1,https://via.placeholder.com/150
+41,Tyler Bass,K,2,https://via.placeholder.com/150
+42,Jake Elliott,K,3,https://via.placeholder.com/150
+50,Chiefs Defense,DEF,1,https://via.placeholder.com/150
+51,Bills Defense,DEF,2,https://via.placeholder.com/150
+52,Eagles Defense,DEF,3,https://via.placeholder.com/150

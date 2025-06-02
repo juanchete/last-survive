@@ -1,5 +1,6 @@
 import { Layout } from "@/components/Layout";
 import { LeagueNav } from "@/components/LeagueNav";
+import { DraftTimer } from "@/components/DraftTimer";
 import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -8,14 +9,19 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { PlayerCard } from "@/components/PlayerCard";
 import { WeeklyElimination } from "@/components/WeeklyElimination";
-import { Search, Award } from "lucide-react";
+import { Search, Award, Settings, Play, Pause, RotateCcw, CheckCircle } from "lucide-react";
 import { useLocation } from "react-router-dom";
 import { useAvailablePlayers } from "@/hooks/useAvailablePlayers";
 import { useUserFantasyTeam } from "@/hooks/useUserFantasyTeam";
 import { useDraftState } from "@/hooks/useDraftState";
 import { useIsMyDraftTurn } from "@/hooks/useIsMyDraftTurn";
+import { useIsLeagueOwner } from "@/hooks/useIsLeagueOwner";
 import { draftPlayer } from "@/lib/draft";
+import { pauseDraft, resumeDraft, resetDraft, completeDraft } from "@/lib/draftControl";
+import { executeAutoDraft } from "@/lib/autoDraft";
 import { useMyRoster } from "@/hooks/useMyRoster";
+import { toast } from 'sonner';
+import { useQueryClient } from "@tanstack/react-query";
 import type { Player } from "@/types";
 
 export default function Draft() {
@@ -23,10 +29,12 @@ export default function Draft() {
   const location = useLocation();
   const searchParams = new URLSearchParams(location.search);
   const leagueId = searchParams.get("league") || "default";
+  const queryClient = useQueryClient();
 
   // Hooks de datos reales
   const { data: userTeam, isLoading: loadingUserTeam } = useUserFantasyTeam(leagueId);
   const { data: draftState, isLoading: loadingDraftState } = useDraftState(leagueId);
+  const { data: isOwner = false } = useIsLeagueOwner(leagueId);
   const currentWeek = 1; // Puedes obtener la semana real con useCurrentWeek si lo necesitas
   const { data: availablePlayers = [], isLoading: loadingPlayers } = useAvailablePlayers(leagueId, currentWeek);
   // Llamar siempre el hook, aunque userTeam no esté listo
@@ -39,6 +47,9 @@ export default function Draft() {
   const [positionFilter, setPositionFilter] = useState('all');
   const [sortBy, setSortBy] = useState('points');
   const [loadingPick, setLoadingPick] = useState(false);
+  const [loadingControl, setLoadingControl] = useState(false);
+  const [autoTimerEnabled, setAutoTimerEnabled] = useState(true);
+  const [showControls, setShowControls] = useState(false);
 
   // Límites de slots
   const SLOT_LIMITS = {
@@ -110,22 +121,99 @@ export default function Draft() {
     position: player.position as "QB" | "RB" | "WR" | "TE" | "K" | "DEF"
   }));
 
+  // Función para refrescar todos los datos relacionados con el draft
+  const refreshDraftData = async () => {
+    console.log('🔄 Refrescando datos del draft...');
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ["availablePlayers", leagueId, currentWeek] }),
+      queryClient.invalidateQueries({ queryKey: ["draftState", leagueId] }),
+      queryClient.invalidateQueries({ queryKey: ["userFantasyTeam", leagueId] }),
+      queryClient.invalidateQueries({ queryKey: ["myRoster", userTeam?.id, currentWeek] }),
+      queryClient.invalidateQueries({ queryKey: ["isLeagueOwner", leagueId] }),
+    ]);
+    console.log('✅ Datos refrescados');
+  };
+
   // Manejar el pick de un jugador
   const handleDraft = async (playerId: number, slot: string) => {
-    if (!userTeam) return;
+    console.log('🎯 Intentando draft:', { playerId, slot, userTeam: userTeam?.id });
+    
+    if (!userTeam) {
+      console.error('❌ No userTeam');
+      toast.error('Error: No se encontró tu equipo');
+      return;
+    }
+
+    if (!isMyTurn) {
+      console.error('❌ No es mi turno');
+      toast.error('No es tu turno para draftear');
+      return;
+    }
+
+    if (draftState?.draft_status !== 'in_progress') {
+      console.error('❌ Draft no está activo');
+      toast.error('El draft no está activo actualmente');
+      return;
+    }
+
     setLoadingPick(true);
     try {
-      await draftPlayer({
+      console.log('🚀 Ejecutando draftPlayer...');
+      
+      const result = await draftPlayer({
         leagueId,
         fantasyTeamId: userTeam.id,
         playerId,
         week: currentWeek,
         slot,
       });
-      // Aquí podrías refetchear los datos si lo deseas
+
+      console.log('✅ Draft exitoso:', result);
+      toast.success('¡Jugador drafteado exitosamente!');
+      
+      // Refrescar datos después del draft
+      await refreshDraftData();
+      
+    } catch (error: unknown) {
+      console.error('💥 Error en handleDraft:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
+      toast.error(`Error al draftear: ${errorMessage}`);
     } finally {
       setLoadingPick(false);
     }
+  };
+
+  // Manejar cuando expira el tiempo del timer
+  const handleTimeExpired = async () => {
+    if (!userTeam || !isMyTurn || loadingPick) return;
+
+    setLoadingPick(true);
+    try {
+      const result = await executeAutoDraft({
+        leagueId,
+        fantasyTeamId: userTeam.id,
+        availablePlayers,
+        currentRoster: myRoster,
+        currentWeek,
+      });
+
+      if (result.success && result.player) {
+        toast.success(`Auto-draft: ${result.player.name} (${result.player.position}) seleccionado automáticamente`);
+      } else {
+        toast.error(`Error en auto-draft: ${result.error}`);
+      }
+    } catch (error) {
+      toast.error('Error ejecutando auto-draft');
+      console.error('Error en auto-draft:', error);
+    } finally {
+      setLoadingPick(false);
+    }
+  };
+
+  // Manejar toggle del auto-timer
+  const handleToggleAutoTimed = (enabled: boolean) => {
+    setAutoTimerEnabled(enabled);
+    toast.info(enabled ? 'Auto-draft habilitado' : 'Auto-draft deshabilitado');
   };
 
   // Mostrar el orden de picks y el turno actual
@@ -142,6 +230,66 @@ export default function Draft() {
     );
   };
 
+  // Funciones de control del draft (solo para owners)
+  const handlePauseDraft = async () => {
+    if (!userTeam?.user_id || !leagueId) return;
+    setLoadingControl(true);
+    try {
+      const result = await pauseDraft(userTeam.user_id, leagueId);
+      if (result.success) {
+        toast.success(result.message);
+        await refreshDraftData();
+      } else {
+        toast.error(result.message);
+      }
+    } catch (error) {
+      toast.error('Error pausando draft');
+    } finally {
+      setLoadingControl(false);
+    }
+  };
+
+  const handleResumeDraft = async () => {
+    if (!userTeam?.user_id || !leagueId) return;
+    setLoadingControl(true);
+    try {
+      const result = await resumeDraft(userTeam.user_id, leagueId);
+      if (result.success) {
+        toast.success(result.message);
+        await refreshDraftData();
+      } else {
+        toast.error(result.message);
+      }
+    } catch (error) {
+      toast.error('Error reanudando draft');
+    } finally {
+      setLoadingControl(false);
+    }
+  };
+
+  const handleCompleteDraft = async () => {
+    if (!userTeam?.user_id || !leagueId) return;
+    
+    if (!confirm('¿Estás seguro de que quieres finalizar el draft? Esta acción no se puede deshacer.')) {
+      return;
+    }
+
+    setLoadingControl(true);
+    try {
+      const result = await completeDraft(userTeam.user_id, leagueId);
+      if (result.success) {
+        toast.success(result.message);
+        await refreshDraftData();
+      } else {
+        toast.error(result.message);
+      }
+    } catch (error) {
+      toast.error('Error finalizando draft');
+    } finally {
+      setLoadingControl(false);
+    }
+  };
+
   return (
     <Layout>
       <LeagueNav leagueId={leagueId} />
@@ -150,11 +298,88 @@ export default function Draft() {
           {/* Main Content */}
           <div className="flex-1">
             <div className="flex justify-between items-center mb-6">
-              <h1 className="text-2xl font-bold">Player Draft</h1>
+              <div className="flex items-center gap-4">
+                <h1 className="text-2xl font-bold">Player Draft</h1>
+                {/* Controles de Owner */}
+                {isOwner && (
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setShowControls(!showControls)}
+                      className="text-xs"
+                    >
+                      <Settings className="w-4 h-4 mr-1" />
+                      Admin
+                    </Button>
+                  </div>
+                )}
+              </div>
               <Badge className="bg-nfl-blue">
                 {userTeam?.players?.length || 0} Players on Roster
               </Badge>
             </div>
+
+            {/* Controles de Admin (solo visible cuando se expanden) */}
+            {isOwner && showControls && (
+              <Card className="mb-6 border-blue-200 bg-blue-50/50">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-sm flex items-center gap-2">
+                    <Settings className="w-4 h-4" />
+                    Draft Management (Owner Only)
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="pt-0">
+                  <div className="flex gap-2 flex-wrap">
+                    {draftState?.draft_status === 'in_progress' && (
+                      <Button
+                        onClick={handlePauseDraft}
+                        disabled={loadingControl}
+                        variant="outline"
+                        size="sm"
+                        className="flex items-center gap-1"
+                      >
+                        <Pause className="w-3 h-3" />
+                        Pausar
+                      </Button>
+                    )}
+                    
+                    {draftState?.draft_status === 'pending' && (
+                      <Button
+                        onClick={handleResumeDraft}
+                        disabled={loadingControl}
+                        variant="outline"
+                        size="sm"
+                        className="flex items-center gap-1"
+                      >
+                        <Play className="w-3 h-3" />
+                        Reanudar
+                      </Button>
+                    )}
+
+                    {draftState?.draft_status !== 'completed' && (
+                      <Button
+                        onClick={handleCompleteDraft}
+                        disabled={loadingControl}
+                        variant="default"
+                        size="sm"
+                        className="flex items-center gap-1"
+                      >
+                        <CheckCircle className="w-3 h-3" />
+                        Finalizar
+                      </Button>
+                    )}
+
+                    {loadingControl && (
+                      <div className="text-xs text-blue-600 flex items-center">
+                        ⏳ Procesando...
+                      </div>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
             {/* Draft state */}
             {loadingDraftState ? (
               <p className="text-gray-400 mb-2">Loading draft state...</p>
@@ -232,8 +457,23 @@ export default function Draft() {
                 <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-4">
                   {sortedPlayers.map(player => {
                     const slot = getAvailableSlot(player);
-                    const canDraft = isMyTurn && !loadingPick && !!slot;
+                    const canDraft = isMyTurn && 
+                                    !loadingPick && 
+                                    !loadingControl &&
+                                    !!slot && 
+                                    draftState?.draft_status === 'in_progress';
                     const feedback = !canDraft ? getSlotFeedback(player) : null;
+                    
+                    // Mensaje específico si el draft está pausado
+                    let disabledReason = feedback;
+                    if (draftState?.draft_status === 'pending') {
+                      disabledReason = "Draft pausado por el administrador";
+                    } else if (draftState?.draft_status === 'completed') {
+                      disabledReason = "Draft finalizado";
+                    } else if (!isMyTurn) {
+                      disabledReason = "No es tu turno";
+                    }
+                    
                     return (
                       <div key={player.id} className="flex flex-col gap-2">
                         <PlayerCard
@@ -241,8 +481,8 @@ export default function Draft() {
                           onDraft={canDraft ? (playerId) => handleDraft(Number(playerId), slot!) : undefined}
                           showDraftButton={canDraft}
                         />
-                        {feedback && (
-                          <div className="text-xs text-red-400 px-2">{feedback}</div>
+                        {disabledReason && (
+                          <div className="text-xs text-red-400 px-2">{disabledReason}</div>
                         )}
                       </div>
                     );
@@ -266,6 +506,15 @@ export default function Draft() {
           </div>
           {/* Sidebar */}
           <div className="lg:w-80 space-y-8">
+            {/* Draft Timer */}
+            <DraftTimer
+              isMyTurn={isMyTurn}
+              isActive={draftState?.draft_status === 'in_progress'}
+              onTimeExpired={handleTimeExpired}
+              onToggleAutoTimed={handleToggleAutoTimed}
+              timerDuration={60}
+            />
+            
             <WeeklyElimination />
             {/* Draft rules */}
             <Card className="bg-nfl-gray border-nfl-light-gray/20">

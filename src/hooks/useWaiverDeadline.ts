@@ -1,0 +1,26 @@
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+
+interface WaiverDeadline {
+  deadline: string;
+  deadline_day: number;
+  deadline_hour: number;
+  time_remaining: number;
+  deadline_passed: boolean;
+}
+
+export function useWaiverDeadline(leagueId: string) {
+  return useQuery({
+    queryKey: ["waiverDeadline", leagueId],
+    queryFn: async (): Promise<WaiverDeadline> => {
+      const { data, error } = await supabase.rpc("get_waiver_deadline", {
+        league_id: leagueId,
+      });
+
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!leagueId,
+    refetchInterval: 60000, // Refrescar cada minuto
+  });
+}
