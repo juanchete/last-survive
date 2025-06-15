@@ -41,11 +41,12 @@ export function useRosterWithPlayerDetails(fantasyTeamId: string, week: number) 
       
       // Create a lookup map for players and stats
       const playersMap = new Map(players.map(player => {
-        // Map the database response to our Player type
+        // Map the database response to our Player type with proper position typing
+        const position = player.position as "QB" | "RB" | "WR" | "TE" | "K" | "DEF";
         const typedPlayer = {
           id: player.id.toString(),
           name: player.name,
-          position: player.position as "QB" | "RB" | "WR" | "TE" | "K" | "DEF",
+          position,
           team: player.nfl_team?.abbreviation || "",
           available: false, // In a roster, so not available
           eliminated: false, // This would need to be calculated from NFL team status

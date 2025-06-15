@@ -17,7 +17,7 @@ export function usePlayerDetails(playerId: number) {
         
       if (error) throw error;
       
-      // Convert database position string to our Player type's position
+      // Convert database position string to our Player type's position with proper typing
       if (data) {
         // Ensure position is properly typed
         const position = data.position as "QB" | "RB" | "WR" | "TE" | "K" | "DEF";

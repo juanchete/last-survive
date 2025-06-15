@@ -99,8 +99,13 @@ export default function Draft() {
     return null;
   };
 
-  // Filtrar y ordenar jugadores
-  const filteredPlayers = availablePlayers.filter(player => {
+  // Filtrar y ordenar jugadores - properly type the available players
+  const typedAvailablePlayers: Player[] = availablePlayers.map(player => ({
+    ...player,
+    position: player.position as "QB" | "RB" | "WR" | "TE" | "K" | "DEF"
+  }));
+
+  const filteredPlayers = typedAvailablePlayers.filter(player => {
     if (!player.available) return false;
     if (positionFilter !== 'all' && player.position !== positionFilter) return false;
     if (searchTerm && !player.name.toLowerCase().includes(searchTerm.toLowerCase()) &&
@@ -116,10 +121,7 @@ export default function Draft() {
     if (sortBy === 'name') return a.name.localeCompare(b.name);
     if (sortBy === 'position') return a.position.localeCompare(b.position);
     return 0;
-  }).map(player => ({
-    ...player,
-    position: player.position as "QB" | "RB" | "WR" | "TE" | "K" | "DEF"
-  }));
+  });
 
   // Función para refrescar todos los datos relacionados con el draft
   const refreshDraftData = async () => {
@@ -192,7 +194,7 @@ export default function Draft() {
       const result = await executeAutoDraft({
         leagueId,
         fantasyTeamId: userTeam.id,
-        availablePlayers,
+        availablePlayers: typedAvailablePlayers,
         currentRoster: myRoster,
         currentWeek,
       });
@@ -232,10 +234,10 @@ export default function Draft() {
 
   // Funciones de control del draft (solo para owners)
   const handlePauseDraft = async () => {
-    if (!userTeam?.user_id || !leagueId) return;
+    if (!userTeam?.id || !leagueId) return;
     setLoadingControl(true);
     try {
-      const result = await pauseDraft(userTeam.user_id, leagueId);
+      const result = await pauseDraft(userTeam.id, leagueId);
       if (result.success) {
         toast.success(result.message);
         await refreshDraftData();
@@ -250,10 +252,10 @@ export default function Draft() {
   };
 
   const handleResumeDraft = async () => {
-    if (!userTeam?.user_id || !leagueId) return;
+    if (!userTeam?.id || !leagueId) return;
     setLoadingControl(true);
     try {
-      const result = await resumeDraft(userTeam.user_id, leagueId);
+      const result = await resumeDraft(userTeam.id, leagueId);
       if (result.success) {
         toast.success(result.message);
         await refreshDraftData();
@@ -268,7 +270,7 @@ export default function Draft() {
   };
 
   const handleCompleteDraft = async () => {
-    if (!userTeam?.user_id || !leagueId) return;
+    if (!userTeam?.id || !leagueId) return;
     
     if (!confirm('¿Estás seguro de que quieres finalizar el draft? Esta acción no se puede deshacer.')) {
       return;
@@ -276,7 +278,7 @@ export default function Draft() {
 
     setLoadingControl(true);
     try {
-      const result = await completeDraft(userTeam.user_id, leagueId);
+      const result = await completeDraft(userTeam.id, leagueId);
       if (result.success) {
         toast.success(result.message);
         await refreshDraftData();

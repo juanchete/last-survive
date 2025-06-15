@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { Layout } from "@/components/Layout";
 import { LeagueNav } from "@/components/LeagueNav";
@@ -47,10 +48,12 @@ const WaiverProcessing = () => {
 
       if (error) throw error;
 
-      setLastProcessResult(data);
+      // Properly type the response data
+      const result = data as any;
+      setLastProcessResult(result);
       toast({
         title: "Waivers Procesadas",
-        description: `${data.successful_claims} solicitudes aprobadas, ${data.failed_claims} rechazadas`,
+        description: `${result.successful_claims || 0} solicitudes aprobadas, ${result.failed_claims || 0} rechazadas`,
       });
     } catch (error: any) {
       toast({
@@ -71,9 +74,11 @@ const WaiverProcessing = () => {
 
       if (error) throw error;
 
+      // Properly type the response data
+      const result = data as any;
       toast({
         title: "Deadline Info",
-        description: `Próximo deadline: ${new Date(data.deadline).toLocaleString()}`,
+        description: `Próximo deadline: ${new Date(result.deadline || Date.now()).toLocaleString()}`,
       });
     } catch (error: any) {
       toast({
@@ -92,11 +97,13 @@ const WaiverProcessing = () => {
 
       if (error) throw error;
 
+      // Properly type the response data
+      const result = data as any;
       toast({
         title: "Debug Info",
-        description: `Waivers pendientes: ${data.pending_waiver_requests}, Prioridades: ${data.waiver_priority_records}, Matches: ${data.joined_records_matching_criteria}`,
+        description: `Waivers pendientes: ${result.pending_waiver_requests || 0}, Prioridades: ${result.waiver_priority_records || 0}, Matches: ${result.joined_records_matching_criteria || 0}`,
       });
-      console.log("Debug Waiver Processing:", data);
+      console.log("Debug Waiver Processing:", result);
     } catch (error: any) {
       toast({
         title: "Error en Debug",
@@ -117,10 +124,12 @@ const WaiverProcessing = () => {
 
       if (error) throw error;
 
-      setLastProcessResult(data);
+      // Properly type the response data
+      const result = data as any;
+      setLastProcessResult(result);
       toast({
         title: "Waivers Procesadas (Simple)",
-        description: `${data.successful_claims} solicitudes aprobadas, ${data.failed_claims} rechazadas`,
+        description: `${result.successful_claims || 0} solicitudes aprobadas, ${result.failed_claims || 0} rechazadas`,
       });
     } catch (error: any) {
       toast({
@@ -241,19 +250,19 @@ const WaiverProcessing = () => {
                   <div className="grid grid-cols-3 gap-4 text-center">
                     <div className="bg-green-50 p-3 rounded-lg">
                       <div className="text-2xl font-bold text-green-600">
-                        {lastProcessResult.successful_claims}
+                        {lastProcessResult.successful_claims || 0}
                       </div>
                       <div className="text-sm text-green-700">Aprobadas</div>
                     </div>
                     <div className="bg-red-50 p-3 rounded-lg">
                       <div className="text-2xl font-bold text-red-600">
-                        {lastProcessResult.failed_claims}
+                        {lastProcessResult.failed_claims || 0}
                       </div>
                       <div className="text-sm text-red-700">Rechazadas</div>
                     </div>
                     <div className="bg-blue-50 p-3 rounded-lg">
                       <div className="text-2xl font-bold text-blue-600">
-                        {lastProcessResult.total_processed}
+                        {lastProcessResult.total_processed || 0}
                       </div>
                       <div className="text-sm text-blue-700">Total</div>
                     </div>
@@ -262,7 +271,7 @@ const WaiverProcessing = () => {
                   <Alert className="border-green-500 bg-green-50">
                     <CheckCircle className="h-4 w-4" />
                     <AlertDescription className="text-green-700">
-                      <strong>Resultado:</strong> {lastProcessResult.message}
+                      <strong>Resultado:</strong> {lastProcessResult.message || 'Procesamiento completado'}
                     </AlertDescription>
                   </Alert>
 

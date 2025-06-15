@@ -33,12 +33,13 @@ export function useWaiverPlayers(leagueId: string, week: number) {
       // Create a map of player points
       const pointsMap = new Map(stats?.map((s) => [s.player_id, s.fantasy_points]) || []);
       
-      // Convert to typed Player objects
+      // Convert to typed Player objects with proper position typing
       return players.map((player) => {
+        const position = player.position as "QB" | "RB" | "WR" | "TE" | "K" | "DEF";
         return {
           id: player.id.toString(),
           name: player.name,
-          position: player.position as "QB" | "RB" | "WR" | "TE" | "K" | "DEF",
+          position,
           team: player.nfl_team?.abbreviation || "",
           available: true, // Not in roster, so available
           eliminated: false, // This would need to be calculated from NFL team status

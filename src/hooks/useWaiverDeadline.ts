@@ -20,9 +20,16 @@ export function useWaiverDeadline(leagueId: string) {
 
       if (error) throw error;
       
-      // Type guard to ensure we have the correct structure
-      if (typeof data === 'object' && data !== null && 'deadline' in data) {
-        return data as WaiverDeadline;
+      // Properly type the response data
+      if (data && typeof data === 'object') {
+        const result = data as any;
+        return {
+          deadline: result.deadline || '',
+          deadline_day: result.deadline_day || 3,
+          deadline_hour: result.deadline_hour || 23,
+          time_remaining: result.time_remaining || 0,
+          deadline_passed: result.deadline_passed || false
+        };
       }
       
       throw new Error('Invalid waiver deadline data structure');
