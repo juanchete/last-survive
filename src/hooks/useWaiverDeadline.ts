@@ -1,3 +1,4 @@
+
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -18,7 +19,13 @@ export function useWaiverDeadline(leagueId: string) {
       });
 
       if (error) throw error;
-      return data;
+      
+      // Type guard to ensure we have the correct structure
+      if (typeof data === 'object' && data !== null && 'deadline' in data) {
+        return data as WaiverDeadline;
+      }
+      
+      throw new Error('Invalid waiver deadline data structure');
     },
     enabled: !!leagueId,
     refetchInterval: 60000, // Refrescar cada minuto

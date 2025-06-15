@@ -68,7 +68,7 @@ export function useRosterWithPlayerDetails(fantasyTeamId: string, week: number) 
         
         return {
           ...rosterItem,
-          player: player || null,
+          ...player, // Spread player properties directly
           stats: playerStats || null
         };
       });

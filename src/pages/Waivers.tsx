@@ -1,3 +1,4 @@
+
 import { useEffect, useState } from "react";
 import { Layout } from "@/components/Layout";
 import { LeagueNav } from "@/components/LeagueNav";
@@ -6,18 +7,27 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Separator } from "@/components/ui/separator";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useWaiverPlayers } from "@/hooks/useWaiverPlayers";
 import { useWaiverPriority } from "@/hooks/useWaiverPriority";
 import { useUserFantasyTeam } from "@/hooks/useUserFantasyTeam";
 import { useMyWaiverRequests } from "@/hooks/useMyWaiverRequests";
 import { useRosterWithPlayerDetails } from "@/hooks/useRosterWithPlayerDetails";
 import { useRosterLimits } from "@/hooks/useRosterLimits";
-// import { useWaiverDeadline } from "@/hooks/useWaiverDeadline";
 import { requestWaiver } from "@/lib/draft";
 import { toast } from "@/components/ui/use-toast";
-import { Loader2, Clock, AlertTriangle, CheckCircle, Users } from "lucide-react";
+import { Loader2, Clock, AlertTriangle, CheckCircle, Users, Search, Plus } from "lucide-react";
 import { useLocation } from "react-router-dom";
 import type { Player } from "@/types";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 
 const Waivers = () => {
   // Obtener el leagueId desde la URL
@@ -32,12 +42,13 @@ const Waivers = () => {
   const { data: waiverPriority = [], isLoading: loadingPriority } = useWaiverPriority(leagueId, currentWeek);
   const { data: myWaiverRequests = [], isLoading: loadingRequests, refetch } = useMyWaiverRequests(leagueId, currentWeek, userTeam?.id || "");
   const { data: currentRoster = [], isLoading: loadingRoster } = useRosterWithPlayerDetails(userTeam?.id || "", currentWeek);
-  // const { data: waiverDeadline } = useWaiverDeadline(leagueId);
 
   // Form state
   const [selectedPlayerId, setSelectedPlayerId] = useState<string>("");
   const [selectedDropPlayerId, setSelectedDropPlayerId] = useState<string>("");
   const [loadingRequest, setLoadingRequest] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [positionFilter, setPositionFilter] = useState("ALL");
 
   // Get player position for roster limits
   const selectedPlayer = waiverPlayers.find(p => p.id === selectedPlayerId);
@@ -46,6 +57,14 @@ const Waivers = () => {
     currentWeek,
     selectedPlayer?.position || ""
   );
+
+  // Filter players based on search and position
+  const filteredPlayers = waiverPlayers.filter(player => {
+    const matchesSearch = player.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         player.team.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesPosition = positionFilter === "ALL" || player.position === positionFilter;
+    return matchesSearch && matchesPosition;
+  });
 
   const handleRequest = async () => {
     if (!selectedPlayerId || !userTeam) return;
@@ -96,264 +115,327 @@ const Waivers = () => {
   // Filter active roster players for drop selection
   const activeRosterPlayers = currentRoster.filter(player => player.available !== undefined);
 
-  const formatTimeRemaining = (seconds: number) => {
-    const days = Math.floor(seconds / 86400);
-    const hours = Math.floor((seconds % 86400) / 3600);
-    const minutes = Math.floor((seconds % 3600) / 60);
-    
-    if (days > 0) return `${days}d ${hours}h ${minutes}m`;
-    if (hours > 0) return `${hours}h ${minutes}m`;
-    return `${minutes}m`;
+  const getPositionBadgeColor = (position: string) => {
+    const colors = {
+      QB: "bg-blue-100 text-blue-800 border-blue-300",
+      RB: "bg-green-100 text-green-800 border-green-300",
+      WR: "bg-purple-100 text-purple-800 border-purple-300",
+      TE: "bg-orange-100 text-orange-800 border-orange-300",
+      K: "bg-yellow-100 text-yellow-800 border-yellow-300",
+      DEF: "bg-red-100 text-red-800 border-red-300",
+    };
+    return colors[position as keyof typeof colors] || "bg-gray-100 text-gray-800 border-gray-300";
   };
 
   return (
     <Layout>
       <LeagueNav leagueId={leagueId} />
-      <div className="container mx-auto px-4 py-8">
-        <div className="flex items-center gap-3 mb-8">
-          <Users className="w-8 h-8 text-nfl-blue" />
-          <h1 className="text-3xl font-bold">Waivers - Week {currentWeek}</h1>
+      <div className="container mx-auto px-4 py-6">
+        <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center gap-3">
+            <Users className="w-8 h-8 text-nfl-blue" />
+            <h1 className="text-3xl font-bold text-white">Waivers - Week {currentWeek}</h1>
+          </div>
+          <Badge variant="outline" className="bg-nfl-blue/20 text-nfl-blue border-nfl-blue/30">
+            <Clock className="w-4 h-4 mr-2" />
+            Tuesday 11:00 PM Deadline
+          </Badge>
         </div>
 
-        {/* Waiver Deadline Card */}
-        <Card className="mb-6">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Clock className="w-5 h-5" />
-              Waiver Deadline
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {/* Temporal - simplificado hasta que funcionen las funciones SQL */}
-            <div className="flex items-center gap-2">
-              <Badge variant="outline" className="bg-blue-50">
-                <Clock className="w-4 h-4 mr-1" />
-                Tuesday 11:00 PM
-              </Badge>
-              <span className="text-sm text-gray-600">
-                Aproximadamente 2 días restantes
-              </span>
-            </div>
-          </CardContent>
-        </Card>
+        <div className="grid lg:grid-cols-4 gap-6">
+          {/* Main content - Available Players */}
+          <div className="lg:col-span-3 space-y-6">
+            {/* Search and Filters */}
+            <Card className="bg-nfl-gray border-nfl-light-gray/20">
+              <CardHeader className="pb-4">
+                <CardTitle className="text-lg text-white">Available Players</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex gap-4">
+                  <div className="flex-1 relative">
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                    <Input
+                      placeholder="Search by name or team..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      className="pl-10 bg-nfl-dark-gray border-nfl-light-gray/30 text-white"
+                    />
+                  </div>
+                  <Select value={positionFilter} onValueChange={setPositionFilter}>
+                    <SelectTrigger className="w-32 bg-nfl-dark-gray border-nfl-light-gray/30 text-white">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="bg-nfl-dark-gray border-nfl-light-gray/30">
+                      <SelectItem value="ALL">All</SelectItem>
+                      <SelectItem value="QB">QB</SelectItem>
+                      <SelectItem value="RB">RB</SelectItem>
+                      <SelectItem value="WR">WR</SelectItem>
+                      <SelectItem value="TE">TE</SelectItem>
+                      <SelectItem value="K">K</SelectItem>
+                      <SelectItem value="DEF">DEF</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
 
-        {/* Instructions Card */}
-        <Card className="mb-8">
-          <CardHeader>
-            <CardTitle>¿Cómo funciona el waiver?</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <ul className="list-disc pl-5 text-gray-300 text-sm space-y-2">
-              <li>Durante el periodo de waivers puedes solicitar jugadores que no estén en ningún equipo.</li>
-              <li>La prioridad determina quién recibe al jugador si hay varias solicitudes.</li>
-              <li>Si tu roster está lleno, <strong>debes seleccionar un jugador para soltar</strong>.</li>
-              <li>Cuando termina el periodo, los jugadores no reclamados pasan a ser agentes libres.</li>
-              <li>Recibirás notificaciones con los resultados de tus solicitudes.</li>
-            </ul>
-          </CardContent>
-        </Card>
+                {/* Players Table */}
+                {loadingPlayers ? (
+                  <div className="flex items-center justify-center py-8">
+                    <Loader2 className="animate-spin w-6 h-6 text-gray-400" />
+                    <span className="ml-2 text-gray-400">Loading players...</span>
+                  </div>
+                ) : (
+                  <div className="bg-nfl-dark-gray rounded-lg overflow-hidden">
+                    <Table>
+                      <TableHeader>
+                        <TableRow className="border-b border-nfl-light-gray/20 hover:bg-transparent">
+                          <TableHead className="text-nfl-blue font-bold w-12"></TableHead>
+                          <TableHead className="text-nfl-blue font-bold">Player</TableHead>
+                          <TableHead className="text-nfl-blue font-bold text-center">Position</TableHead>
+                          <TableHead className="text-nfl-blue font-bold text-center">Team</TableHead>
+                          <TableHead className="text-nfl-blue font-bold text-center">Points</TableHead>
+                          <TableHead className="text-nfl-blue font-bold text-center">Action</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {filteredPlayers.map((player) => {
+                          const isRequested = myWaiverRequests.some(req => req.player_id?.toString() === player.id);
+                          return (
+                            <TableRow 
+                              key={player.id} 
+                              className="border-b border-nfl-light-gray/10 hover:bg-nfl-light-gray/5"
+                            >
+                              <TableCell>
+                                {player.photo && (
+                                  <img 
+                                    src={player.photo} 
+                                    alt={player.name} 
+                                    className="w-10 h-10 rounded-full object-cover"
+                                  />
+                                )}
+                              </TableCell>
+                              <TableCell>
+                                <span className="font-semibold text-white">{player.name}</span>
+                              </TableCell>
+                              <TableCell className="text-center">
+                                <Badge className={getPositionBadgeColor(player.position)}>
+                                  {player.position}
+                                </Badge>
+                              </TableCell>
+                              <TableCell className="text-center">
+                                <span className="text-gray-300">{player.team}</span>
+                              </TableCell>
+                              <TableCell className="text-center">
+                                <span className="font-bold text-nfl-blue">{player.points}</span>
+                              </TableCell>
+                              <TableCell className="text-center">
+                                {isRequested ? (
+                                  <Badge className="bg-yellow-100 text-yellow-800 border-yellow-300">
+                                    Requested
+                                  </Badge>
+                                ) : (
+                                  <Button
+                                    size="sm"
+                                    onClick={() => setSelectedPlayerId(player.id)}
+                                    className="bg-nfl-blue hover:bg-nfl-lightblue"
+                                  >
+                                    <Plus className="w-4 h-4 mr-1" />
+                                    Add
+                                  </Button>
+                                )}
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })}
+                      </TableBody>
+                    </Table>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
 
-        <div className="grid lg:grid-cols-3 gap-8">
-          {/* Waiver Priority */}
-          <div className="lg:col-span-1">
-            <Card>
+            {/* Waiver Request Form */}
+            {selectedPlayerId && (
+              <Card className="bg-nfl-gray border-nfl-light-gray/20">
+                <CardHeader>
+                  <CardTitle className="text-white">Request Waiver</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {/* Selected Player Info */}
+                  <div className="bg-nfl-dark-gray p-4 rounded-lg">
+                    <h4 className="font-semibold text-white mb-2">Selected Player:</h4>
+                    <div className="flex items-center gap-3">
+                      {selectedPlayer?.photo && (
+                        <img 
+                          src={selectedPlayer.photo} 
+                          alt={selectedPlayer.name} 
+                          className="w-12 h-12 rounded-full object-cover"
+                        />
+                      )}
+                      <div>
+                        <p className="font-bold text-white">{selectedPlayer?.name}</p>
+                        <p className="text-sm text-gray-400">
+                          {selectedPlayer?.position} - {selectedPlayer?.team} | {selectedPlayer?.points} pts
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Roster Status Alert */}
+                  {rosterLimits && (
+                    <Alert className={rosterLimits.needs_drop ? "border-orange-500 bg-orange-50" : "border-green-500 bg-green-50"}>
+                      <AlertTriangle className="h-4 w-4" />
+                      <AlertDescription>
+                        <div className="text-sm">
+                          <strong>Roster Status:</strong> {rosterLimits.current_roster_count}/{rosterLimits.max_roster_size} players
+                          {rosterLimits.needs_drop && (
+                            <span className="text-orange-700 block mt-1">
+                              ⚠️ Roster full - You must select a player to drop
+                            </span>
+                          )}
+                        </div>
+                      </AlertDescription>
+                    </Alert>
+                  )}
+
+                  {/* Drop Player Selection */}
+                  {rosterLimits?.needs_drop && (
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-orange-700">
+                        Player to drop (required):
+                      </label>
+                      <Select value={selectedDropPlayerId} onValueChange={setSelectedDropPlayerId}>
+                        <SelectTrigger className="bg-nfl-dark-gray border-orange-300 text-white">
+                          <SelectValue placeholder="Select player to drop" />
+                        </SelectTrigger>
+                        <SelectContent className="bg-nfl-dark-gray border-nfl-light-gray/30">
+                          {activeRosterPlayers.map(player => (
+                            <SelectItem key={player.id} value={player.id}>
+                              {player.name} ({player.position} - {player.team}) | {player.points} pts
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+
+                  {/* Action Buttons */}
+                  <div className="flex gap-2">
+                    <Button
+                      onClick={handleRequest}
+                      disabled={
+                        !selectedPlayerId || 
+                        alreadyRequested || 
+                        loadingRequest ||
+                        (rosterLimits?.needs_drop && !selectedDropPlayerId)
+                      }
+                      className="bg-nfl-blue hover:bg-nfl-lightblue"
+                    >
+                      {loadingRequest ? (
+                        <>
+                          <Loader2 className="animate-spin w-4 h-4 mr-2" />
+                          Sending...
+                        </>
+                      ) : (
+                        <>
+                          Submit Waiver
+                          {selectedDropPlayerId && " (with Drop)"}
+                        </>
+                      )}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        setSelectedPlayerId("");
+                        setSelectedDropPlayerId("");
+                      }}
+                      className="border-nfl-light-gray/30 text-gray-300 hover:bg-nfl-light-gray/10"
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+          </div>
+
+          {/* Sidebar */}
+          <div className="space-y-6">
+            {/* Waiver Priority */}
+            <Card className="bg-nfl-gray border-nfl-light-gray/20">
               <CardHeader>
-                <CardTitle>Waiver Priority</CardTitle>
+                <CardTitle className="text-white">Waiver Priority</CardTitle>
               </CardHeader>
               <CardContent>
                 {loadingPriority ? (
                   <div className="flex items-center gap-2 text-gray-400">
-                    <Loader2 className="animate-spin w-4 h-4" /> Loading priority...
+                    <Loader2 className="animate-spin w-4 h-4" /> Loading...
                   </div>
                 ) : (
-                  <ul className="space-y-3">
+                  <div className="space-y-2">
                     {waiverPriority.map((wp, idx) => (
-                      <li key={wp.fantasy_team_id} className="flex items-center gap-3">
+                      <div key={wp.fantasy_team_id} className="flex items-center gap-3 p-2 rounded">
                         <Badge 
                           variant={userTeam?.id === wp.fantasy_team_id ? "default" : "outline"}
-                          className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                          className={`w-6 h-6 rounded-full flex items-center justify-center text-xs ${
                             userTeam?.id === wp.fantasy_team_id ? "bg-nfl-blue text-white" : "bg-gray-100"
                           }`}
                         >
                           {idx + 1}
                         </Badge>
                         <span className={`text-sm ${
-                          userTeam?.id === wp.fantasy_team_id ? "font-bold text-nfl-blue" : "text-gray-600"
+                          userTeam?.id === wp.fantasy_team_id ? "font-bold text-nfl-blue" : "text-gray-300"
                         }`}>
                           Team {wp.fantasy_team_id?.slice(0, 8)}
                           {userTeam?.id === wp.fantasy_team_id && " (You)"}
                         </span>
-                      </li>
+                      </div>
                     ))}
-                  </ul>
+                  </div>
                 )}
               </CardContent>
             </Card>
-          </div>
 
-          {/* Waiver Request Form */}
-          <div className="lg:col-span-2">
-            <Card>
+            {/* My Requests */}
+            <Card className="bg-nfl-gray border-nfl-light-gray/20">
               <CardHeader>
-                <CardTitle>Solicitar Jugador</CardTitle>
+                <CardTitle className="text-white">My Requests</CardTitle>
               </CardHeader>
-              <CardContent className="space-y-6">
-                {/* Roster Status Alert */}
-                {rosterLimits && (
-                  <Alert className={rosterLimits.needs_drop ? "border-orange-500 bg-orange-50" : "border-green-500 bg-green-50"}>
-                    <AlertTriangle className="h-4 w-4" />
-                    <AlertDescription>
-                      <div className="text-sm">
-                        <strong>Roster Status:</strong> {rosterLimits.current_roster_count}/{rosterLimits.max_roster_size} jugadores
-                        {rosterLimits.needs_drop && (
-                          <span className="text-orange-700 block mt-1">
-                            ⚠️ Roster lleno - Debes seleccionar un jugador para soltar
-                          </span>
-                        )}
-                      </div>
-                    </AlertDescription>
-                  </Alert>
-                )}
-
-                {/* Player Selection */}
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Jugador a solicitar:</label>
-                  <select
-                    value={selectedPlayerId}
-                    onChange={e => setSelectedPlayerId(e.target.value)}
-                    className="w-full h-12 rounded-md border px-3 py-2 text-sm bg-white"
-                    disabled={loadingPlayers || loadingRequest}
-                  >
-                    <option value="">Selecciona un jugador</option>
-                    {waiverPlayers.map(player => (
-                      <option 
-                        key={player.id} 
-                        value={player.id}
-                        disabled={myWaiverRequests.some(req => req.player_id?.toString() === player.id)}
-                      >
-                        {player.name} ({player.position} - {player.team}) | {player.points} pts
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* Drop Player Selection - Solo mostrar si es necesario */}
-                {rosterLimits?.needs_drop && selectedPlayerId && (
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium text-orange-700">
-                      Jugador a soltar (requerido):
-                    </label>
-                    <select
-                      value={selectedDropPlayerId}
-                      onChange={e => setSelectedDropPlayerId(e.target.value)}
-                      className="w-full h-12 rounded-md border border-orange-300 px-3 py-2 text-sm bg-white"
-                      disabled={loadingRoster || loadingRequest}
-                    >
-                      <option value="">Selecciona jugador para soltar</option>
-                      {activeRosterPlayers.map(player => (
-                        <option key={player.id} value={player.id}>
-                          {player.name} ({player.position} - {player.team}) | {player.points} pts
-                        </option>
-                      ))}
-                    </select>
+              <CardContent>
+                {loadingRequests ? (
+                  <div className="flex items-center gap-2 text-gray-400">
+                    <Loader2 className="animate-spin w-4 h-4" /> Loading...
                   </div>
-                )}
-
-                {/* Position Limits Info */}
-                {selectedPlayer && rosterLimits && (
-                  <Alert className="border-blue-500 bg-blue-50">
-                    <CheckCircle className="h-4 w-4" />
-                    <AlertDescription>
-                      <div className="text-sm text-blue-700">
-                        <strong>{selectedPlayer.position} Limits:</strong> {rosterLimits.current_position_count}/{rosterLimits.max_position_count}
-                        {rosterLimits.position_full && (
-                          <span className="block mt-1">
-                            ⚠️ Ya tienes el máximo de jugadores en esta posición
-                          </span>
-                        )}
+                ) : (
+                  <div className="space-y-3">
+                    {myWaiverRequests.length === 0 && (
+                      <div className="text-gray-400 text-center py-4 text-sm">
+                        No requests this week.
                       </div>
-                    </AlertDescription>
-                  </Alert>
-                )}
-
-                {/* Submit Button */}
-                <Button
-                  onClick={handleRequest}
-                  disabled={
-                    !selectedPlayerId || 
-                    alreadyRequested || 
-                    loadingRequest ||
-                    (rosterLimits?.needs_drop && !selectedDropPlayerId)
-                  }
-                  className="w-full h-12"
-                  size="lg"
-                >
-                  {loadingRequest ? (
-                    <>
-                      <Loader2 className="animate-spin w-4 h-4 mr-2" />
-                      Enviando...
-                    </>
-                  ) : (
-                    <>
-                      Solicitar Waiver
-                      {selectedDropPlayerId && " (con Drop)"}
-                    </>
-                  )}
-                </Button>
-
-                {alreadyRequested && (
-                  <Alert className="border-yellow-500 bg-yellow-50">
-                    <AlertTriangle className="h-4 w-4" />
-                    <AlertDescription className="text-yellow-700">
-                      Ya solicitaste este jugador esta semana.
-                    </AlertDescription>
-                  </Alert>
-                )}
-
-                <Separator />
-
-                {/* My Requests */}
-                <div>
-                  <h3 className="font-semibold mb-4 flex items-center gap-2">
-                    <Users className="w-4 h-4" />
-                    Tus Solicitudes
-                  </h3>
-                  {loadingRequests ? (
-                    <div className="flex items-center gap-2 text-gray-400">
-                      <Loader2 className="animate-spin w-4 h-4" /> Loading requests...
-                    </div>
-                  ) : (
-                    <div className="space-y-3">
-                      {myWaiverRequests.length === 0 && (
-                        <div className="text-gray-400 text-center py-4">
-                          No tienes solicitudes esta semana.
-                        </div>
-                      )}
-                      {myWaiverRequests.map(req => (
-                        <div key={req.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                          <div className="flex items-center gap-3">
-                            <span className="font-medium">
-                              {waiverPlayers.find(p => p.id === req.player_id?.toString())?.name || `Jugador ${req.player_id}`}
-                            </span>
-                            {req.drop_player_id && (
-                              <span className="text-sm text-gray-600">
-                                (Drop: {activeRosterPlayers.find(p => p.id === req.drop_player_id?.toString())?.name || `Jugador ${req.drop_player_id}`})
-                              </span>
-                            )}
-                          </div>
+                    )}
+                    {myWaiverRequests.map(req => (
+                      <div key={req.id} className="bg-nfl-dark-gray p-3 rounded-lg">
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="font-medium text-white text-sm">
+                            {waiverPlayers.find(p => p.id === req.player_id?.toString())?.name || `Player ${req.player_id}`}
+                          </span>
                           <Badge className={
                             req.status === 'pending' ? 'bg-yellow-100 text-yellow-800 border-yellow-300' :
                             req.status === 'approved' ? 'bg-green-100 text-green-800 border-green-300' :
                             'bg-red-100 text-red-800 border-red-300'
                           }>
-                            {req.status === 'pending' ? 'Pendiente' :
-                             req.status === 'approved' ? 'Aprobada' : 'Rechazada'}
+                            {req.status === 'pending' ? 'Pending' :
+                             req.status === 'approved' ? 'Approved' : 'Rejected'}
                           </Badge>
                         </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
+                        {req.drop_player_id && (
+                          <span className="text-xs text-gray-400">
+                            Drop: {activeRosterPlayers.find(p => p.id === req.drop_player_id?.toString())?.name || `Player ${req.drop_player_id}`}
+                          </span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
               </CardContent>
             </Card>
           </div>
