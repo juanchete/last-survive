@@ -1,13 +1,21 @@
+
 import { Layout } from "@/components/Layout";
 import { useFantasyTeams } from "@/hooks/useFantasyTeams";
 import { useUserFantasyTeam } from "@/hooks/useUserFantasyTeam";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { TeamCard } from "@/components/TeamCard";
 import { WeeklyElimination } from "@/components/WeeklyElimination";
 import { Trophy, User } from "lucide-react";
 import { useLocation } from "react-router-dom";
 import { LeagueNav } from "@/components/LeagueNav";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 
 export default function Standings() {
   // Obtener el leagueId desde la URL
@@ -25,33 +33,96 @@ export default function Standings() {
   const activeTeams = sortedTeams.filter(team => !team.eliminated);
   const eliminatedTeams = sortedTeams.filter(team => team.eliminated);
 
+  const getRankColor = (rank: number) => {
+    if (rank === 1) return "text-yellow-400";
+    if (rank === 2) return "text-gray-300";
+    if (rank === 3) return "text-amber-600";
+    return "text-white";
+  };
+
+  const getRankIcon = (rank: number) => {
+    if (rank <= 3) {
+      return <Trophy className="w-4 h-4" />;
+    }
+    return rank;
+  };
+
   return (
     <Layout>
       <LeagueNav leagueId={leagueId} />
       <div className="container mx-auto px-4 py-4">
-        <div className="grid lg:grid-cols-3 gap-8">
-          {/* Columna principal */}
-          <div className="lg:col-span-2 space-y-8">
+        <div className="grid lg:grid-cols-4 gap-8">
+          {/* Columna principal con tabla */}
+          <div className="lg:col-span-3 space-y-8">
             {/* Equipos activos */}
             <section>
               <div className="flex justify-between items-center mb-4">
-                <h2 className="text-xl font-semibold text-white/90">Equipos Activos</h2>
+                <h2 className="text-2xl font-bold text-white/90">League Standings</h2>
                 <Badge className="bg-nfl-green">
-                  {activeTeams.length} Equipos
+                  {activeTeams.length} Active Teams
                 </Badge>
               </div>
+              
               {loadingTeams || loadingUserTeam ? (
-                <p className="text-gray-400">Cargando equipos...</p>
-              ) : (
-                <div className="grid sm:grid-cols-2 gap-4">
-                  {activeTeams.map(team => (
-                    <TeamCard
-                      key={team.id}
-                      team={team}
-                      isUser={userTeam && team.id === userTeam.id}
-                    />
-                  ))}
+                <div className="bg-nfl-gray border border-nfl-light-gray/20 rounded-lg p-8">
+                  <p className="text-gray-400 text-center">Loading standings...</p>
                 </div>
+              ) : (
+                <Card className="bg-nfl-gray border-nfl-light-gray/20">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="border-b border-nfl-light-gray/20 hover:bg-transparent">
+                        <TableHead className="text-nfl-blue font-bold w-16">#</TableHead>
+                        <TableHead className="text-nfl-blue font-bold">Team</TableHead>
+                        <TableHead className="text-nfl-blue font-bold text-center">Owner</TableHead>
+                        <TableHead className="text-nfl-blue font-bold text-center">Points</TableHead>
+                        <TableHead className="text-nfl-blue font-bold text-center">Status</TableHead>
+                        <TableHead className="text-nfl-blue font-bold text-center">Players</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {activeTeams.map((team) => (
+                        <TableRow 
+                          key={team.id} 
+                          className={`border-b border-nfl-light-gray/10 hover:bg-nfl-light-gray/10 ${
+                            userTeam && team.id === userTeam.id ? 'bg-nfl-blue/10 border-nfl-blue/30' : ''
+                          }`}
+                        >
+                          <TableCell className="font-bold">
+                            <div className={`flex items-center justify-center w-8 h-8 rounded-full ${getRankColor(team.rank)}`}>
+                              {getRankIcon(team.rank)}
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-2">
+                              <span className="font-bold text-white">{team.name}</span>
+                              {userTeam && team.id === userTeam.id && (
+                                <Badge className="bg-nfl-blue text-xs">You</Badge>
+                              )}
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-center">
+                            <div className="flex items-center justify-center gap-1">
+                              <User className="w-3 h-3 text-gray-400" />
+                              <span className="text-gray-300">{team.owner}</span>
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-center">
+                            <span className="font-bold text-nfl-blue text-lg">{team.points}</span>
+                          </TableCell>
+                          <TableCell className="text-center">
+                            <Badge className="bg-nfl-green/20 text-nfl-green border-nfl-green/30">
+                              Active
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-center">
+                            <span className="text-gray-300">{team.players.length}</span>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </Card>
               )}
             </section>
 
@@ -59,20 +130,63 @@ export default function Standings() {
             {eliminatedTeams.length > 0 && (
               <section>
                 <div className="flex justify-between items-center mb-4">
-                  <h2 className="text-xl font-semibold text-white/90">Equipos Eliminados</h2>
+                  <h2 className="text-xl font-semibold text-white/90">Eliminated Teams</h2>
                   <Badge variant="destructive">
-                    {eliminatedTeams.length} Equipos
+                    {eliminatedTeams.length} Teams
                   </Badge>
                 </div>
-                <div className="grid sm:grid-cols-2 gap-4">
-                  {eliminatedTeams.map(team => (
-                    <TeamCard
-                      key={team.id}
-                      team={team}
-                      isUser={userTeam && team.id === userTeam.id}
-                    />
-                  ))}
-                </div>
+                
+                <Card className="bg-nfl-gray border-nfl-light-gray/20">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="border-b border-nfl-light-gray/20 hover:bg-transparent">
+                        <TableHead className="text-nfl-blue font-bold w-16">#</TableHead>
+                        <TableHead className="text-nfl-blue font-bold">Team</TableHead>
+                        <TableHead className="text-nfl-blue font-bold text-center">Owner</TableHead>
+                        <TableHead className="text-nfl-blue font-bold text-center">Points</TableHead>
+                        <TableHead className="text-nfl-blue font-bold text-center">Status</TableHead>
+                        <TableHead className="text-nfl-blue font-bold text-center">Week Out</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {eliminatedTeams.map((team) => (
+                        <TableRow 
+                          key={team.id} 
+                          className={`border-b border-nfl-light-gray/10 hover:bg-nfl-light-gray/10 opacity-75 ${
+                            userTeam && team.id === userTeam.id ? 'bg-nfl-blue/10 border-nfl-blue/30' : ''
+                          }`}
+                        >
+                          <TableCell className="font-bold text-gray-400">{team.rank}</TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-2">
+                              <span className="font-bold text-gray-300">{team.name}</span>
+                              {userTeam && team.id === userTeam.id && (
+                                <Badge className="bg-nfl-blue text-xs">You</Badge>
+                              )}
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-center">
+                            <div className="flex items-center justify-center gap-1">
+                              <User className="w-3 h-3 text-gray-400" />
+                              <span className="text-gray-400">{team.owner}</span>
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-center">
+                            <span className="font-bold text-gray-400">{team.points}</span>
+                          </TableCell>
+                          <TableCell className="text-center">
+                            <Badge variant="destructive">
+                              Eliminated
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-center">
+                            <span className="text-gray-400">Week {team.eliminated ? 'N/A' : '-'}</span>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </Card>
               </section>
             )}
           </div>
@@ -82,30 +196,29 @@ export default function Standings() {
             {/* Weekly Elimination */}
             <WeeklyElimination />
 
-            {/* Leaderboard */}
+            {/* Leaderboard Summary */}
             <Card className="bg-gradient-to-br from-nfl-gray to-nfl-gray/90 border-nfl-light-gray/20">
               <CardHeader className="bg-nfl-dark-gray/50 border-b border-nfl-light-gray/20">
                 <CardTitle className="flex items-center gap-2 text-lg">
                   <Trophy className="w-5 h-5 text-nfl-blue" />
-                  <span>Standings Summary</span>
+                  <span>Top 3</span>
                 </CardTitle>
               </CardHeader>
               <CardContent className="p-4">
                 {loadingTeams ? (
                   <p className="text-gray-400">Loading teams...</p>
                 ) : (
-                  <div className="divide-y divide-nfl-light-gray/10">
-                    {sortedTeams.map((team, index) => (
+                  <div className="space-y-3">
+                    {sortedTeams.slice(0, 3).map((team, index) => (
                       <div
                         key={team.id}
-                        className="flex items-center gap-3 py-3 transition-colors hover:bg-white/5 rounded-lg px-2"
+                        className="flex items-center gap-3 py-2 transition-colors hover:bg-white/5 rounded-lg px-2"
                       >
                         <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold 
                           ${index === 0 ? 'bg-yellow-500/20 text-yellow-400' : 
                             index === 1 ? 'bg-gray-400/20 text-gray-300' : 
-                            index === 2 ? 'bg-amber-800/20 text-amber-600' :
-                            'bg-nfl-dark-gray/50 text-gray-400'}`}>
-                          {index + 1}
+                            'bg-amber-800/20 text-amber-600'}`}>
+                          <Trophy className="w-4 h-4" />
                         </div>
                         <div className="flex-1 min-w-0">
                           <div className="font-bold truncate">{team.name}</div>

@@ -60,6 +60,54 @@ export type Database = {
           },
         ]
       }
+      league_invitations: {
+        Row: {
+          created_at: string | null
+          expires_at: string
+          id: string
+          invite_code: string
+          invitee_email: string
+          inviter_id: string
+          league_id: string
+          status: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          expires_at: string
+          id?: string
+          invite_code: string
+          invitee_email: string
+          inviter_id: string
+          league_id: string
+          status?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          expires_at?: string
+          id?: string
+          invite_code?: string
+          invitee_email?: string
+          inviter_id?: string
+          league_id?: string
+          status?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "league_invitations_inviter_id_fkey"
+            columns: ["inviter_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "league_invitations_league_id_fkey"
+            columns: ["league_id"]
+            isOneToOne: false
+            referencedRelation: "leagues"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       league_members: {
         Row: {
           id: string
@@ -130,10 +178,17 @@ export type Database = {
           max_members: number | null
           name: string
           owner_id: string | null
+          owner_plays: boolean | null
           private_code: string | null
           prize: string | null
           start_date: string | null
           status: string | null
+          trade_deadline_week: number | null
+          trade_review_period_hours: number | null
+          trade_veto_enabled: boolean | null
+          trade_veto_threshold: number | null
+          waiver_deadline_day: number | null
+          waiver_deadline_hour: number | null
         }
         Insert: {
           created_at?: string | null
@@ -148,10 +203,17 @@ export type Database = {
           max_members?: number | null
           name: string
           owner_id?: string | null
+          owner_plays?: boolean | null
           private_code?: string | null
           prize?: string | null
           start_date?: string | null
           status?: string | null
+          trade_deadline_week?: number | null
+          trade_review_period_hours?: number | null
+          trade_veto_enabled?: boolean | null
+          trade_veto_threshold?: number | null
+          waiver_deadline_day?: number | null
+          waiver_deadline_hour?: number | null
         }
         Update: {
           created_at?: string | null
@@ -166,10 +228,17 @@ export type Database = {
           max_members?: number | null
           name?: string
           owner_id?: string | null
+          owner_plays?: boolean | null
           private_code?: string | null
           prize?: string | null
           start_date?: string | null
           status?: string | null
+          trade_deadline_week?: number | null
+          trade_review_period_hours?: number | null
+          trade_veto_enabled?: boolean | null
+          trade_veto_threshold?: number | null
+          waiver_deadline_day?: number | null
+          waiver_deadline_hour?: number | null
         }
         Relationships: [
           {
@@ -471,6 +540,195 @@ export type Database = {
           },
         ]
       }
+      trade_items: {
+        Row: {
+          created_at: string | null
+          id: string
+          player_id: number
+          team_id: string
+          trade_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          player_id: number
+          team_id: string
+          trade_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          player_id?: number
+          team_id?: string
+          trade_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "trade_items_player_id_fkey"
+            columns: ["player_id"]
+            isOneToOne: false
+            referencedRelation: "players"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "trade_items_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "fantasy_teams"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "trade_items_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "league_fantasy_team_ranking"
+            referencedColumns: ["fantasy_team_id"]
+          },
+          {
+            foreignKeyName: "trade_items_trade_id_fkey"
+            columns: ["trade_id"]
+            isOneToOne: false
+            referencedRelation: "trades"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      trade_votes: {
+        Row: {
+          id: string
+          reason: string | null
+          trade_id: string
+          vote: string
+          voted_at: string | null
+          voter_team_id: string
+        }
+        Insert: {
+          id?: string
+          reason?: string | null
+          trade_id: string
+          vote: string
+          voted_at?: string | null
+          voter_team_id: string
+        }
+        Update: {
+          id?: string
+          reason?: string | null
+          trade_id?: string
+          vote?: string
+          voted_at?: string | null
+          voter_team_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "trade_votes_trade_id_fkey"
+            columns: ["trade_id"]
+            isOneToOne: false
+            referencedRelation: "trades"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "trade_votes_voter_team_id_fkey"
+            columns: ["voter_team_id"]
+            isOneToOne: false
+            referencedRelation: "fantasy_teams"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "trade_votes_voter_team_id_fkey"
+            columns: ["voter_team_id"]
+            isOneToOne: false
+            referencedRelation: "league_fantasy_team_ranking"
+            referencedColumns: ["fantasy_team_id"]
+          },
+        ]
+      }
+      trades: {
+        Row: {
+          executed_at: string | null
+          expires_at: string | null
+          id: string
+          league_id: string
+          notes: string | null
+          proposed_at: string | null
+          proposer_team_id: string
+          responded_at: string | null
+          response_notes: string | null
+          season: number
+          status: string
+          target_team_id: string
+          veto_deadline: string | null
+          week: number
+        }
+        Insert: {
+          executed_at?: string | null
+          expires_at?: string | null
+          id?: string
+          league_id: string
+          notes?: string | null
+          proposed_at?: string | null
+          proposer_team_id: string
+          responded_at?: string | null
+          response_notes?: string | null
+          season?: number
+          status?: string
+          target_team_id: string
+          veto_deadline?: string | null
+          week?: number
+        }
+        Update: {
+          executed_at?: string | null
+          expires_at?: string | null
+          id?: string
+          league_id?: string
+          notes?: string | null
+          proposed_at?: string | null
+          proposer_team_id?: string
+          responded_at?: string | null
+          response_notes?: string | null
+          season?: number
+          status?: string
+          target_team_id?: string
+          veto_deadline?: string | null
+          week?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "trades_league_id_fkey"
+            columns: ["league_id"]
+            isOneToOne: false
+            referencedRelation: "leagues"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "trades_proposer_team_id_fkey"
+            columns: ["proposer_team_id"]
+            isOneToOne: false
+            referencedRelation: "fantasy_teams"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "trades_proposer_team_id_fkey"
+            columns: ["proposer_team_id"]
+            isOneToOne: false
+            referencedRelation: "league_fantasy_team_ranking"
+            referencedColumns: ["fantasy_team_id"]
+          },
+          {
+            foreignKeyName: "trades_target_team_id_fkey"
+            columns: ["target_team_id"]
+            isOneToOne: false
+            referencedRelation: "fantasy_teams"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "trades_target_team_id_fkey"
+            columns: ["target_team_id"]
+            isOneToOne: false
+            referencedRelation: "league_fantasy_team_ranking"
+            referencedColumns: ["fantasy_team_id"]
+          },
+        ]
+      }
       users: {
         Row: {
           avatar_url: string | null
@@ -550,32 +808,45 @@ export type Database = {
       waiver_requests: {
         Row: {
           created_at: string | null
+          drop_player_id: number | null
           fantasy_team_id: string | null
           id: number
           league_id: string | null
           player_id: number | null
+          processed_at: string | null
           status: string
           week: number
         }
         Insert: {
           created_at?: string | null
+          drop_player_id?: number | null
           fantasy_team_id?: string | null
           id?: number
           league_id?: string | null
           player_id?: number | null
+          processed_at?: string | null
           status: string
           week: number
         }
         Update: {
           created_at?: string | null
+          drop_player_id?: number | null
           fantasy_team_id?: string | null
           id?: number
           league_id?: string | null
           player_id?: number | null
+          processed_at?: string | null
           status?: string
           week?: number
         }
         Relationships: [
+          {
+            foreignKeyName: "waiver_requests_drop_player_id_fkey"
+            columns: ["drop_player_id"]
+            isOneToOne: false
+            referencedRelation: "players"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "waiver_requests_fantasy_team_id_fkey"
             columns: ["fantasy_team_id"]
@@ -760,7 +1031,163 @@ export type Database = {
       }
     }
     Functions: {
-      [_ in never]: never
+      accept_test_trade: {
+        Args: { trade_id: string }
+        Returns: Json
+      }
+      calculate_team_weekly_score: {
+        Args: { team_id: string; week_num: number; season_year?: number }
+        Returns: number
+      }
+      check_roster_limits: {
+        Args: { team_id: string; week_num: number; position_to_add: string }
+        Returns: Json
+      }
+      cleanup_duplicate_fantasy_teams: {
+        Args: Record<PropertyKey, never>
+        Returns: Json
+      }
+      cleanup_test_trades: {
+        Args: { league_id: string }
+        Returns: Json
+      }
+      create_missing_fantasy_teams: {
+        Args: { league_id: string }
+        Returns: Json
+      }
+      debug_waiver_processing: {
+        Args: { league_id: string; week_num?: number }
+        Returns: Json
+      }
+      execute_trade: {
+        Args: { trade_id: string }
+        Returns: Json
+      }
+      get_active_players_in_league: {
+        Args: { league_id: string }
+        Returns: {
+          user_id: string
+          full_name: string
+          email: string
+          role: string
+          team_id: string
+          team_name: string
+          eliminated: boolean
+        }[]
+      }
+      get_current_nfl_week: {
+        Args: Record<PropertyKey, never>
+        Returns: number
+      }
+      get_lowest_scoring_team: {
+        Args: { league_id: string; week_num: number; season_year?: number }
+        Returns: {
+          team_id: string
+          team_name: string
+          user_id: string
+          total_points: number
+        }[]
+      }
+      get_waiver_deadline: {
+        Args: { league_id: string }
+        Returns: Json
+      }
+      process_all_weekly_eliminations: {
+        Args: { week_num: number; season_year?: number }
+        Returns: Json
+      }
+      process_expired_waivers: {
+        Args: Record<PropertyKey, never>
+        Returns: Json
+      }
+      process_league_waivers: {
+        Args: { league_id: string; week_num: number; season_year?: number }
+        Returns: Json
+      }
+      process_league_waivers_simple: {
+        Args: { league_id: string }
+        Returns: Json
+      }
+      process_trade_veto_votes: {
+        Args: { trade_id: string }
+        Returns: Json
+      }
+      process_waiver_claim: {
+        Args: { request_id: number }
+        Returns: Json
+      }
+      process_weekly_elimination: {
+        Args: { league_id: string; week_num: number; season_year?: number }
+        Returns: Json
+      }
+      refresh_league_points: {
+        Args: { target_league_id: string; target_week?: number }
+        Returns: Json
+      }
+      reset_league_eliminations: {
+        Args: { league_id: string }
+        Returns: Json
+      }
+      setup_elimination_test_league: {
+        Args: { target_league_id: string }
+        Returns: Json
+      }
+      setup_realistic_test_rosters: {
+        Args: { target_league_id: string }
+        Returns: Json
+      }
+      setup_test_trade: {
+        Args: {
+          league_id: string
+          proposer_team_name?: string
+          target_team_name?: string
+        }
+        Returns: Json
+      }
+      should_user_have_team: {
+        Args: { user_id: string; league_id: string }
+        Returns: boolean
+      }
+      simulate_elimination_for_testing: {
+        Args: { league_id: string; week_num?: number; season_year?: number }
+        Returns: Json
+      }
+      simulate_trade_veto: {
+        Args: { trade_id: string; veto_percentage?: number }
+        Returns: Json
+      }
+      test_complete_trading_flow: {
+        Args: { league_id: string }
+        Returns: Json
+      }
+      update_team_rankings: {
+        Args: { league_id: string }
+        Returns: undefined
+      }
+      validate_trade_proposal: {
+        Args: {
+          league_id: string
+          proposer_team_id: string
+          target_team_id: string
+          proposer_player_ids: number[]
+          target_player_ids: number[]
+          current_week: number
+        }
+        Returns: Json
+      }
+      validate_waiver_request: {
+        Args: {
+          team_id: string
+          player_to_add_id: number
+          player_to_drop_id: number
+          week_num: number
+        }
+        Returns: Json
+      }
+      verify_team_scores: {
+        Args: { target_league_id: string; week_num?: number }
+        Returns: Json
+      }
     }
     Enums: {
       [_ in never]: never
