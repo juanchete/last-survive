@@ -10,7 +10,7 @@ export function Footer() {
           <div className="flex items-center gap-2">
             <Award className="w-6 h-6 text-nfl-blue" />
             <h2 className="text-xl font-bold bg-gradient-to-r from-nfl-blue to-nfl-lightblue bg-clip-text text-transparent">
-              Survivor Fantasy
+              Survive the Fantasy
             </h2>
           </div>
           
@@ -41,7 +41,7 @@ export function Footer() {
         </div>
         
         <div className="mt-8 pt-6 border-t border-nfl-light-gray/20 text-center text-gray-500 text-sm">
-          <p>© {new Date().getFullYear()} Survivor Fantasy. All NFL team names, logos and related marks are trademarks of their respective teams.</p>
+          <p>© {new Date().getFullYear()} Survive the Fantasy. All NFL team names, logos and related marks are trademarks of their respective teams.</p>
         </div>
       </div>
     </footer>

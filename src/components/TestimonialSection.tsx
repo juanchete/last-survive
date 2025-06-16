@@ -5,7 +5,7 @@ import { Check, Star } from "lucide-react";
 const testimonials = [
   {
     name: "Jessica Sullivan",
-    text: "The Survivor Fantasy league is such a game-changer—every week feels thrilling! The weekly eliminations keep me on my toes all season long.",
+    text: "Survive the Fantasy league is such a game-changer—every week feels thrilling! The weekly eliminations keep me on my toes all season long.",
     img: "/lovable-uploads/8f7246f9-e9ba-4e0d-ad20-e9cdf227d352.png",
     team: "Gridiron Mavericks",
     rating: 5
@@ -19,7 +19,7 @@ const testimonials = [
   },
   {
     name: "Priya Nair",
-    text: "Survivor Fantasy keeps me engaged the whole season, and the interface is beautiful. Draft night is an absolute blast every time!",
+    text: "Survive the Fantasy keeps me engaged the whole season, and the interface is beautiful. Draft night is an absolute blast every time!",
     img: "/lovable-uploads/be3df809-7452-4bf9-a83f-716f61c69a18.png",
     team: "Touchdown Titans",
     rating: 4

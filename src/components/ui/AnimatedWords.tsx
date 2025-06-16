@@ -1,7 +1,7 @@
 
 import React, { useEffect, useState, useRef } from "react";
 
-const words = ["Draft", "Play", "Survive", "Eliminate", "Strategize"];
+const words = ["DRAFT", "SURVIVE", "ADAPT","CONQUER"];
 
 export function AnimatedWords() {
   const [index, setIndex] = useState(0);

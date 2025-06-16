@@ -3,8 +3,8 @@
 import { AnimatedWords } from "./AnimatedWords";
 
 function HeroStadium({
-  badge = "Survivor Fantasy League",
-  mainLine = "Be The Last One",
+  badge = "Survive the Fantasy",
+  mainLine = "The Rules Are Simple",
   subWords = <AnimatedWords />
 }: {
   badge?: string;

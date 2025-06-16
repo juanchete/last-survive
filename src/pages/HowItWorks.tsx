@@ -10,11 +10,11 @@ export default function HowItWorks() {
     <Layout>
       <div className="container mx-auto px-4 py-8">
         <div className="max-w-4xl mx-auto">
-          <h1 className="text-3xl font-bold mb-6">How Survivor Fantasy Works</h1>
+          <h1 className="text-3xl font-bold mb-6">How Survive the Fantasy Works</h1>
           
           <div className="mb-12">
             <p className="text-xl text-gray-300 mb-8">
-              Survivor Fantasy Football combines the strategy of traditional fantasy sports with the
+            Survive the Fantasy Football combines the strategy of traditional fantasy sports with the
               excitement of elimination-style competition, creating a unique and dynamic experience.
             </p>
             
@@ -88,14 +88,14 @@ export default function HowItWorks() {
                       <div className="w-12 h-12 bg-nfl-blue/20 rounded-full flex items-center justify-center mb-4">
                         <Award className="w-6 h-6 text-nfl-blue" />
                       </div>
-                      <h2 className="text-xl font-bold mb-3">Strategic Redrafting</h2>
+                      <h2 className="text-xl font-bold mb-3">Strategic Waivers</h2>
                       <p className="text-gray-400 mb-4">
-                          When a team is eliminated, their players hit the waiver wire.
-                          Use your waiver priority to claim top talent, replace underperformers, and fill key roster gaps.
+                         As players from eliminated teams become available, you'll have the opportunity to draft them to oyur roster.
+                         This allows you to replace underperforming players or fill positions where you need more production.
                       </p>
                       <p className="text-gray-400">
-                          As the season progresses, the stakes rise — and so does the quality of available players.
-                          Smart pickups make the difference between surviving and being sent home.
+                          The longer the season goes, the more talent becomes available, leading to increasing competitive and strategic draft 
+                          decisions each week.
                       </p>
                     </div>
                   </div>
@@ -109,13 +109,12 @@ export default function HowItWorks() {
                       <div className="w-12 h-12 bg-nfl-blue/20 rounded-full flex items-center justify-center mb-4">
                         <Trophy className="w-6 h-6 text-nfl-blue" />
                       </div>
-                      <h2 className="text-xl font-bold mb-3">Team Eliminations & Winning</h2>
+                      <h2 className="text-xl font-bold mb-3">Weekly Wins. One Champion.</h2>
                       <p className="text-gray-400 mb-4">
-                      Each week, the lowest-scoring fantasy team is eliminated — raising the stakes as the season unfolds and the competition tightens.
+                      Each week, the top-scoring fantasy team takes a piece of the prize — rewarding bold moves and weekly domination.
                       </p>
                       <p className="text-gray-400">
-                        To be crowned the Survivor Fantasy Champion, you’ll need more than a strong draft.
-                        You must adapt, outmaneuver rivals, and survive every weekly showdown.
+                        But to be crowned the Survive the Fantasy Champion, you'll need more than just a few wins. You must outscore, outlast and own the season from start to finish.
                       </p>
                     </div>
                     <div className="bg-nfl-dark-gray flex items-center justify-center p-6">
