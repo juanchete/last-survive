@@ -97,3 +97,33 @@ export interface LeagueInvitation {
   league?: League;
   inviter?: { full_name: string; email: string };
 }
+
+// Tipos para sistema de trades
+export type TradeStatus =
+  | "pending"
+  | "accepted"
+  | "rejected"
+  | "cancelled"
+  | "vetoed";
+
+export interface Trade {
+  id: string;
+  league_id: string;
+  proposer_team_id: string;
+  receiver_team_id: string;
+  proposer_player_ids: string[]; // IDs de jugadores ofrecidos
+  receiver_player_ids: string[]; // IDs de jugadores solicitados
+  status: TradeStatus;
+  created_at: string;
+  updated_at: string;
+  message?: string;
+  votes?: TradeVote[];
+}
+
+export interface TradeVote {
+  id: string;
+  trade_id: string;
+  user_id: string;
+  vote: "approve" | "reject";
+  created_at: string;
+}

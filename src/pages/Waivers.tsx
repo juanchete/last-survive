@@ -1,4 +1,3 @@
-
 import { useEffect, useState } from "react";
 import { Layout } from "@/components/Layout";
 import { LeagueNav } from "@/components/LeagueNav";
@@ -28,6 +27,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { Dialog, DialogTrigger, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose } from "@/components/ui/dialog";
 
 const Waivers = () => {
   // Obtener el leagueId desde la URL
@@ -127,6 +127,51 @@ const Waivers = () => {
     return colors[position as keyof typeof colors] || "bg-gray-100 text-gray-800 border-gray-300";
   };
 
+  // Estado para modal de trade
+  const [tradeModalOpen, setTradeModalOpen] = useState(false);
+
+  // Estado para modal de waiver
+  const [waiverModalOpen, setWaiverModalOpen] = useState(false);
+  const [waiverPlayer, setWaiverPlayer] = useState<Player | null>(null);
+  const [waiverDropPlayerId, setWaiverDropPlayerId] = useState<string>("");
+  const [waiverLoading, setWaiverLoading] = useState(false);
+
+  // Handler para abrir el modal de waiver
+  const handleOpenWaiverModal = (player: Player) => {
+    setWaiverPlayer(player);
+    setWaiverDropPlayerId("");
+    setWaiverModalOpen(true);
+  };
+
+  // Handler para enviar la solicitud de waiver
+  const handleConfirmWaiver = async () => {
+    if (!waiverPlayer || !userTeam) return;
+    if (rosterLimits?.needs_drop && !waiverDropPlayerId) return;
+    setWaiverLoading(true);
+    try {
+      await requestWaiver({
+        leagueId,
+        week: currentWeek,
+        fantasyTeamId: userTeam.id,
+        playerId: Number(waiverPlayer.id),
+        dropPlayerId: waiverDropPlayerId ? Number(waiverDropPlayerId) : undefined,
+      });
+      toast({ title: "Solicitud enviada", description: "Tu waiver fue registrada." });
+      setWaiverModalOpen(false);
+      setWaiverPlayer(null);
+      setWaiverDropPlayerId("");
+      refetch();
+    } catch (e: unknown) {
+      let message = "Unknown error";
+      if (e && typeof e === "object" && "message" in e && typeof (e as { message?: unknown }).message === "string") {
+        message = (e as { message: string }).message;
+      }
+      toast({ title: "Error", description: message, variant: "destructive" });
+    } finally {
+      setWaiverLoading(false);
+    }
+  };
+
   return (
     <Layout>
       <LeagueNav leagueId={leagueId} />
@@ -140,6 +185,36 @@ const Waivers = () => {
             <Clock className="w-4 h-4 mr-2" />
             Tuesday 11:00 PM Deadline
           </Badge>
+        </div>
+
+        {/* Botón para abrir modal de trade */}
+        <div className="mb-6 flex justify-end">
+          <Dialog open={tradeModalOpen} onOpenChange={setTradeModalOpen}>
+            <DialogTrigger asChild>
+              <Button className="bg-nfl-blue hover:bg-nfl-lightblue" onClick={() => setTradeModalOpen(true)}>
+                Propose Trade
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Propose Trade</DialogTitle>
+              </DialogHeader>
+              {/* Aquí irá el formulario de selección de equipo y jugadores */}
+              <div className="py-4">
+                <p className="text-gray-400 mb-2">Select the team you want to trade with and the players involved.</p>
+                {/* TODO: Formulario de selección de equipo y jugadores */}
+                <div className="bg-nfl-dark-gray rounded-lg p-4 text-center text-gray-500">
+                  (Coming Soon: Trade Form)
+                </div>
+              </div>
+              <DialogFooter>
+                <DialogClose asChild>
+                  <Button variant="outline">Cancel</Button>
+                </DialogClose>
+                <Button disabled>Propose Trade</Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
         </div>
 
         <div className="grid lg:grid-cols-4 gap-6">
@@ -197,55 +272,22 @@ const Waivers = () => {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {filteredPlayers.map((player) => {
-                          const isRequested = myWaiverRequests.some(req => req.player_id?.toString() === player.id);
-                          return (
-                            <TableRow 
-                              key={player.id} 
-                              className="border-b border-nfl-light-gray/10 hover:bg-nfl-light-gray/5"
-                            >
-                              <TableCell>
-                                {player.photo && (
-                                  <img 
-                                    src={player.photo} 
-                                    alt={player.name} 
-                                    className="w-10 h-10 rounded-full object-cover"
-                                  />
-                                )}
-                              </TableCell>
-                              <TableCell>
-                                <span className="font-semibold text-white">{player.name}</span>
-                              </TableCell>
-                              <TableCell className="text-center">
-                                <Badge className={getPositionBadgeColor(player.position)}>
-                                  {player.position}
-                                </Badge>
-                              </TableCell>
-                              <TableCell className="text-center">
-                                <span className="text-gray-300">{player.team}</span>
-                              </TableCell>
-                              <TableCell className="text-center">
-                                <span className="font-bold text-nfl-blue">{player.points}</span>
-                              </TableCell>
-                              <TableCell className="text-center">
-                                {isRequested ? (
-                                  <Badge className="bg-yellow-100 text-yellow-800 border-yellow-300">
-                                    Requested
-                                  </Badge>
-                                ) : (
-                                  <Button
-                                    size="sm"
-                                    onClick={() => setSelectedPlayerId(player.id)}
-                                    className="bg-nfl-blue hover:bg-nfl-lightblue"
-                                  >
-                                    <Plus className="w-4 h-4 mr-1" />
-                                    Add
-                                  </Button>
-                                )}
-                              </TableCell>
-                            </TableRow>
-                          );
-                        })}
+                        {filteredPlayers.map((player) => (
+                          <TableRow key={player.id} className="border-b border-nfl-light-gray/10 hover:bg-nfl-gray/30">
+                            <TableCell></TableCell>
+                            <TableCell className="font-semibold text-white">{player.name}</TableCell>
+                            <TableCell className="text-center">
+                              <span className={`px-2 py-1 rounded text-xs border ${getPositionBadgeColor(player.position)}`}>{player.position}</span>
+                            </TableCell>
+                            <TableCell className="text-center">{player.team}</TableCell>
+                            <TableCell className="text-center">{player.points}</TableCell>
+                            <TableCell className="text-center">
+                              <Button size="sm" className="bg-nfl-blue hover:bg-nfl-lightblue" onClick={() => handleOpenWaiverModal(player)}>
+                                Request
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        ))}
                       </TableBody>
                     </Table>
                   </div>
@@ -440,6 +482,52 @@ const Waivers = () => {
             </Card>
           </div>
         </div>
+
+        {/* Modal de solicitud de waiver */}
+        <Dialog open={waiverModalOpen} onOpenChange={setWaiverModalOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Request Waiver</DialogTitle>
+            </DialogHeader>
+            {waiverPlayer && (
+              <div className="py-2">
+                <div className="mb-2 text-gray-300">
+                  <span className="font-bold">{waiverPlayer.name}</span> ({waiverPlayer.position} - {waiverPlayer.team})
+                </div>
+                {rosterLimits?.needs_drop ? (
+                  <div className="mb-4">
+                    <p className="text-gray-400 mb-2">Your roster is full. Select a player to drop:</p>
+                    <select
+                      className="w-full p-2 rounded bg-nfl-dark-gray text-white border border-nfl-light-gray/30"
+                      value={waiverDropPlayerId}
+                      onChange={e => setWaiverDropPlayerId(e.target.value)}
+                    >
+                      <option value="">Select player to drop</option>
+                      {currentRoster
+                        .filter(p => p.position === waiverPlayer.position && p.available)
+                        .map(p => (
+                          <option key={p.id} value={p.id}>{p.name} ({p.position})</option>
+                        ))}
+                    </select>
+                  </div>
+                ) : null}
+                <div className="flex justify-end gap-2 mt-4">
+                  <DialogClose asChild>
+                    <Button variant="outline">Cancel</Button>
+                  </DialogClose>
+                  <Button
+                    onClick={handleConfirmWaiver}
+                    disabled={waiverLoading || (rosterLimits?.needs_drop && !waiverDropPlayerId)}
+                    className="bg-nfl-blue hover:bg-nfl-lightblue"
+                  >
+                    {waiverLoading ? <Loader2 className="animate-spin w-4 h-4 mr-2" /> : null}
+                    Confirm Request
+                  </Button>
+                </div>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
       </div>
     </Layout>
   );

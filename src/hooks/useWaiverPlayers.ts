@@ -1,4 +1,3 @@
-
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { Player } from "@/types";
@@ -11,31 +10,45 @@ export function useWaiverPlayers(leagueId: string, week: number) {
       const { data: rosters, error: rostersError } = await supabase
         .from("team_rosters")
         .select("player_id")
-        .eq("week", week);
+        .eq("week", week)
+        .eq("is_active", true);
       if (rostersError) throw rostersError;
       const assignedIds = rosters?.map((r) => r.player_id) || [];
-      
+      console.log("[useWaiverPlayers] Rosters asignados:", rosters);
+      console.log("[useWaiverPlayers] IDs asignados:", assignedIds);
+
       // Get unassigned players
-      let query = supabase.from("players").select("*, nfl_team:nfl_teams(abbreviation)");
+      let query = supabase
+        .from("players")
+        .select("*, nfl_team:nfl_teams(abbreviation)");
       if (assignedIds.length > 0) {
         query = query.not("id", "in", `(${assignedIds.join(",")})`);
       }
       const { data: players, error } = await query;
       if (error) throw error;
-      
+      console.log("[useWaiverPlayers] Jugadores encontrados:", players);
+
       // Get player stats for the current week
       const { data: stats, error: statsError } = await supabase
         .from("player_stats")
         .select("player_id, fantasy_points")
         .eq("week", week);
       if (statsError) throw statsError;
-      
+
       // Create a map of player points
-      const pointsMap = new Map(stats?.map((s) => [s.player_id, s.fantasy_points]) || []);
-      
+      const pointsMap = new Map(
+        stats?.map((s) => [s.player_id, s.fantasy_points]) || []
+      );
+
       // Convert to typed Player objects with proper position typing
-      return players.map((player) => {
-        const position = player.position as "QB" | "RB" | "WR" | "TE" | "K" | "DEF";
+      const result = players.map((player) => {
+        const position = player.position as
+          | "QB"
+          | "RB"
+          | "WR"
+          | "TE"
+          | "K"
+          | "DEF";
         return {
           id: player.id.toString(),
           name: player.name,
@@ -44,9 +57,11 @@ export function useWaiverPlayers(leagueId: string, week: number) {
           available: true, // Not in roster, so available
           eliminated: false, // This would need to be calculated from NFL team status
           points: pointsMap.get(player.id) || 0,
-          photo: player.photo_url
+          photo: player.photo_url,
         } as Player;
       });
+      console.log("[useWaiverPlayers] Resultado final:", result);
+      return result;
     },
     enabled: !!leagueId && !!week,
   });

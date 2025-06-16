@@ -1,0 +1,21 @@
+name: Elimination Weekly Cron
+
+on:
+  schedule:
+    - cron: '0 21 * * 2' # Martes a las 18:00 (hora UTC-3, ajusta según tu zona)
+  workflow_dispatch:
+
+jobs:
+  elimination:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ejecutar eliminación semanal en Supabase
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          curl -X POST "$SUPABASE_URL/rest/v1/rpc/process_all_weekly_eliminations" \
+            -H "apikey: $SUPABASE_KEY" \
+            -H "Authorization: Bearer $SUPABASE_KEY" \
+            -H "Content-Type: application/json" \
+            -d '{"week_num": '"$(date +%U | awk '{print $1+1}')"'}'
