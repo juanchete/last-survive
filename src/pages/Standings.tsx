@@ -59,38 +59,39 @@ export default function Standings() {
     <Layout>
       <LeagueNav leagueId={leagueId} />
       
-      {/* Hero Header */}
-      <div className="relative bg-gradient-to-br from-nfl-blue via-nfl-accent to-nfl-blue/80 text-white py-12 mb-8">
-        <div className="absolute inset-0 bg-black/20"></div>
-        <div className="container mx-auto px-6 relative z-10">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-4xl font-bold mb-3 flex items-center gap-3">
-                <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center">
-                  <Trophy className="w-6 h-6 text-white" />
+      {/* Modern Header */}
+      <div className="container mx-auto px-4 py-8">
+        <Card className="bg-gradient-to-br from-nfl-blue/20 via-nfl-accent/10 to-nfl-blue/20 border-nfl-blue/30 mb-8">
+          <CardContent className="p-8">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <div className="w-16 h-16 bg-nfl-blue/20 rounded-2xl flex items-center justify-center backdrop-blur-sm border border-nfl-blue/30">
+                  <Trophy className="w-8 h-8 text-nfl-blue" />
                 </div>
-                League Standings
-              </h1>
-              <p className="text-xl text-white/90 mb-4">
-                Track team performance and rankings across the season
-              </p>
-              <div className="flex items-center gap-6 text-white/80">
-                <div className="flex items-center gap-2">
-                  <Users className="w-5 h-5" />
-                  <span className="font-medium">{activeTeams.length} Active Teams</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Award className="w-5 h-5" />
-                  <span className="font-medium">{eliminatedTeams.length} Eliminated</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <TrendingUp className="w-5 h-5" />
-                  <span className="font-medium">Week {currentWeek}</span>
+                <div>
+                  <h1 className="text-4xl font-bold text-white mb-2">League Standings</h1>
+                  <p className="text-xl text-gray-300 mb-4">
+                    Track team performance and rankings across the season
+                  </p>
+                  <div className="flex items-center gap-6">
+                    <div className="flex items-center gap-2 bg-nfl-blue/10 px-3 py-1 rounded-full border border-nfl-blue/20">
+                      <Users className="w-4 h-4 text-nfl-blue" />
+                      <span className="text-nfl-blue font-medium">{activeTeams.length} Active Teams</span>
+                    </div>
+                    <div className="flex items-center gap-2 bg-red-500/10 px-3 py-1 rounded-full border border-red-500/20">
+                      <Award className="w-4 h-4 text-red-400" />
+                      <span className="text-red-400 font-medium">{eliminatedTeams.length} Eliminated</span>
+                    </div>
+                    <div className="flex items-center gap-2 bg-nfl-accent/10 px-3 py-1 rounded-full border border-nfl-accent/20">
+                      <TrendingUp className="w-4 h-4 text-nfl-accent" />
+                      <span className="text-nfl-accent font-medium">Week {currentWeek}</span>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
-        </div>
+          </CardContent>
+        </Card>
       </div>
 
       <div className="container mx-auto px-4 py-4">
