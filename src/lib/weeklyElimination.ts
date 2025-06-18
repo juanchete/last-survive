@@ -319,3 +319,59 @@ export async function getLatestEliminationLog(leagueId: string) {
   }
   return data;
 }
+
+export const processWeeklyElimination = async (
+  leagueId: string,
+  week: number
+): Promise<{ success: boolean; message: string; eliminatedTeams?: string[] }> => {
+  try {
+    // Call the RPC function to process elimination
+    const { data, error } = await supabase.rpc('process_weekly_elimination', {
+      league_id: leagueId,
+      week_number: week
+    });
+
+    if (error) {
+      console.error('Elimination processing error:', error);
+      throw error;
+    }
+
+    // Parse the result
+    const result = data as any;
+    
+    return {
+      success: true,
+      message: result?.message || 'Elimination processed successfully',
+      eliminatedTeams: result?.elimination_result || []
+    };
+  } catch (error) {
+    console.error('Error processing weekly elimination:', error);
+    return {
+      success: false,
+      message: error instanceof Error ? error.message : 'Unknown error occurred'
+    };
+  }
+};
+
+export const logEliminationEvent = async (
+  leagueId: string,
+  week: number,
+  eventData: any
+) => {
+  try {
+    const { error } = await supabase
+      .from('notifications')
+      .insert([{
+        user_id: 'system',
+        league_id: leagueId,
+        type: 'elimination',
+        title: 'Weekly Elimination Processed',
+        message: `Week ${week} elimination has been processed`,
+        data: eventData
+      }]);
+
+    if (error) throw error;
+  } catch (error) {
+    console.error('Error logging elimination event:', error);
+  }
+};

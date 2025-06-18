@@ -495,3 +495,58 @@ export async function getAvailablePlayers(leagueId: string): Promise<Player[]> {
     position: player.position as "QB" | "RB" | "WR" | "TE" | "K" | "DEF"
   }));
 }
+
+export const autoPickPlayer = async (draftId: string, fantasyTeamId: string) => {
+  try {
+    // Get available players for auto-pick
+    const { data: availablePlayers, error: playersError } = await supabase
+      .from('players')
+      .select('*')
+      .eq('available', true)
+      .order('points', { ascending: false })
+      .limit(10);
+
+    if (playersError) throw playersError;
+
+    if (!availablePlayers || availablePlayers.length === 0) {
+      throw new Error('No available players for auto-pick');
+    }
+
+    // Simple auto-pick logic - pick the highest scoring available player
+    const selectedPlayer = availablePlayers[0];
+
+    // Make the pick
+    const { error: pickError } = await supabase
+      .from('draft_picks')
+      .insert([{
+        draft_id: draftId,
+        fantasy_team_id: fantasyTeamId,
+        player_id: selectedPlayer.id,
+        pick_number: 0, // Will be set by trigger
+        is_auto_pick: true
+      }]);
+
+    if (pickError) throw pickError;
+
+    return { success: true, player: selectedPlayer };
+  } catch (error) {
+    console.error('Auto-pick failed:', error);
+    throw error;
+  }
+};
+
+export const getAvailablePlayersForDraft = async (draftId: string): Promise<any[]> => {
+  try {
+    const { data: players, error } = await supabase
+      .from('players')
+      .select('*')
+      .eq('available', true)
+      .order('points', { ascending: false });
+
+    if (error) throw error;
+    return players || [];
+  } catch (error) {
+    console.error('Error fetching available players:', error);
+    return [];
+  }
+};
