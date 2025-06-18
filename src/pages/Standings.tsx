@@ -1,4 +1,3 @@
-
 import { Layout } from "@/components/Layout";
 import { useFantasyTeams } from "@/hooks/useFantasyTeams";
 import { useUserFantasyTeam } from "@/hooks/useUserFantasyTeam";
@@ -61,37 +60,30 @@ export default function Standings() {
       
       {/* Modern Header */}
       <div className="container mx-auto px-4 py-8">
-        <Card className="bg-gradient-to-br from-nfl-blue/20 via-nfl-accent/10 to-nfl-blue/20 border-nfl-blue/30 mb-8">
-          <CardContent className="p-8">
+        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-nfl-blue via-nfl-blue/90 to-blue-700 border border-nfl-blue/20 mb-8">
+          <div className="absolute inset-0 bg-[url('data:image/svg+xml,%3Csvg width=&quot;60&quot; height=&quot;60&quot; viewBox=&quot;0 0 60 60&quot; xmlns=&quot;http://www.w3.org/2000/svg&quot;%3E%3Cg fill=&quot;none&quot; fill-rule=&quot;evenodd&quot;%3E%3Cg fill=&quot;%23ffffff&quot; fill-opacity=&quot;0.05&quot;%3E%3Ccircle cx=&quot;30&quot; cy=&quot;30&quot; r=&quot;2&quot;/%3E%3C/g%3E%3C/g%3E%3C/svg%3E')] opacity-30"></div>
+          <div className="relative p-8">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-4">
-                <div className="w-16 h-16 bg-nfl-blue/20 rounded-2xl flex items-center justify-center backdrop-blur-sm border border-nfl-blue/30">
-                  <Trophy className="w-8 h-8 text-nfl-blue" />
+                <div className="w-16 h-16 bg-white/10 rounded-2xl flex items-center justify-center backdrop-blur-sm border border-white/20">
+                  <Trophy className="w-8 h-8 text-white" />
                 </div>
                 <div>
                   <h1 className="text-4xl font-bold text-white mb-2">League Standings</h1>
-                  <p className="text-xl text-gray-300 mb-4">
-                    Track team performance and rankings across the season
-                  </p>
-                  <div className="flex items-center gap-6">
-                    <div className="flex items-center gap-2 bg-nfl-blue/10 px-3 py-1 rounded-full border border-nfl-blue/20">
-                      <Users className="w-4 h-4 text-nfl-blue" />
-                      <span className="text-nfl-blue font-medium">{activeTeams.length} Active Teams</span>
-                    </div>
-                    <div className="flex items-center gap-2 bg-red-500/10 px-3 py-1 rounded-full border border-red-500/20">
-                      <Award className="w-4 h-4 text-red-400" />
-                      <span className="text-red-400 font-medium">{eliminatedTeams.length} Eliminated</span>
-                    </div>
-                    <div className="flex items-center gap-2 bg-nfl-accent/10 px-3 py-1 rounded-full border border-nfl-accent/20">
-                      <TrendingUp className="w-4 h-4 text-nfl-accent" />
-                      <span className="text-nfl-accent font-medium">Week {currentWeek}</span>
-                    </div>
+                  <p className="text-blue-100 text-lg">Track team performance and rankings</p>
+                </div>
+              </div>
+              <div className="text-right">
+                <div className="bg-white/10 rounded-lg p-4 backdrop-blur-sm border border-white/20">
+                  <div className="text-white text-sm mb-1">Active Teams</div>
+                  <div className="text-2xl font-bold text-white">
+                    {activeTeams.length}
                   </div>
                 </div>
               </div>
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       </div>
 
       <div className="container mx-auto px-4 py-4">
