@@ -1,552 +1,145 @@
 import { supabase } from "@/integrations/supabase/client";
-import { executeAutoDraft } from "@/lib/autoDraft";
 
-export type DraftStatus = "pending" | "in_progress" | "completed";
-
-interface DraftControlResult {
-  success: boolean;
-  message: string;
-  newStatus?: DraftStatus;
+export interface League {
+  id: string;
+  name: string;
+  description: string;
+  created_at: string;
+  admin_id: string;
 }
 
-interface SimulateDraftResult extends DraftControlResult {
-  totalPicks?: number;
-  completedPicks?: number;
+export interface FantasyTeam {
+  id: string;
+  name: string;
+  league_id: string;
+  user_id: string;
+  created_at: string;
 }
 
-// Verificar si el usuario es owner de la liga
-export async function verifyLeagueOwnership(
-  userId: string,
-  leagueId: string
-): Promise<boolean> {
-  try {
-    const { data, error } = await supabase
-      .from("leagues")
-      .select("owner_id")
-      .eq("id", leagueId)
-      .single();
-
-    if (error || !data) {
-      console.error("Error verificando ownership:", error);
-      return false;
-    }
-
-    return data.owner_id === userId;
-  } catch (error) {
-    console.error("Error en verifyLeagueOwnership:", error);
-    return false;
-  }
+export interface User {
+  id: string;
+  email: string;
+  full_name: string;
+  avatar_url: string;
 }
 
-// Obtener estado actual del draft
-async function getCurrentDraftState(leagueId: string) {
-  const { data, error } = await supabase
-    .from("leagues")
-    .select("draft_status, current_pick, draft_order, owner_id")
-    .eq("id", leagueId)
-    .single();
-
-  if (error) throw new Error(`Error obteniendo estado: ${error.message}`);
-  return data;
+export interface Player {
+  id: string;
+  name: string;
+  position: "QB" | "RB" | "WR" | "TE" | "K" | "DEF";
+  team: string;
+  available: boolean;
+  eliminated: boolean;
+  points: number;
+  photo: string;
 }
 
-// Obtener equipos y jugadores disponibles para simulación
-async function getSimulationData(leagueId: string, currentWeek: number) {
-  // Obtener equipos
-  const { data: teams, error: teamsError } = await supabase
-    .from("fantasy_teams")
-    .select("id, name")
-    .eq("league_id", leagueId);
-
-  if (teamsError)
-    throw new Error(`Error obteniendo equipos: ${teamsError.message}`);
-
-  // Obtener jugadores disponibles
-  const { data: players, error: playersError } = await supabase
-    .from("players")
-    .select("id, name, position, nfl_team_id, photo_url");
-
-  if (playersError)
-    throw new Error(`Error obteniendo jugadores: ${playersError.message}`);
-
-  // Obtener equipos NFL
-  const { data: nflTeams, error: nflTeamsError } = await supabase
-    .from("nfl_teams")
-    .select("id, name, abbreviation, eliminated");
-
-  if (nflTeamsError)
-    throw new Error(`Error obteniendo equipos NFL: ${nflTeamsError.message}`);
-
-  // Obtener picks ya realizados
-  const { data: rosters, error: rostersError } = await supabase
-    .from("team_rosters")
-    .select("player_id, fantasy_team_id")
-    .eq("week", currentWeek);
-
-  if (rostersError)
-    throw new Error(`Error obteniendo rosters: ${rostersError.message}`);
-
-  const draftedIds = new Set(rosters?.map((r) => r.player_id));
-  const teamMap = new Map(nflTeams.map((t) => [t.id, t]));
-
-  // Armar jugadores disponibles
-  const availablePlayers = players
-    .map((player) => {
-      const nflTeam = teamMap.get(player.nfl_team_id);
-      return {
-        id: String(player.id),
-        name: player.name,
-        position: player.position,
-        team: nflTeam?.abbreviation || "",
-        available: !draftedIds.has(player.id),
-        eliminated: nflTeam?.eliminated || false,
-        points: 0, // Para simplicidad
-        photo: player.photo_url,
-      };
-    })
-    .filter((p) => p.available);
-
-  return { teams, availablePlayers };
+export interface DraftPick {
+  id: string;
+  league_id: string;
+  fantasy_team_id: string;
+  player_id: string;
+  pick_number: number;
+  round: number;
+  created_at: string;
 }
 
-// Simular draft completo (solo para testing)
-export async function simulateCompleteDraft(
-  userId: string,
-  leagueId: string,
-  maxRounds: number = 15
-): Promise<SimulateDraftResult> {
-  try {
-    console.log("🤖 Iniciando simulación de draft completo...", {
-      userId,
-      leagueId,
-      maxRounds,
-    });
-
-    // Verificar permisos
-    const isOwner = await verifyLeagueOwnership(userId, leagueId);
-    if (!isOwner) {
-      return {
-        success: false,
-        message: "Solo el owner de la liga puede simular el draft completo",
-      };
-    }
-
-    // Obtener estado actual
-    const currentState = await getCurrentDraftState(leagueId);
-    if (currentState.draft_status === "completed") {
-      return {
-        success: false,
-        message: "El draft ya está completado",
-      };
-    }
-
-    if (!currentState.draft_order || currentState.draft_order.length === 0) {
-      return {
-        success: false,
-        message: "No hay draft order configurado",
-      };
-    }
-
-    // Cambiar a in_progress si está en pending
-    if (currentState.draft_status === "pending") {
-      const { error } = await supabase
-        .from("leagues")
-        .update({ draft_status: "in_progress" })
-        .eq("id", leagueId);
-
-      if (error) throw error;
-    }
-
-    const totalTeams = currentState.draft_order.length;
-    const maxPicks = totalTeams * maxRounds;
-    let currentPick = currentState.current_pick || 0;
-    let completedPicks = 0;
-    let consecutiveErrors = 0;
-    const maxErrors = 5;
-
-    console.log(
-      `🎯 Iniciando simulación: ${maxPicks} picks totales, empezando en pick ${currentPick}`
-    );
-
-    // Simular picks uno por uno
-    while (currentPick < maxPicks && consecutiveErrors < maxErrors) {
-      try {
-        const teamIndex = currentPick % totalTeams;
-        const currentTeamId = currentState.draft_order[teamIndex];
-
-        console.log(
-          `🏈 Pick ${currentPick + 1}/${maxPicks} - Team: ${currentTeamId}`
-        );
-
-        // Obtener datos actualizados para este pick
-        const { availablePlayers } = await getSimulationData(leagueId, 1);
-
-        if (availablePlayers.length === 0) {
-          console.log("⚠️ No hay más jugadores disponibles");
-          break;
-        }
-
-        // Obtener roster actual del equipo
-        const { data: currentRoster } = await supabase
-          .from("team_rosters")
-          .select("*")
-          .eq("fantasy_team_id", currentTeamId)
-          .eq("week", 1);
-
-        // Ejecutar auto-draft para este equipo
-        const autoDraftResult = await executeAutoDraft({
-          leagueId,
-          fantasyTeamId: currentTeamId,
-          availablePlayers,
-          currentRoster: currentRoster || [],
-          currentWeek: 1,
-        });
-
-        if (autoDraftResult.success) {
-          completedPicks++;
-          consecutiveErrors = 0;
-          console.log(
-            `✅ Pick ${currentPick + 1} completado: ${
-              autoDraftResult.player?.name
-            }`
-          );
-
-          // Pequeña pausa para no sobrecargar
-          await new Promise((resolve) => setTimeout(resolve, 100));
-        } else {
-          consecutiveErrors++;
-          console.error(
-            `❌ Error en pick ${currentPick + 1}:`,
-            autoDraftResult.error
-          );
-        }
-
-        currentPick++;
-      } catch (error) {
-        consecutiveErrors++;
-        console.error(`💥 Error simulando pick ${currentPick + 1}:`, error);
-        currentPick++;
-      }
-    }
-
-    // Finalizar draft
-    const { error: finalizeError } = await supabase
-      .from("leagues")
-      .update({
-        current_pick: currentPick,
-        draft_status: "completed",
-      })
-      .eq("id", leagueId);
-
-    if (finalizeError) {
-      console.error("Error finalizando draft:", finalizeError);
-    }
-
-    console.log(`🎉 Simulación completada: ${completedPicks} picks realizados`);
-
-    return {
-      success: true,
-      message: `Simulación completada: ${completedPicks} picks realizados automáticamente`,
-      newStatus: "completed",
-      totalPicks: maxPicks,
-      completedPicks,
-    };
-  } catch (error) {
-    console.error("💥 Error en simulateCompleteDraft:", error);
-    return {
-      success: false,
-      message: `Error simulando draft: ${
-        error instanceof Error ? error.message : "Error desconocido"
-      }`,
-    };
-  }
-}
-
-// Pausar draft (in_progress → pending)
-export async function pauseDraft(
-  userId: string,
-  leagueId: string
-): Promise<DraftControlResult> {
-  try {
-    console.log("⏸️ Pausando draft...", { userId, leagueId });
-
-    // Verificar permisos
-    const isOwner = await verifyLeagueOwnership(userId, leagueId);
-    if (!isOwner) {
-      return {
-        success: false,
-        message: "Solo el owner de la liga puede pausar el draft",
-      };
-    }
-
-    // Verificar estado actual
-    const currentState = await getCurrentDraftState(leagueId);
-    if (currentState.draft_status !== "in_progress") {
-      return {
-        success: false,
-        message: `No se puede pausar. Estado actual: ${currentState.draft_status}`,
-      };
-    }
-
-    // Pausar
-    const { error } = await supabase
-      .from("leagues")
-      .update({ draft_status: "pending" })
-      .eq("id", leagueId);
-
-    if (error) throw error;
-
-    console.log("✅ Draft pausado exitosamente");
-    return {
-      success: true,
-      message: "Draft pausado exitosamente",
-      newStatus: "pending",
-    };
-  } catch (error) {
-    console.error("💥 Error pausando draft:", error);
-    return {
-      success: false,
-      message: `Error pausando draft: ${
-        error instanceof Error ? error.message : "Error desconocido"
-      }`,
-    };
-  }
-}
-
-// Reanudar draft (pending → in_progress)
-export async function resumeDraft(
-  userId: string,
-  leagueId: string
-): Promise<DraftControlResult> {
-  try {
-    console.log("▶️ Reanudando draft...", { userId, leagueId });
-
-    // Verificar permisos
-    const isOwner = await verifyLeagueOwnership(userId, leagueId);
-    if (!isOwner) {
-      return {
-        success: false,
-        message: "Solo el owner de la liga puede reanudar el draft",
-      };
-    }
-
-    // Verificar estado actual
-    const currentState = await getCurrentDraftState(leagueId);
-    if (currentState.draft_status !== "pending") {
-      return {
-        success: false,
-        message: `No se puede reanudar. Estado actual: ${currentState.draft_status}`,
-      };
-    }
-
-    // Reanudar
-    const { error } = await supabase
-      .from("leagues")
-      .update({ draft_status: "in_progress" })
-      .eq("id", leagueId);
-
-    if (error) throw error;
-
-    console.log("✅ Draft reanudado exitosamente");
-    return {
-      success: true,
-      message: "Draft reanudado exitosamente",
-      newStatus: "in_progress",
-    };
-  } catch (error) {
-    console.error("💥 Error reanudando draft:", error);
-    return {
-      success: false,
-      message: `Error reanudando draft: ${
-        error instanceof Error ? error.message : "Error desconocido"
-      }`,
-    };
-  }
-}
-
-// Finalizar draft (cualquier estado → completed)
-export async function completeDraft(
-  userId: string,
-  leagueId: string
-): Promise<DraftControlResult> {
-  try {
-    console.log("✅ Finalizando draft...", { userId, leagueId });
-
-    // Verificar permisos
-    const isOwner = await verifyLeagueOwnership(userId, leagueId);
-    if (!isOwner) {
-      return {
-        success: false,
-        message: "Solo el owner de la liga puede finalizar el draft",
-      };
-    }
-
-    // Verificar estado actual
-    const currentState = await getCurrentDraftState(leagueId);
-    if (currentState.draft_status === "completed") {
-      return {
-        success: false,
-        message: "El draft ya está completado",
-      };
-    }
-
-    // Finalizar
-    const { error } = await supabase
-      .from("leagues")
-      .update({ draft_status: "completed" })
-      .eq("id", leagueId);
-
-    if (error) throw error;
-
-    console.log("✅ Draft finalizado exitosamente");
-    return {
-      success: true,
-      message: "Draft finalizado exitosamente",
-      newStatus: "completed",
-    };
-  } catch (error) {
-    console.error("💥 Error finalizando draft:", error);
-    return {
-      success: false,
-      message: `Error finalizando draft: ${
-        error instanceof Error ? error.message : "Error desconocido"
-      }`,
-    };
-  }
-}
-
-// Resetear draft (limpiar todo + pending)
-export async function resetDraft(
-  userId: string,
-  leagueId: string
-): Promise<DraftControlResult> {
-  try {
-    console.log("🔄 Reseteando draft...", { userId, leagueId });
-
-    // Verificar permisos
-    const isOwner = await verifyLeagueOwnership(userId, leagueId);
-    if (!isOwner) {
-      return {
-        success: false,
-        message: "Solo el owner de la liga puede resetear el draft",
-      };
-    }
-
-    // Limpiar datos del draft en una transacción
-    console.log("🗑️ Limpiando team_rosters...");
-    const { error: rosterError } = await supabase
-      .from("team_rosters")
-      .delete()
-      .eq("acquired_type", "draft");
-
-    if (rosterError) {
-      console.error("Error limpiando team_rosters:", rosterError);
-    }
-
-    console.log("🗑️ Limpiando roster_moves...");
-    const { error: movesError } = await supabase
-      .from("roster_moves")
-      .delete()
-      .eq("action", "draft_pick");
-
-    if (movesError) {
-      console.error("Error limpiando roster_moves:", movesError);
-    }
-
-    console.log("🔄 Reseteando estado de liga...");
-    const { error: leagueError } = await supabase
-      .from("leagues")
-      .update({
-        current_pick: 0,
-        draft_status: "pending",
-      })
-      .eq("id", leagueId);
-
-    if (leagueError) throw leagueError;
-
-    console.log("✅ Draft reseteado exitosamente");
-    return {
-      success: true,
-      message:
-        "Draft reseteado exitosamente. Todos los picks fueron eliminados.",
-      newStatus: "pending",
-    };
-  } catch (error) {
-    console.error("💥 Error reseteando draft:", error);
-    return {
-      success: false,
-      message: `Error reseteando draft: ${
-        error instanceof Error ? error.message : "Error desconocido"
-      }`,
-    };
-  }
-}
-
-export async function getAvailablePlayers(leagueId: string): Promise<Player[]> {
-  const { data, error } = await supabase
-    .from('players')
-    .select('*')
-    .eq('available', true);
-  
-  if (error) throw error;
-  
-  return data.map(player => ({
-    ...player,
-    position: player.position as "QB" | "RB" | "WR" | "TE" | "K" | "DEF"
-  }));
-}
-
-export const autoPickPlayer = async (draftId: string, fantasyTeamId: string) => {
-  try {
-    // Get available players for auto-pick
-    const { data: availablePlayers, error: playersError } = await supabase
-      .from('players')
-      .select('*')
-      .eq('available', true)
-      .order('points', { ascending: false })
-      .limit(10);
-
-    if (playersError) throw playersError;
-
-    if (!availablePlayers || availablePlayers.length === 0) {
-      throw new Error('No available players for auto-pick');
-    }
-
-    // Simple auto-pick logic - pick the highest scoring available player
-    const selectedPlayer = availablePlayers[0];
-
-    // Make the pick
-    const { error: pickError } = await supabase
-      .from('draft_picks')
-      .insert([{
-        draft_id: draftId,
-        fantasy_team_id: fantasyTeamId,
-        player_id: selectedPlayer.id,
-        pick_number: 0, // Will be set by trigger
-        is_auto_pick: true
-      }]);
-
-    if (pickError) throw pickError;
-
-    return { success: true, player: selectedPlayer };
-  } catch (error) {
-    console.error('Auto-pick failed:', error);
-    throw error;
-  }
-};
-
-export const getAvailablePlayersForDraft = async (draftId: string): Promise<any[]> => {
+export async function getAvailablePlayers(leagueId: string, week: number = 1): Promise<Player[]> {
   try {
     const { data: players, error } = await supabase
       .from('players')
-      .select('*')
-      .eq('available', true)
-      .order('points', { ascending: false });
+      .select(`
+        id,
+        name,
+        position,
+        photo_url,
+        nfl_teams!inner(name, abbreviation)
+      `);
 
     if (error) throw error;
-    return players || [];
+
+    // Convert to the expected format
+    return (players || []).map(player => ({
+      id: player.id.toString(),
+      name: player.name,
+      position: player.position as "QB" | "RB" | "WR" | "TE" | "K" | "DEF",
+      team: player.nfl_teams?.abbreviation || 'FA',
+      available: true,
+      eliminated: false,
+      points: 0,
+      photo: player.photo_url || ''
+    }));
   } catch (error) {
     console.error('Error fetching available players:', error);
     return [];
   }
-};
+}
+
+export async function getDraftPicks(leagueId: string): Promise<DraftPick[]> {
+  try {
+    const { data: draftPicks, error } = await supabase
+      .from('draft_picks')
+      .select('*')
+      .eq('league_id', leagueId)
+      .order('pick_number', { ascending: true });
+
+    if (error) throw error;
+
+    return draftPicks || [];
+  } catch (error) {
+    console.error('Error fetching draft picks:', error);
+    return [];
+  }
+}
+
+export async function saveDraftPick(
+  leagueId: string,
+  fantasyTeamId: string,
+  playerId: string,
+  pickNumber: number,
+  round: number
+): Promise<boolean> {
+  try {
+    // Insert into team_rosters instead of draft_picks since that table doesn't exist
+    const { error } = await supabase
+      .from('team_rosters')
+      .insert({
+        fantasy_team_id: fantasyTeamId,
+        player_id: parseInt(playerId),
+        week: 1,
+        is_active: true,
+        acquired_type: 'draft',
+        acquired_week: 1,
+        slot: 'BENCH'
+      });
+
+    if (error) {
+      console.error('Error saving draft pick:', error);
+      return false;
+    }
+
+    return true;
+  } catch (error) {
+    console.error('Error in saveDraftPick:', error);
+    return false;
+  }
+}
+
+export async function removePlayerFromAvailable(playerId: string): Promise<boolean> {
+  try {
+    const { error } = await supabase
+      .from('players')
+      .update({ available: false })
+      .eq('id', playerId);
+
+    if (error) {
+      console.error('Error removing player from available:', error);
+      return false;
+    }
+
+    return true;
+  } catch (error) {
+    console.error('Error in removePlayerFromAvailable:', error);
+    return false;
+  }
+}

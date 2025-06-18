@@ -1,3 +1,4 @@
+
 import { supabase } from "@/integrations/supabase/client";
 
 export interface WeeklyScore {
@@ -231,11 +232,14 @@ export async function processWeeklyEliminationWithMVP(
 
     console.log("✅ Proceso completado:", data);
 
+    // Type assertion to handle the JSON response
+    const result = data as any;
+
     return {
       success: true,
-      message: data.message || "Proceso semanal completado exitosamente",
-      eliminatedTeam: data.elimination_result?.eliminated_team,
-      mvpTeam: data.mvp_result?.mvp_team,
+      message: result?.message || "Proceso semanal completado exitosamente",
+      eliminatedTeam: result?.elimination_result?.eliminated_team,
+      mvpTeam: result?.mvp_result?.mvp_team,
     };
   } catch (error) {
     console.error("💥 Error en processWeeklyEliminationWithMVP:", error);
@@ -271,55 +275,6 @@ export async function isTeamEliminated(
   }
 }
 
-export async function processWeeklyElimination(leagueId: string, week: number) {
-  try {
-    const { data, error } = await supabase.functions.invoke(
-      "weekly-elimination",
-      {
-        body: { league_id: leagueId, week },
-      }
-    );
-
-    if (error) {
-      throw new Error(
-        `Error invocando la función de eliminación: ${error.message}`
-      );
-    }
-
-    console.log("✅ Función de eliminación invocada exitosamente:", data);
-    return data;
-  } catch (error) {
-    console.error("💥 Error en processWeeklyElimination:", error);
-    const message =
-      error instanceof Error ? error.message : "Error desconocido";
-    return {
-      success: false,
-      message: `Error procesando eliminación: ${message}`,
-    };
-  }
-}
-
-// Función para obtener el estado de la última ejecución de la eliminación semanal
-export async function getLatestEliminationLog(leagueId: string) {
-  const { data, error } = await supabase
-    .from("elimination_log")
-    .select("*")
-    .eq("league_id", leagueId)
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .single();
-
-  if (error) {
-    // Es normal no encontrar logs si nunca se ha ejecutado
-    if (error.code === "PGRST116") {
-      return null;
-    }
-    console.error("Error fetching latest elimination log:", error);
-    return null;
-  }
-  return data;
-}
-
 export const processWeeklyElimination = async (
   leagueId: string,
   week: number
@@ -328,7 +283,7 @@ export const processWeeklyElimination = async (
     // Call the RPC function to process elimination
     const { data, error } = await supabase.rpc('process_weekly_elimination', {
       league_id: leagueId,
-      week_number: week
+      week_num: week
     });
 
     if (error) {
@@ -365,7 +320,6 @@ export const logEliminationEvent = async (
         user_id: 'system',
         league_id: leagueId,
         type: 'elimination',
-        title: 'Weekly Elimination Processed',
         message: `Week ${week} elimination has been processed`,
         data: eventData
       }]);

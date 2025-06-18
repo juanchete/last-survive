@@ -1,3 +1,4 @@
+
 import { Layout } from "@/components/Layout";
 import { useFantasyTeams } from "@/hooks/useFantasyTeams";
 import { useUserFantasyTeam } from "@/hooks/useUserFantasyTeam";
@@ -60,7 +61,7 @@ export default function Standings() {
       
       <div className="container mx-auto px-4 py-8 max-w-7xl">
         {/* Enhanced Header - matching Waiver Wire design */}
-        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-nfl-blue via-nfl-blue/90 to-blue-700 border border-nfl-blue/20 mb-8">
+        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-slate-800 via-slate-900 to-slate-950 border border-slate-700/50 mb-8">
           <div className="absolute inset-0 bg-[url('data:image/svg+xml,%3Csvg width=&quot;60&quot; height=&quot;60&quot; viewBox=&quot;0 0 60 60&quot; xmlns=&quot;http://www.w3.org/2000/svg&quot;%3E%3Cg fill=&quot;none&quot; fill-rule=&quot;evenodd&quot;%3E%3Cg fill=&quot;%23ffffff&quot; fill-opacity=&quot;0.05&quot;%3E%3Ccircle cx=&quot;30&quot; cy=&quot;30&quot; r=&quot;2&quot;/%3E%3C/g%3E%3C/g%3E%3C/svg%3E')] opacity-30"></div>
           <div className="relative p-8">
             <div className="flex items-center justify-between">
@@ -70,7 +71,7 @@ export default function Standings() {
                 </div>
                 <div>
                   <h1 className="text-4xl font-bold text-white mb-2">League Standings</h1>
-                  <p className="text-blue-100 text-lg">Track team performance and rankings across the season</p>
+                  <p className="text-slate-300 text-lg">Track team performance and rankings across the season</p>
                 </div>
               </div>
               <div className="text-right">
@@ -229,7 +230,7 @@ export default function Standings() {
                 <div className="bg-nfl-darker/50 rounded-lg p-4 border border-nfl-light-gray/10">
                   <div className="flex items-center justify-between">
                     <span className="text-gray-400">Total Teams</span>
-                    <span className="text-white font-bold">{fantasyTeams.length}</span>
+                    <span className="text-white font-bold">{teams.length}</span>
                   </div>
                 </div>
                 <div className="bg-nfl-darker/50 rounded-lg p-4 border border-nfl-light-gray/10">
