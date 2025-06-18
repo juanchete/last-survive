@@ -1,55 +1,136 @@
+
 import { LeagueNav } from "@/components/LeagueNav";
 import { Layout } from "@/components/Layout";
-import {
-  Table,
-  TableBody,
-  TableCaption,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { useEliminationHistory } from "@/hooks/useWeeklyElimination";
 import { useLocation } from "react-router-dom";
+import { useUserFantasyTeam } from "@/hooks/useUserFantasyTeam";
+import { useRosterWithPlayerDetails } from "@/hooks/useRosterWithPlayerDetails";
+import { useCurrentWeek } from "@/hooks/useCurrentWeek";
+import { PlayerCard } from "@/components/PlayerCard";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Trophy, User } from "lucide-react";
 
 export default function Picks() {
   const location = useLocation();
   const queryParams = new URLSearchParams(location.search);
   const leagueId = queryParams.get("league") as string;
-  const { data: eliminationHistory = [], isLoading, error } = useEliminationHistory(leagueId);
+  
+  const { data: currentWeek } = useCurrentWeek(leagueId);
+  const { data: userTeam, isLoading: teamLoading } = useUserFantasyTeam(leagueId);
+  const { data: roster = [], isLoading: rosterLoading } = useRosterWithPlayerDetails(
+    userTeam?.id || "", 
+    currentWeek || 1
+  );
+
+  const isLoading = teamLoading || rosterLoading;
+
+  const getRankColor = (rank: number) => {
+    if (rank === 1) return "text-yellow-400";
+    if (rank === 2) return "text-gray-300";
+    if (rank === 3) return "text-amber-600";
+    return "text-white";
+  };
 
   return (
     <Layout>
+      <LeagueNav leagueId={leagueId} />
+      
       <div className="container mx-auto py-10">
-        <h1 className="text-3xl font-bold text-white mb-6">Draft Picks</h1>
+        {/* Header with gradient background */}
+        <div className="bg-gradient-to-r from-nfl-blue to-nfl-lightblue rounded-lg p-6 mb-8">
+          <h1 className="text-3xl font-bold text-white mb-2">My Team</h1>
+          <p className="text-white/80">View your current roster and player performance</p>
+        </div>
+
         {isLoading ? (
-          <p className="text-gray-400">Loading picks...</p>
+          <p className="text-gray-400">Loading your team...</p>
+        ) : userTeam ? (
+          <div className="space-y-6">
+            {/* Team Summary Card */}
+            <Card className="overflow-hidden bg-nfl-gray border-nfl-light-gray/20">
+              <CardHeader className="bg-nfl-dark-gray pb-4">
+                <div className="flex justify-between items-center">
+                  <CardTitle className="flex items-center gap-3">
+                    <div className={`w-10 h-10 rounded-full flex items-center justify-center ${getRankColor(userTeam.rank)} bg-nfl-darker`}>
+                      {userTeam.rank <= 3 ? <Trophy className="w-5 h-5" /> : userTeam.rank}
+                    </div>
+                    <div>
+                      <h2 className="text-xl">{userTeam.name}</h2>
+                      <p className="text-sm text-gray-400">Week {currentWeek || 1}</p>
+                    </div>
+                  </CardTitle>
+                  <div className="text-right">
+                    <Badge variant="outline" className="bg-transparent flex items-center gap-1 mb-2">
+                      <User className="w-3 h-3" />
+                      <span>{userTeam.owner}</span>
+                    </Badge>
+                    <div className="text-2xl font-bold text-nfl-blue">{userTeam.points} PTS</div>
+                    <div className="text-sm text-gray-400">Rank #{userTeam.rank}</div>
+                  </div>
+                </div>
+              </CardHeader>
+            </Card>
+
+            {/* Roster Section */}
+            <div>
+              <h2 className="text-2xl font-bold text-white mb-4">
+                Current Roster ({roster.length} players)
+              </h2>
+              
+              {roster.length > 0 ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {roster.map((player) => (
+                    <PlayerCard 
+                      key={player.player_id} 
+                      player={{
+                        id: player.id?.toString() || player.player_id?.toString() || '',
+                        name: player.name || 'Unknown Player',
+                        position: player.position || 'N/A',
+                        team: player.team || '',
+                        available: false,
+                        eliminated: player.eliminated || false,
+                        points: player.points || 0,
+                        photo: player.photo,
+                        stats: player.stats
+                      }}
+                    />
+                  ))}
+                </div>
+              ) : (
+                <Card className="bg-nfl-gray border-nfl-light-gray/20">
+                  <CardContent className="p-8 text-center">
+                    <div className="text-gray-400 mb-4">
+                      <Trophy className="w-12 h-12 mx-auto mb-2 opacity-50" />
+                      <h3 className="text-lg font-medium">No Players Yet</h3>
+                      <p>You haven't drafted any players for this week.</p>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+            </div>
+
+            {userTeam.eliminated && (
+              <Card className="bg-red-900/20 border-red-500/30">
+                <CardContent className="p-6 text-center">
+                  <Badge variant="destructive" className="text-lg px-4 py-2">
+                    Team Eliminated
+                  </Badge>
+                  <p className="text-gray-400 mt-2">
+                    Your team has been eliminated from the league.
+                  </p>
+                </CardContent>
+              </Card>
+            )}
+          </div>
         ) : (
-          <Table>
-            <TableCaption>
-              All the draft picks for this league, in order.
-            </TableCaption>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="w-[100px]">Pick #</TableHead>
-                <TableHead>Team</TableHead>
-                <TableHead>Player</TableHead>
-                <TableHead>Position</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {eliminationHistory.map((team, index) => (
-                <TableRow key={team.id} className="hover:bg-nfl-dark-gray/50 transition-colors">
-                  <TableCell className="font-medium text-white">
-                    {index + 1}
-                  </TableCell>
-                  <TableCell className="text-gray-300">{team.name}</TableCell>
-                  <TableCell className="text-gray-300">{team.users?.full_name || 'N/A'}</TableCell>
-                  <TableCell className="text-center text-nfl-red font-semibold">{team.eliminated_week}</TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+          <Card className="bg-nfl-gray border-nfl-light-gray/20">
+            <CardContent className="p-8 text-center">
+              <div className="text-gray-400">
+                <h3 className="text-lg font-medium mb-2">No Team Found</h3>
+                <p>You are not part of any team in this league.</p>
+              </div>
+            </CardContent>
+          </Card>
         )}
       </div>
     </Layout>
