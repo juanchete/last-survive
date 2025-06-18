@@ -2,10 +2,11 @@
 import { Layout } from "@/components/Layout";
 import { useFantasyTeams } from "@/hooks/useFantasyTeams";
 import { useUserFantasyTeam } from "@/hooks/useUserFantasyTeam";
+import { useCurrentMVP } from "@/hooks/useCurrentMVP";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { WeeklyElimination } from "@/components/WeeklyElimination";
-import { Trophy, User } from "lucide-react";
+import { Trophy, User, Crown, DollarSign } from "lucide-react";
 import { useLocation } from "react-router-dom";
 import { LeagueNav } from "@/components/LeagueNav";
 import {
@@ -26,6 +27,7 @@ export default function Standings() {
   // Hooks para datos reales
   const { data: teams = [], isLoading: loadingTeams } = useFantasyTeams(leagueId);
   const { data: userTeam, isLoading: loadingUserTeam } = useUserFantasyTeam(leagueId);
+  const { data: currentMVP } = useCurrentMVP(leagueId, 1);
 
   // Ordenar equipos por ranking
   const sortedTeams = [...teams].sort((a, b) => a.rank - b.rank);
@@ -45,6 +47,10 @@ export default function Standings() {
       return <Trophy className="w-4 h-4" />;
     }
     return rank;
+  };
+
+  const isCurrentMVP = (teamId: string) => {
+    return currentMVP?.fantasy_team_id === teamId;
   };
 
   return (
@@ -76,6 +82,7 @@ export default function Standings() {
                         <TableHead className="text-nfl-blue font-bold">Team</TableHead>
                         <TableHead className="text-nfl-blue font-bold text-center">Owner</TableHead>
                         <TableHead className="text-nfl-blue font-bold text-center">Points</TableHead>
+                        <TableHead className="text-nfl-blue font-bold text-center">MVP/Earnings</TableHead>
                         <TableHead className="text-nfl-blue font-bold text-center">Status</TableHead>
                         <TableHead className="text-nfl-blue font-bold text-center">Players</TableHead>
                       </TableRow>
@@ -99,6 +106,9 @@ export default function Standings() {
                               {userTeam && team.id === userTeam.id && (
                                 <Badge className="bg-nfl-blue text-xs">You</Badge>
                               )}
+                              {isCurrentMVP(team.id) && (
+                                <Crown className="w-4 h-4 text-yellow-400" title="Current MVP" />
+                              )}
                             </div>
                           </TableCell>
                           <TableCell className="text-center">
@@ -109,6 +119,25 @@ export default function Standings() {
                           </TableCell>
                           <TableCell className="text-center">
                             <span className="font-bold text-nfl-blue text-lg">{team.points}</span>
+                          </TableCell>
+                          <TableCell className="text-center">
+                            <div className="flex items-center justify-center gap-2">
+                              {(team.mvp_wins || 0) > 0 && (
+                                <div className="flex items-center gap-1">
+                                  <Crown className="w-3 h-3 text-yellow-400" />
+                                  <span className="text-yellow-400 font-bold text-sm">{team.mvp_wins}</span>
+                                </div>
+                              )}
+                              {(team.total_earnings || 0) > 0 && (
+                                <div className="flex items-center gap-1">
+                                  <DollarSign className="w-3 h-3 text-green-400" />
+                                  <span className="text-green-400 font-bold text-sm">{team.total_earnings}</span>
+                                </div>
+                              )}
+                              {!(team.mvp_wins || 0) && !(team.total_earnings || 0) && (
+                                <span className="text-gray-500 text-sm">-</span>
+                              )}
+                            </div>
                           </TableCell>
                           <TableCell className="text-center">
                             <Badge className="bg-nfl-green/20 text-nfl-green border-nfl-green/30">
@@ -144,6 +173,7 @@ export default function Standings() {
                         <TableHead className="text-nfl-blue font-bold">Team</TableHead>
                         <TableHead className="text-nfl-blue font-bold text-center">Owner</TableHead>
                         <TableHead className="text-nfl-blue font-bold text-center">Points</TableHead>
+                        <TableHead className="text-nfl-blue font-bold text-center">MVP/Earnings</TableHead>
                         <TableHead className="text-nfl-blue font-bold text-center">Status</TableHead>
                         <TableHead className="text-nfl-blue font-bold text-center">Week Out</TableHead>
                       </TableRow>
@@ -173,6 +203,25 @@ export default function Standings() {
                           </TableCell>
                           <TableCell className="text-center">
                             <span className="font-bold text-gray-400">{team.points}</span>
+                          </TableCell>
+                          <TableCell className="text-center">
+                            <div className="flex items-center justify-center gap-2">
+                              {(team.mvp_wins || 0) > 0 && (
+                                <div className="flex items-center gap-1">
+                                  <Crown className="w-3 h-3 text-yellow-400/60" />
+                                  <span className="text-yellow-400/60 font-bold text-sm">{team.mvp_wins}</span>
+                                </div>
+                              )}
+                              {(team.total_earnings || 0) > 0 && (
+                                <div className="flex items-center gap-1">
+                                  <DollarSign className="w-3 h-3 text-green-400/60" />
+                                  <span className="text-green-400/60 font-bold text-sm">{team.total_earnings}</span>
+                                </div>
+                              )}
+                              {!(team.mvp_wins || 0) && !(team.total_earnings || 0) && (
+                                <span className="text-gray-500 text-sm">-</span>
+                              )}
+                            </div>
                           </TableCell>
                           <TableCell className="text-center">
                             <Badge variant="destructive">
@@ -221,15 +270,29 @@ export default function Standings() {
                           <Trophy className="w-4 h-4" />
                         </div>
                         <div className="flex-1 min-w-0">
-                          <div className="font-bold truncate">{team.name}</div>
+                          <div className="flex items-center gap-1">
+                            <span className="font-bold truncate">{team.name}</span>
+                            {isCurrentMVP(team.id) && (
+                              <Crown className="w-3 h-3 text-yellow-400" />
+                            )}
+                          </div>
                           <div className="flex items-center gap-1 text-sm text-gray-400">
                             <User className="w-3 h-3" />
                             <span className="truncate">{team.owner}</span>
+                            {(team.mvp_wins || 0) > 0 && (
+                              <>
+                                <Crown className="w-3 h-3 text-yellow-400/60 ml-1" />
+                                <span className="text-yellow-400/60">{team.mvp_wins}</span>
+                              </>
+                            )}
                           </div>
                         </div>
                         <div className="text-right">
                           <div className="font-bold text-nfl-blue">{team.points}</div>
                           <div className="text-xs text-gray-400">points</div>
+                          {(team.total_earnings || 0) > 0 && (
+                            <div className="text-xs text-green-400">${team.total_earnings}</div>
+                          )}
                         </div>
                       </div>
                     ))}
