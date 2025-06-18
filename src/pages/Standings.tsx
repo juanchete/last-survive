@@ -107,7 +107,7 @@ export default function Standings() {
                                 <Badge className="bg-nfl-blue text-xs">You</Badge>
                               )}
                               {isCurrentMVP(team.id) && (
-                                <Crown className="w-4 h-4 text-yellow-400" title="Current MVP" />
+                                <Crown className="w-4 h-4 text-yellow-400" />
                               )}
                             </div>
                           </TableCell>
@@ -229,7 +229,7 @@ export default function Standings() {
                             </Badge>
                           </TableCell>
                           <TableCell className="text-center">
-                            <span className="text-gray-400">Week {team.eliminated ? 'N/A' : '-'}</span>
+                            <span className="text-gray-400">Week {team.eliminated ? 'N/A'   : '-'}</span>
                           </TableCell>
                         </TableRow>
                       ))}
