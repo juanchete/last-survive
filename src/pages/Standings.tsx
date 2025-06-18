@@ -1,4 +1,3 @@
-
 import { Layout } from "@/components/Layout";
 import { useFantasyTeams } from "@/hooks/useFantasyTeams";
 import { useUserFantasyTeam } from "@/hooks/useUserFantasyTeam";
@@ -9,15 +8,7 @@ import { WeeklyElimination } from "@/components/WeeklyElimination";
 import { Trophy, User, Crown, DollarSign } from "lucide-react";
 import { useLocation } from "react-router-dom";
 import { LeagueNav } from "@/components/LeagueNav";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 export default function Standings() {
   // Obtener el leagueId desde la URL
   const location = useLocation();
@@ -26,36 +17,39 @@ export default function Standings() {
   const currentWeek = 1; // This should come from your current week logic
 
   // Hooks para datos reales
-  const { data: teams = [], isLoading: loadingTeams } = useFantasyTeams(leagueId);
-  const { data: userTeam, isLoading: loadingUserTeam } = useUserFantasyTeam(leagueId);
-  const { data: currentMVP } = useCurrentMVP(leagueId, currentWeek);
+  const {
+    data: teams = [],
+    isLoading: loadingTeams
+  } = useFantasyTeams(leagueId);
+  const {
+    data: userTeam,
+    isLoading: loadingUserTeam
+  } = useUserFantasyTeam(leagueId);
+  const {
+    data: currentMVP
+  } = useCurrentMVP(leagueId, currentWeek);
 
   // Ordenar equipos por ranking
   const sortedTeams = [...teams].sort((a, b) => a.rank - b.rank);
   // Separar activos y eliminados
   const activeTeams = sortedTeams.filter(team => !team.eliminated);
   const eliminatedTeams = sortedTeams.filter(team => team.eliminated);
-
   const getRankColor = (rank: number) => {
     if (rank === 1) return "text-yellow-400";
     if (rank === 2) return "text-gray-300";
     if (rank === 3) return "text-amber-600";
     return "text-white";
   };
-
   const getRankIcon = (rank: number) => {
     if (rank <= 3) {
       return <Trophy className="w-4 h-4" />;
     }
     return rank;
   };
-
   const isCurrentMVP = (teamId: string) => {
     return currentMVP?.fantasy_team_id === teamId;
   };
-
-  return (
-    <Layout>
+  return <Layout>
       <LeagueNav leagueId={leagueId} />
       <div className="container mx-auto px-4 py-4">
         <div className="grid lg:grid-cols-4 gap-8">
@@ -70,12 +64,9 @@ export default function Standings() {
                 </Badge>
               </div>
               
-              {loadingTeams || loadingUserTeam ? (
-                <div className="bg-nfl-gray border border-nfl-light-gray/20 rounded-lg p-8">
+              {loadingTeams || loadingUserTeam ? <div className="bg-nfl-gray border border-nfl-light-gray/20 rounded-lg p-8">
                   <p className="text-gray-400 text-center">Loading standings...</p>
-                </div>
-              ) : (
-                <Card className="bg-nfl-gray border-nfl-light-gray/20">
+                </div> : <Card className="bg-nfl-gray border-nfl-light-gray/20">
                   <Table>
                     <TableHeader>
                       <TableRow className="border-b border-nfl-light-gray/20 hover:bg-transparent">
@@ -89,13 +80,7 @@ export default function Standings() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {activeTeams.map((team) => (
-                        <TableRow 
-                          key={team.id} 
-                          className={`border-b border-nfl-light-gray/10 hover:bg-nfl-light-gray/10 ${
-                            userTeam && team.id === userTeam.id ? 'bg-nfl-blue/10 border-nfl-blue/30' : ''
-                          } ${isCurrentMVP(team.id) ? 'bg-yellow-500/5 border-yellow-500/20' : ''}`}
-                        >
+                      {activeTeams.map(team => <TableRow key={team.id} className={`border-b border-nfl-light-gray/10 hover:bg-nfl-light-gray/10 ${userTeam && team.id === userTeam.id ? 'bg-nfl-blue/10 border-nfl-blue/30' : ''} ${isCurrentMVP(team.id) ? 'bg-yellow-500/5 border-yellow-500/20' : ''}`}>
                           <TableCell className="font-bold">
                             <div className={`flex items-center justify-center w-8 h-8 rounded-full ${getRankColor(team.rank)}`}>
                               {getRankIcon(team.rank)}
@@ -104,12 +89,8 @@ export default function Standings() {
                           <TableCell>
                             <div className="flex items-center gap-2">
                               <span className="font-bold text-white">{team.name}</span>
-                              {isCurrentMVP(team.id) && (
-                                <Crown className="w-4 h-4 text-yellow-400 fill-yellow-400" />
-                              )}
-                              {userTeam && team.id === userTeam.id && (
-                                <Badge className="bg-nfl-blue text-xs">You</Badge>
-                              )}
+                              {isCurrentMVP(team.id) && <Crown className="w-4 h-4 text-yellow-400 fill-yellow-400" />}
+                              {userTeam && team.id === userTeam.id && <Badge className="bg-nfl-blue text-xs">You</Badge>}
                             </div>
                           </TableCell>
                           <TableCell className="text-center">
@@ -128,7 +109,7 @@ export default function Standings() {
                                 <span className="text-yellow-400 font-bold">{team.mvp_wins || 0}</span>
                               </div>
                               <div className="flex items-center gap-1">
-                                <DollarSign className="w-3 h-3 text-green-400" />
+                                
                                 <span className="text-green-400 text-sm">${team.total_earnings || 0}</span>
                               </div>
                             </div>
@@ -141,17 +122,14 @@ export default function Standings() {
                           <TableCell className="text-center">
                             <span className="text-gray-300">{team.players.length}</span>
                           </TableCell>
-                        </TableRow>
-                      ))}
+                        </TableRow>)}
                     </TableBody>
                   </Table>
-                </Card>
-              )}
+                </Card>}
             </section>
 
             {/* Equipos eliminados */}
-            {eliminatedTeams.length > 0 && (
-              <section>
+            {eliminatedTeams.length > 0 && <section>
                 <div className="flex justify-between items-center mb-4">
                   <h2 className="text-xl font-semibold text-white/90">Eliminated Teams</h2>
                   <Badge variant="destructive">
@@ -173,20 +151,12 @@ export default function Standings() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {eliminatedTeams.map((team) => (
-                        <TableRow 
-                          key={team.id} 
-                          className={`border-b border-nfl-light-gray/10 hover:bg-nfl-light-gray/10 opacity-75 ${
-                            userTeam && team.id === userTeam.id ? 'bg-nfl-blue/10 border-nfl-blue/30' : ''
-                          }`}
-                        >
+                      {eliminatedTeams.map(team => <TableRow key={team.id} className={`border-b border-nfl-light-gray/10 hover:bg-nfl-light-gray/10 opacity-75 ${userTeam && team.id === userTeam.id ? 'bg-nfl-blue/10 border-nfl-blue/30' : ''}`}>
                           <TableCell className="font-bold text-gray-400">{team.rank}</TableCell>
                           <TableCell>
                             <div className="flex items-center gap-2">
                               <span className="font-bold text-gray-300">{team.name}</span>
-                              {userTeam && team.id === userTeam.id && (
-                                <Badge className="bg-nfl-blue text-xs">You</Badge>
-                              )}
+                              {userTeam && team.id === userTeam.id && <Badge className="bg-nfl-blue text-xs">You</Badge>}
                             </div>
                           </TableCell>
                           <TableCell className="text-center">
@@ -218,13 +188,11 @@ export default function Standings() {
                           <TableCell className="text-center">
                             <span className="text-gray-400">Week {team.eliminated ? 'N/A' : '-'}</span>
                           </TableCell>
-                        </TableRow>
-                      ))}
+                        </TableRow>)}
                     </TableBody>
                   </Table>
                 </Card>
-              </section>
-            )}
+              </section>}
           </div>
 
           {/* Sidebar */}
@@ -233,8 +201,7 @@ export default function Standings() {
             <WeeklyElimination />
 
             {/* Current MVP Card */}
-            {currentMVP && (
-              <Card className="bg-gradient-to-br from-yellow-900/20 to-yellow-800/10 border-yellow-500/30">
+            {currentMVP && <Card className="bg-gradient-to-br from-yellow-900/20 to-yellow-800/10 border-yellow-500/30">
                 <CardHeader className="bg-yellow-500/10 border-b border-yellow-500/20">
                   <CardTitle className="flex items-center gap-2 text-lg">
                     <Crown className="w-5 h-5 text-yellow-400 fill-yellow-400" />
@@ -260,8 +227,7 @@ export default function Standings() {
                     </div>
                   </div>
                 </CardContent>
-              </Card>
-            )}
+              </Card>}
 
             {/* Leaderboard Summary */}
             <Card className="bg-gradient-to-br from-nfl-gray to-nfl-gray/90 border-nfl-light-gray/20">
@@ -272,27 +238,16 @@ export default function Standings() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="p-4">
-                {loadingTeams ? (
-                  <p className="text-gray-400">Loading teams...</p>
-                ) : (
-                  <div className="space-y-3">
-                    {sortedTeams.slice(0, 3).map((team, index) => (
-                      <div
-                        key={team.id}
-                        className="flex items-center gap-3 py-2 transition-colors hover:bg-white/5 rounded-lg px-2"
-                      >
+                {loadingTeams ? <p className="text-gray-400">Loading teams...</p> : <div className="space-y-3">
+                    {sortedTeams.slice(0, 3).map((team, index) => <div key={team.id} className="flex items-center gap-3 py-2 transition-colors hover:bg-white/5 rounded-lg px-2">
                         <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold 
-                          ${index === 0 ? 'bg-yellow-500/20 text-yellow-400' : 
-                            index === 1 ? 'bg-gray-400/20 text-gray-300' : 
-                            'bg-amber-800/20 text-amber-600'}`}>
+                          ${index === 0 ? 'bg-yellow-500/20 text-yellow-400' : index === 1 ? 'bg-gray-400/20 text-gray-300' : 'bg-amber-800/20 text-amber-600'}`}>
                           <Trophy className="w-4 h-4" />
                         </div>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-1">
                             <span className="font-bold truncate">{team.name}</span>
-                            {isCurrentMVP(team.id) && (
-                              <Crown className="w-3 h-3 text-yellow-400 fill-yellow-400" />
-                            )}
+                            {isCurrentMVP(team.id) && <Crown className="w-3 h-3 text-yellow-400 fill-yellow-400" />}
                           </div>
                           <div className="flex items-center gap-2 text-sm text-gray-400">
                             <div className="flex items-center gap-1">
@@ -309,15 +264,12 @@ export default function Standings() {
                           <div className="font-bold text-nfl-blue">{team.points}</div>
                           <div className="text-xs text-green-400">${team.total_earnings || 0}</div>
                         </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
+                      </div>)}
+                  </div>}
               </CardContent>
             </Card>
           </div>
         </div>
       </div>
-    </Layout>
-  );
+    </Layout>;
 }
