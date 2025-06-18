@@ -1,3 +1,4 @@
+
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -13,7 +14,7 @@ export function useCurrentWeek(leagueId: string) {
         .limit(1)
         .single();
       if (error) throw error;
-      return data;
+      return data?.number || 1; // Return just the week number
     },
     enabled: !!leagueId,
   });
