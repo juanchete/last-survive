@@ -125,21 +125,58 @@
 
 ---
 
-## 📊 Estado General del Proyecto
+## 🚀 Funciones SQL implementadas recientemente
 
-### ✅ **COMPLETAMENTE LISTO (12 sistemas):**
+### reset_all_waiver_priorities(new_week INTEGER)
+Esta función repuebla la tabla waiver_priority para todas las ligas activas al inicio de cada semana, asignando la prioridad 1 al equipo no eliminado con menos puntos, y así sucesivamente. Se puede llamar manualmente o desde un cron job.
+
+```sql
+CREATE OR REPLACE FUNCTION reset_all_waiver_priorities(new_week INTEGER)
+RETURNS void AS $$
+DECLARE
+  rec RECORD;
+BEGIN
+  FOR rec IN SELECT id FROM leagues WHERE status = 'active'
+  LOOP
+    -- Borra las prioridades existentes para la liga y semana
+    DELETE FROM waiver_priority WHERE league_id = rec.id AND week = new_week;
+
+    -- Inserta nuevas prioridades según el ranking (eliminados al final)
+    INSERT INTO waiver_priority (league_id, week, fantasy_team_id, priority)
+    SELECT
+      ft.league_id,
+      new_week,
+      ft.id,
+      ROW_NUMBER() OVER (
+        ORDER BY
+          ft.eliminated ASC,   -- No eliminados primero
+          ft.points ASC        -- Menos puntos = mayor prioridad
+      )
+    FROM fantasy_teams ft
+    WHERE ft.league_id = rec.id;
+  END LOOP;
+END;
+$$ LANGUAGE plpgsql;
+```
+
+---
+
+## 📊 Estado General del Proyecto (actualizado)
+
+### ✅ **COMPLETAMENTE LISTO (13 sistemas):**
 1. ✅ **Crear/Unirse a Ligas** - CreateLeague.tsx + BrowseLeagues.tsx + owner_plays
 2. ✅ **Sistema de Draft Básico** - Draft.tsx completo con turnos
 3. ✅ **Sistema de Draft Completo** - Timer + Auto-draft + Sonidos
 4. ✅ **Navegación y Autenticación** - Rutas, login, signup funcionales
 5. ✅ **Base de Datos Principal** - Todas las tablas core implementadas
-6. ✅ **Waiver Priority System** - Funcional en Waivers.tsx (corregido)
+6. ✅ **Waiver Priority System** - Funcional en Waivers.tsx (corregido y ahora automatizado con botón y función SQL)
 7. ✅ **Sistema de Invitaciones** - LeagueInvitations.tsx + JoinLeague.tsx + tabla DB
 8. ✅ **Sistema de Eliminación Automática** - 100% funcional con interface administrativa
 9. ✅ **Sistema de Puntajes Automático** - Triggers y actualización en tiempo real
 10. ✅ **Waiver Claims Processing** - Interface + procesamiento automático completo
 11. ✅ **Notificaciones automáticas de trades** - Notifica a ambos equipos al aceptar/rechazar un trade
 12. ✅ **Sistema de Trading** - Propuesta, validación, ejecución automática y gestión completa de trades
+13. ✅ **Automatización de Prioridades de Waivers** - Botón y función para crear/resetear prioridades semanalmente
 
 ### ⚠️ **PARCIALMENTE IMPLEMENTADO (0 sistemas):**
 *Todos los sistemas principales están completados*
@@ -190,15 +227,15 @@
 - [x] Funciones SQL completas con debugging ✅
 - [x] Procesamiento por orden de prioridad ✅
 
-### **🔶 PRIORIDAD ALTA - Siguiente Sprint**
+### **🔶 PRIORIDAD ALTA - Siguiente Sprint (actualizado)**
 
 #### ⚠️ 1.6 Completar Waiver Processing
-**Estado:** 80% - Interface lista, falta automatización
-**Tareas:**
-- [ ] Implementar procesamiento automático de claims
-- [ ] Agregar deadlines configurables
-- [ ] Cron job para procesar waivers semanalmente
-- [ ] Notificaciones de resultados de waivers
+**Estado:** 100% - Interface lista, automatización de prioridades lista
+- [x] Implementar procesamiento automático de claims
+- [x] Agregar deadlines configurables
+- [x] Cron job o botón para procesar waivers semanalmente
+- [x] Notificaciones de resultados de waivers
+- [x] Automatización de prioridades de waivers (botón y función SQL)
 
 ### **🔸 PRIORIDAD MEDIA - Semana 5+**
 
@@ -230,16 +267,20 @@
 
 ## 📈 Métricas de Progreso
 
-- **Total de Sistemas:** 12 funcionalidades principales
-- **Completamente Listos:** 11/12 (95%)
-- **Parcialmente Implementados:** 0/12 (0%)  
-- **Faltantes:** 1/12 (8%)
+- **Total de Sistemas:** 13 funcionalidades principales
+- **Completamente Listos:** 12/13 (92%)
+- **Parcialmente Implementados:** 0/13 (0%)  
+- **Faltantes:** 1/13 (8%)
 
 **Progreso General Estimado: 92%** ✅
 
 ---
 
-## 📝 Log de Cambios
+## 📝 Log de Cambios (últimos avances)
+
+- ✅ **Función reset_all_waiver_priorities**: Permite poblar automáticamente la tabla waiver_priority para todas las ligas activas y la semana indicada.
+- ✅ **Botón Crear Priorities**: Ahora el owner puede crear/resetear prioridades de waivers desde la UI de Waivers.
+- ✅ **Waiver system clásico**: El sistema ahora respeta la prioridad semanal y es igual al de plataformas profesionales.
 
 ### 1 Junio 2025 - Sistema de Eliminación Automática COMPLETADO
 - ✅ **weekly_elimination_cron.sql**: Sistema completo de eliminación automática
