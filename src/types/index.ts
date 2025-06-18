@@ -1,3 +1,4 @@
+
 export interface Player {
   id: string;
   name: string;
@@ -38,6 +39,8 @@ export interface FantasyTeam {
   points: number;
   rank: number;
   eliminated: boolean;
+  mvp_wins?: number;
+  total_earnings?: number;
   user?: {
     full_name?: string;
     email?: string;
@@ -125,5 +128,17 @@ export interface TradeVote {
   trade_id: string;
   user_id: string;
   vote: "approve" | "reject";
+  created_at: string;
+}
+
+// MVP types
+export interface WeeklyMVPHistory {
+  id: string;
+  league_id: string;
+  week: number;
+  season: number;
+  fantasy_team_id: string;
+  points: number;
+  earnings: number;
   created_at: string;
 }

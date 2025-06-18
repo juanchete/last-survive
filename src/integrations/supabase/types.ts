@@ -16,9 +16,11 @@ export type Database = {
           eliminated_week: number | null
           id: string
           league_id: string | null
+          mvp_wins: number | null
           name: string
           points: number | null
           rank: number | null
+          total_earnings: number | null
           user_id: string | null
         }
         Insert: {
@@ -27,9 +29,11 @@ export type Database = {
           eliminated_week?: number | null
           id?: string
           league_id?: string | null
+          mvp_wins?: number | null
           name: string
           points?: number | null
           rank?: number | null
+          total_earnings?: number | null
           user_id?: string | null
         }
         Update: {
@@ -38,9 +42,11 @@ export type Database = {
           eliminated_week?: number | null
           id?: string
           league_id?: string | null
+          mvp_wins?: number | null
           name?: string
           points?: number | null
           rank?: number | null
+          total_earnings?: number | null
           user_id?: string | null
         }
         Relationships: [
@@ -249,6 +255,27 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      lowest_team: {
+        Row: {
+          team_id: string | null
+          team_name: string | null
+          total_points: number | null
+          user_id: string | null
+        }
+        Insert: {
+          team_id?: string | null
+          team_name?: string | null
+          total_points?: number | null
+          user_id?: string | null
+        }
+        Update: {
+          team_id?: string | null
+          team_name?: string | null
+          total_points?: number | null
+          user_id?: string | null
+        }
+        Relationships: []
       }
       nfl_teams: {
         Row: {
@@ -644,6 +671,7 @@ export type Database = {
       }
       trades: {
         Row: {
+          created_at: string | null
           executed_at: string | null
           expires_at: string | null
           id: string
@@ -660,6 +688,7 @@ export type Database = {
           week: number
         }
         Insert: {
+          created_at?: string | null
           executed_at?: string | null
           expires_at?: string | null
           id?: string
@@ -676,6 +705,7 @@ export type Database = {
           week?: number
         }
         Update: {
+          created_at?: string | null
           executed_at?: string | null
           expires_at?: string | null
           id?: string
@@ -873,6 +903,61 @@ export type Database = {
             columns: ["player_id"]
             isOneToOne: false
             referencedRelation: "players"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      weekly_mvp_history: {
+        Row: {
+          created_at: string | null
+          earnings: number | null
+          fantasy_team_id: string
+          id: string
+          league_id: string
+          points: number
+          season: number
+          week: number
+        }
+        Insert: {
+          created_at?: string | null
+          earnings?: number | null
+          fantasy_team_id: string
+          id?: string
+          league_id: string
+          points: number
+          season?: number
+          week: number
+        }
+        Update: {
+          created_at?: string | null
+          earnings?: number | null
+          fantasy_team_id?: string
+          id?: string
+          league_id?: string
+          points?: number
+          season?: number
+          week?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "weekly_mvp_history_fantasy_team_id_fkey"
+            columns: ["fantasy_team_id"]
+            isOneToOne: false
+            referencedRelation: "fantasy_teams"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "weekly_mvp_history_fantasy_team_id_fkey"
+            columns: ["fantasy_team_id"]
+            isOneToOne: false
+            referencedRelation: "league_fantasy_team_ranking"
+            referencedColumns: ["fantasy_team_id"]
+          },
+          {
+            foreignKeyName: "weekly_mvp_history_league_id_fkey"
+            columns: ["league_id"]
+            isOneToOne: false
+            referencedRelation: "leagues"
             referencedColumns: ["id"]
           },
         ]
@@ -1120,9 +1205,25 @@ export type Database = {
         Args: { league_id: string; week_num: number; season_year?: number }
         Returns: Json
       }
+      process_weekly_elimination_with_mvp: {
+        Args: { league_id: string; week_num: number; season_year?: number }
+        Returns: Json
+      }
+      process_weekly_mvp: {
+        Args: {
+          target_league_id: string
+          week_num: number
+          season_year?: number
+        }
+        Returns: Json
+      }
       refresh_league_points: {
         Args: { target_league_id: string; target_week?: number }
         Returns: Json
+      }
+      reset_all_waiver_priorities: {
+        Args: { new_week: number }
+        Returns: undefined
       }
       reset_league_eliminations: {
         Args: { league_id: string }

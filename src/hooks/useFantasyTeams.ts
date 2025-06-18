@@ -1,3 +1,4 @@
+
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -20,6 +21,8 @@ export function useFantasyTeams(leagueId: string) {
         points: team.points,
         rank: team.rank,
         eliminated: team.eliminated,
+        mvp_wins: team.mvp_wins || 0,
+        total_earnings: team.total_earnings || 0,
       }));
     },
     enabled: !!leagueId,

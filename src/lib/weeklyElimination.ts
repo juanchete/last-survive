@@ -24,6 +24,12 @@ export interface EliminationResult {
     points: number;
     userId: string;
   };
+  mvpTeam?: {
+    id: string;
+    name: string;
+    points: number;
+    earnings: number;
+  };
   weeklyScores?: WeeklyScore[];
 }
 
@@ -194,6 +200,52 @@ async function calculateTeamWeeklyScore(
     activePlayersCount,
     playerBreakdown,
   };
+}
+
+// Procesar MVP y eliminación semanal
+export async function processWeeklyEliminationWithMVP(
+  leagueId: string,
+  week: number,
+  season: number = 2024
+): Promise<EliminationResult> {
+  try {
+    console.log("⚡ Iniciando proceso semanal con MVP...", {
+      leagueId,
+      week,
+      season,
+    });
+
+    // Usar la función de base de datos que procesa MVP + eliminación
+    const { data, error } = await supabase.rpc(
+      "process_weekly_elimination_with_mvp",
+      {
+        league_id: leagueId,
+        week_num: week,
+        season_year: season,
+      }
+    );
+
+    if (error) {
+      throw new Error(`Error procesando semana: ${error.message}`);
+    }
+
+    console.log("✅ Proceso completado:", data);
+
+    return {
+      success: true,
+      message: data.message || "Proceso semanal completado exitosamente",
+      eliminatedTeam: data.elimination_result?.eliminated_team,
+      mvpTeam: data.mvp_result?.mvp_team,
+    };
+  } catch (error) {
+    console.error("💥 Error en processWeeklyEliminationWithMVP:", error);
+    return {
+      success: false,
+      message: `Error procesando semana: ${
+        error instanceof Error ? error.message : "Error desconocido"
+      }`,
+    };
+  }
 }
 
 // Detectar y eliminar el equipo con menor puntaje
