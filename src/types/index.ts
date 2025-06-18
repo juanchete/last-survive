@@ -1,4 +1,3 @@
-
 export interface Player {
   id: string;
   name: string;
@@ -39,8 +38,6 @@ export interface FantasyTeam {
   points: number;
   rank: number;
   eliminated: boolean;
-  mvp_wins?: number;
-  total_earnings?: number;
   user?: {
     full_name?: string;
     email?: string;

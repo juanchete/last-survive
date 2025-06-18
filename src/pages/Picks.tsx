@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { useLocation } from "react-router-dom";
 import { Layout } from "@/components/Layout";
@@ -156,10 +155,10 @@ export default function Picks() {
                                     </Badge>
                                   </TableCell>
                                   <TableCell className="font-medium">
-                                    {rosterItem.players?.name || `Player #${rosterItem.player_id}`}
+                                    {rosterItem.player?.name || `Player #${rosterItem.player_id}`}
                                   </TableCell>
                                   <TableCell>
-                                    {rosterItem.players?.nfl_teams?.abbreviation || "N/A"}
+                                    {rosterItem.player?.team || "N/A"}
                                   </TableCell>
                                 </TableRow>
                               ))
@@ -203,10 +202,10 @@ export default function Picks() {
                                 </Badge>
                               </TableCell>
                               <TableCell className="font-medium">
-                                {rosterItem.players?.name || `Player #${rosterItem.player_id}`}
+                                {rosterItem.player?.name || `Player #${rosterItem.player_id}`}
                               </TableCell>
                               <TableCell>
-                                {rosterItem.players?.nfl_teams?.abbreviation || "N/A"}
+                                {rosterItem.player?.team || "N/A"}
                               </TableCell>
                             </TableRow>
                           ))}
@@ -245,9 +244,9 @@ export default function Picks() {
                         {rosterWithDetails.map((rosterItem, index) => (
                           <TableRow key={index} className="border-nfl-light-gray/20">
                             <TableCell className="font-medium">
-                              {rosterItem.players?.name || `Player #${rosterItem.player_id}`}
+                              {rosterItem.player?.name || `Player #${rosterItem.player_id}`}
                               <div className="text-xs text-gray-400">
-                                {rosterItem.players?.nfl_teams?.abbreviation || "N/A"}
+                                {rosterItem.player?.nfl_team?.abbreviation || "N/A"}
                               </div>
                             </TableCell>
                             <TableCell>

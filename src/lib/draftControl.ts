@@ -1,4 +1,3 @@
-
 import { supabase } from "@/integrations/supabase/client";
 import { executeAutoDraft } from "@/lib/autoDraft";
 
@@ -90,19 +89,14 @@ async function getSimulationData(leagueId: string, currentWeek: number) {
   const draftedIds = new Set(rosters?.map((r) => r.player_id));
   const teamMap = new Map(nflTeams.map((t) => [t.id, t]));
 
-  // Armar jugadores disponibles - Fix position type casting
+  // Armar jugadores disponibles
   const availablePlayers = players
     .map((player) => {
       const nflTeam = teamMap.get(player.nfl_team_id);
-      const validPositions = ["QB", "RB", "WR", "TE", "K", "DEF"];
-      const position = validPositions.includes(player.position) 
-        ? player.position as "QB" | "RB" | "WR" | "TE" | "K" | "DEF"
-        : "QB"; // fallback to QB if invalid position
-      
       return {
         id: String(player.id),
         name: player.name,
-        position,
+        position: player.position,
         team: nflTeam?.abbreviation || "",
         available: !draftedIds.has(player.id),
         eliminated: nflTeam?.eliminated || false,
