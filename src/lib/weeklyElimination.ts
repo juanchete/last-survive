@@ -452,3 +452,31 @@ export async function isTeamEliminated(
     return false;
   }
 }
+
+export async function processWeeklyElimination(leagueId: string, week: number) {
+  try {
+    const { data, error } = await supabase.functions.invoke('weekly-elimination', {
+      body: { league_id: leagueId, week }
+    });
+
+    if (error) throw error;
+
+    // Type assertion for the response data
+    const response = data as {
+      message?: string;
+      elimination_result?: any;
+      mvp_result?: any;
+    };
+
+    console.log('Weekly elimination processed:', {
+      message: response.message,
+      eliminationResult: response.elimination_result,
+      mvpResult: response.mvp_result
+    });
+
+    return response;
+  } catch (error) {
+    console.error('Error processing weekly elimination:', error);
+    throw error;
+  }
+}

@@ -481,3 +481,17 @@ export async function resetDraft(
     };
   }
 }
+
+export async function getAvailablePlayers(leagueId: string): Promise<Player[]> {
+  const { data, error } = await supabase
+    .from('players')
+    .select('*')
+    .eq('available', true);
+  
+  if (error) throw error;
+  
+  return data.map(player => ({
+    ...player,
+    position: player.position as "QB" | "RB" | "WR" | "TE" | "K" | "DEF"
+  }));
+}
