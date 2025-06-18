@@ -25,6 +25,7 @@ import Profile from "./pages/Profile";
 import JoinLeague from "./pages/JoinLeague";
 import { AuthProvider } from "@/hooks/useAuth";
 import PrivateRoute from "@/components/PrivateRoute";
+import Trades from "./pages/Trades";
 
 const queryClient = new QueryClient();
 
@@ -49,6 +50,7 @@ const App = () => (
             <Route path="/standings" element={<Standings />} />
             <Route path="/picks" element={<Picks />} />
             <Route path="/waivers" element={<Waivers />} />
+            <Route path="/trades" element={<Trades />} />
             <Route path="/waiver-processing" element={<WaiverProcessing />} />
                 <Route path="/hub" element={<Hub />} />
             <Route path="/browse-leagues" element={<BrowseLeagues />} />

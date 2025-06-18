@@ -6,14 +6,17 @@ export function useWaiverPlayers(leagueId: string, week: number) {
   return useQuery({
     queryKey: ["waiverPlayers", leagueId, week],
     queryFn: async () => {
-      // Get IDs of players already assigned in the week
+      // Get IDs of players already assigned in the week, SOLO para la liga actual
       const { data: rosters, error: rostersError } = await supabase
         .from("team_rosters")
-        .select("player_id")
+        .select("player_id, fantasy_team:fantasy_teams(league_id)")
         .eq("week", week)
         .eq("is_active", true);
       if (rostersError) throw rostersError;
-      const assignedIds = rosters?.map((r) => r.player_id) || [];
+      const assignedIds =
+        rosters
+          ?.filter((r) => r.fantasy_team?.league_id === leagueId)
+          .map((r) => r.player_id) || [];
       console.log("[useWaiverPlayers] Rosters asignados:", rosters);
       console.log("[useWaiverPlayers] IDs asignados:", assignedIds);
 

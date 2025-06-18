@@ -28,6 +28,10 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Dialog, DialogTrigger, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose } from "@/components/ui/dialog";
+import { useFantasyTeams } from "@/hooks/useFantasyTeams";
+import { supabase } from "@/integrations/supabase/client";
+import { useQueryClient } from "@tanstack/react-query";
+import { useIsLeagueOwner } from "@/hooks/useIsLeagueOwner";
 
 const Waivers = () => {
   // Obtener el leagueId desde la URL
@@ -127,8 +131,54 @@ const Waivers = () => {
     return colors[position as keyof typeof colors] || "bg-gray-100 text-gray-800 border-gray-300";
   };
 
-  // Estado para modal de trade
+  // Estado para trade
   const [tradeModalOpen, setTradeModalOpen] = useState(false);
+  const [tradeTargetTeamId, setTradeTargetTeamId] = useState<string>("");
+  const [tradeMyPlayerIds, setTradeMyPlayerIds] = useState<string[]>([]);
+  const [tradeTargetPlayerIds, setTradeTargetPlayerIds] = useState<string[]>([]);
+  const [tradeStep, setTradeStep] = useState<"select" | "confirm">("select");
+  const [tradeLoading, setTradeLoading] = useState(false);
+
+  // Obtener equipos activos (excepto el propio y eliminados)
+  const { data: fantasyTeams = [] } = useFantasyTeams(leagueId);
+  const activeTeams = fantasyTeams.filter(
+    (team) => !team.eliminated && team.id !== userTeam?.id
+  );
+
+  // Obtener roster propio y del equipo destino
+  const { data: myRoster = [] } = useRosterWithPlayerDetails(userTeam?.id || "", currentWeek);
+  const { data: targetRoster = [] } = useRosterWithPlayerDetails(tradeTargetTeamId, currentWeek);
+
+  // Filtrar jugadores propios activos
+  const myActivePlayers = myRoster.filter((p) => p.available === false);
+  // Filtrar jugadores del otro equipo activos
+  const targetActivePlayers = targetRoster.filter((p) => p.available === false);
+
+  // Obtener posición seleccionada (solo una posición permitida)
+  const mySelectedPlayers = myActivePlayers.filter((p) => tradeMyPlayerIds.includes(p.id));
+  const selectedPosition = mySelectedPlayers.length > 0 ? mySelectedPlayers[0].position : null;
+  // Solo permitir selección de jugadores propios de la misma posición
+  const mySelectablePlayers = selectedPosition
+    ? myActivePlayers.filter((p) => p.position === selectedPosition || tradeMyPlayerIds.includes(p.id))
+    : myActivePlayers;
+  // Solo mostrar jugadores del otro equipo de la misma posición
+  const targetPlayersSamePosition = selectedPosition
+    ? targetActivePlayers.filter((p) => p.position === selectedPosition)
+    : [];
+
+  // Validación: misma cantidad de jugadores seleccionados en ambos lados, al menos uno
+  const canGoToConfirm =
+    !!tradeTargetTeamId &&
+    tradeMyPlayerIds.length > 0 &&
+    tradeTargetPlayerIds.length === tradeMyPlayerIds.length &&
+    selectedPosition !== null;
+
+  // Reset selección de jugadores destino si cambia la cantidad de propios
+  useEffect(() => {
+    if (tradeTargetPlayerIds.length > tradeMyPlayerIds.length) {
+      setTradeTargetPlayerIds(tradeTargetPlayerIds.slice(0, tradeMyPlayerIds.length));
+    }
+  }, [tradeMyPlayerIds, tradeTargetPlayerIds.length]);
 
   // Estado para modal de waiver
   const [waiverModalOpen, setWaiverModalOpen] = useState(false);
@@ -172,6 +222,107 @@ const Waivers = () => {
     }
   };
 
+  // Handler para enviar el trade
+  const queryClient = useQueryClient();
+  const handleSendTrade = async () => {
+    if (!userTeam || !tradeTargetTeamId || tradeMyPlayerIds.length === 0 || tradeTargetPlayerIds.length !== tradeMyPlayerIds.length) return;
+    setTradeLoading(true);
+    try {
+      // 1. Crear el trade
+      const { data: trade, error: tradeError } = await supabase
+        .from("trades")
+        .insert([
+          {
+            league_id: leagueId,
+            proposer_team_id: userTeam.id,
+            target_team_id: tradeTargetTeamId,
+            status: "pending",
+            week: currentWeek,
+            season: 2024,
+            notes: null,
+          },
+        ])
+        .select()
+        .single();
+      if (tradeError || !trade) throw tradeError || new Error("No se pudo crear el trade");
+      // 2. Crear los trade_items
+      const items = [
+        ...tradeMyPlayerIds.map(pid => ({ trade_id: trade.id, team_id: userTeam.id, player_id: Number(pid) })),
+        ...tradeTargetPlayerIds.map(pid => ({ trade_id: trade.id, team_id: tradeTargetTeamId, player_id: Number(pid) })),
+      ];
+      const { error: itemsError } = await supabase.from("trade_items").insert(items);
+      if (itemsError) throw itemsError;
+      toast({ title: "Trade enviado", description: "Tu propuesta de trade fue enviada correctamente." });
+      setTradeModalOpen(false);
+      setTradeStep("select");
+      setTradeTargetTeamId("");
+      setTradeMyPlayerIds([]);
+      setTradeTargetPlayerIds([]);
+      // Refrescar la lista de trades en la UI
+      queryClient.invalidateQueries({ queryKey: ["tradesSent", userTeam.id, leagueId] });
+      queryClient.invalidateQueries({ queryKey: ["tradesReceived", userTeam.id, leagueId] });
+    } catch (e) {
+      const message = e instanceof Error ? e.message : "No se pudo enviar el trade";
+      toast({ title: "Error", description: message, variant: "destructive" });
+    } finally {
+      setTradeLoading(false);
+    }
+  };
+
+  const { data: isOwner } = useIsLeagueOwner(leagueId);
+  const [processingWaivers, setProcessingWaivers] = useState(false);
+
+  // Botón para que el owner procese waivers manualmente
+  const handleProcessWaivers = async () => {
+    setProcessingWaivers(true);
+    try {
+      const { data, error } = await supabase.rpc("process_league_waivers", {
+        league_id: leagueId,
+        week_num: currentWeek,
+        season_year: 2024,
+      });
+      if (error) throw error;
+      const result = data as Record<string, unknown>;
+      toast({
+        title: "Waivers procesadas",
+        description: `${Number(result.successful_claims) || 0} aprobadas, ${Number(result.failed_claims) || 0} rechazadas`,
+      });
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "Error procesando waivers";
+      toast({
+        title: "Error",
+        description: message,
+        variant: "destructive",
+      });
+    } finally {
+      setProcessingWaivers(false);
+    }
+  };
+
+  // Botón para crear/resetear prioridades de waivers
+  const handleCreateWaiverPriorities = async () => {
+    setProcessingWaivers(true);
+    try {
+      const { data, error } = await supabase.rpc("reset_all_waiver_priorities", {
+        new_week: currentWeek,
+      });
+      if (error) throw error;
+      toast({
+        title: "Prioridades de waivers creadas",
+        description: `Prioridades generadas para la semana ${currentWeek}`,
+      });
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "Error creando prioridades";
+      toast({
+        title: "Error",
+        description: message,
+        variant: "destructive",
+      });
+    } finally {
+      setProcessingWaivers(false);
+    }
+  };
+
   return (
     <Layout>
       <LeagueNav leagueId={leagueId} />
@@ -189,7 +340,15 @@ const Waivers = () => {
 
         {/* Botón para abrir modal de trade */}
         <div className="mb-6 flex justify-end">
-          <Dialog open={tradeModalOpen} onOpenChange={setTradeModalOpen}>
+          <Dialog open={tradeModalOpen} onOpenChange={(open) => {
+            setTradeModalOpen(open);
+            if (!open) {
+              setTradeStep("select");
+              setTradeTargetTeamId("");
+              setTradeMyPlayerIds([]);
+              setTradeTargetPlayerIds([]);
+            }
+          }}>
             <DialogTrigger asChild>
               <Button className="bg-nfl-blue hover:bg-nfl-lightblue" onClick={() => setTradeModalOpen(true)}>
                 Propose Trade
@@ -199,23 +358,151 @@ const Waivers = () => {
               <DialogHeader>
                 <DialogTitle>Propose Trade</DialogTitle>
               </DialogHeader>
-              {/* Aquí irá el formulario de selección de equipo y jugadores */}
-              <div className="py-4">
-                <p className="text-gray-400 mb-2">Select the team you want to trade with and the players involved.</p>
-                {/* TODO: Formulario de selección de equipo y jugadores */}
-                <div className="bg-nfl-dark-gray rounded-lg p-4 text-center text-gray-500">
-                  (Coming Soon: Trade Form)
+              {tradeStep === "select" ? (
+                <div className="py-2 space-y-4">
+                  {/* Selección de equipo destino */}
+                  <div>
+                    <label className="block text-gray-300 mb-1">Select team to trade with:</label>
+                    <select
+                      className="w-full p-2 rounded bg-nfl-dark-gray text-white border border-nfl-light-gray/30"
+                      value={tradeTargetTeamId}
+                      onChange={e => {
+                        setTradeTargetTeamId(e.target.value);
+                        setTradeMyPlayerIds([]);
+                        setTradeTargetPlayerIds([]);
+                      }}
+                    >
+                      <option value="">Select team</option>
+                      {activeTeams.map(team => (
+                        <option key={team.id} value={team.id}>{team.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                  {/* Selección de jugadores propios */}
+                  <div>
+                    <label className="block text-gray-300 mb-1">Select your players to offer (same position):</label>
+                    <div className="flex flex-wrap gap-2">
+                      {mySelectablePlayers.map(player => (
+                        <label key={player.id} className={`flex items-center gap-2 px-2 py-1 rounded cursor-pointer border ${tradeMyPlayerIds.includes(player.id) ? "bg-nfl-blue/30 border-nfl-blue" : "bg-nfl-dark-gray border-nfl-light-gray/20"}`}>
+                          <input
+                            type="checkbox"
+                            checked={tradeMyPlayerIds.includes(player.id)}
+                            onChange={e => {
+                              if (e.target.checked) {
+                                // Solo permitir misma posición
+                                if (selectedPosition && player.position !== selectedPosition) return;
+                                setTradeMyPlayerIds([...tradeMyPlayerIds, player.id]);
+                              } else {
+                                setTradeMyPlayerIds(tradeMyPlayerIds.filter(id => id !== player.id));
+                                setTradeTargetPlayerIds([]); // Reset selección destino
+                              }
+                            }}
+                            disabled={!!selectedPosition && player.position !== selectedPosition}
+                          />
+                          <span>{player.name} ({player.position} - {player.team})</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                  {/* Selección de jugadores del otro equipo */}
+                  <div>
+                    <label className="block text-gray-300 mb-1">Select players to receive ({tradeMyPlayerIds.length}):</label>
+                    <div className="flex flex-wrap gap-2">
+                      {targetPlayersSamePosition.map(player => (
+                        <label key={player.id} className={`flex items-center gap-2 px-2 py-1 rounded cursor-pointer border ${tradeTargetPlayerIds.includes(player.id) ? "bg-nfl-blue/30 border-nfl-blue" : "bg-nfl-dark-gray border-nfl-light-gray/20"}`}>
+                          <input
+                            type="checkbox"
+                            checked={tradeTargetPlayerIds.includes(player.id)}
+                            onChange={e => {
+                              if (e.target.checked) {
+                                if (tradeTargetPlayerIds.length < tradeMyPlayerIds.length) {
+                                  setTradeTargetPlayerIds([...tradeTargetPlayerIds, player.id]);
+                                }
+                              } else {
+                                setTradeTargetPlayerIds(tradeTargetPlayerIds.filter(id => id !== player.id));
+                              }
+                            }}
+                            disabled={
+                              !tradeMyPlayerIds.length ||
+                              (tradeTargetPlayerIds.length >= tradeMyPlayerIds.length && !tradeTargetPlayerIds.includes(player.id))
+                            }
+                          />
+                          <span>{player.name} ({player.position} - {player.team})</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="flex justify-end gap-2 mt-4">
+                    <DialogClose asChild>
+                      <Button variant="outline">Cancel</Button>
+                    </DialogClose>
+                    <Button
+                      disabled={!canGoToConfirm}
+                      className="bg-nfl-blue hover:bg-nfl-lightblue"
+                      onClick={() => setTradeStep("confirm")}
+                    >
+                      Next
+                    </Button>
+                  </div>
                 </div>
-              </div>
-              <DialogFooter>
-                <DialogClose asChild>
-                  <Button variant="outline">Cancel</Button>
-                </DialogClose>
-                <Button disabled>Propose Trade</Button>
-              </DialogFooter>
+              ) : (
+                <div className="py-2 space-y-4">
+                  <h3 className="text-lg font-bold text-white mb-2">Confirm Trade Proposal</h3>
+                  <div className="mb-2">
+                    <div className="text-gray-300 mb-1">You will offer:</div>
+                    <ul className="list-disc ml-6 text-white">
+                      {mySelectedPlayers.map(player => (
+                        <li key={player.id}>{player.name} ({player.position} - {player.team})</li>
+                      ))}
+                    </ul>
+                  </div>
+                  <div className="mb-2">
+                    <div className="text-gray-300 mb-1">You will receive:</div>
+                    <ul className="list-disc ml-6 text-white">
+                      {targetPlayersSamePosition.filter(p => tradeTargetPlayerIds.includes(p.id)).map(player => (
+                        <li key={player.id}>{player.name} ({player.position} - {player.team})</li>
+                      ))}
+                    </ul>
+                  </div>
+                  <div className="flex justify-end gap-2 mt-4">
+                    <Button variant="outline" onClick={() => setTradeStep("select")}>Back</Button>
+                    <Button className="bg-nfl-blue hover:bg-nfl-lightblue" onClick={handleSendTrade} disabled={tradeLoading}>
+                      {tradeLoading ? "Enviando..." : "Confirm and Send"}
+                    </Button>
+                  </div>
+                </div>
+              )}
             </DialogContent>
           </Dialog>
         </div>
+
+        {/* Botón solo para el owner */}
+        {isOwner && (
+          <div className="mb-6 flex justify-end gap-2">
+            <Button
+              className="bg-nfl-blue hover:bg-nfl-lightblue"
+              onClick={handleProcessWaivers}
+              disabled={processingWaivers}
+            >
+              {processingWaivers ? (
+                <><Loader2 className="animate-spin w-4 h-4 mr-2" />Procesando waivers...</>
+              ) : (
+                <>Procesar Waivers</>
+              )}
+            </Button>
+            <Button
+              className="bg-nfl-green hover:bg-green-600"
+              onClick={handleCreateWaiverPriorities}
+              disabled={processingWaivers}
+            >
+              {processingWaivers ? (
+                <><Loader2 className="animate-spin w-4 h-4 mr-2" />Creando prioridades...</>
+              ) : (
+                <>Crear Priorities</>
+              )}
+            </Button>
+          </div>
+        )}
 
         <div className="grid lg:grid-cols-4 gap-6">
           {/* Main content - Available Players */}
@@ -481,6 +768,44 @@ const Waivers = () => {
               </CardContent>
             </Card>
           </div>
+        </div>
+
+        {/* Sección: Mis solicitudes de waivers */}
+        <div className="mt-10">
+          <h2 className="text-xl font-bold text-white mb-4">Mis solicitudes de waivers</h2>
+          {loadingRequests ? (
+            <div className="flex items-center gap-2 text-gray-400"><Loader2 className="animate-spin w-4 h-4" />Cargando solicitudes...</div>
+          ) : myWaiverRequests.length === 0 ? (
+            <div className="text-gray-400">No has hecho solicitudes de waivers esta semana.</div>
+          ) : (
+            <ul className="space-y-4">
+              {myWaiverRequests.map((req) => {
+                const requestedPlayer = waiverPlayers.find(p => p.id === req.player_id?.toString());
+                const droppedPlayer = currentRoster.find(p => p.id === req.drop_player_id?.toString());
+                let statusColor = "bg-gray-500";
+                if (req.status === "approved") statusColor = "bg-green-600";
+                else if (req.status === "rejected") statusColor = "bg-red-600";
+                else if (req.status === "pending") statusColor = "bg-yellow-500";
+                return (
+                  <li key={req.id} className="bg-nfl-dark-gray rounded-lg p-4 flex items-center gap-4 shadow border border-nfl-light-gray/10">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className={`inline-block w-2 h-2 rounded-full ${statusColor}`}></span>
+                        <span className="font-semibold text-white">{requestedPlayer ? requestedPlayer.name : `Jugador #${req.player_id}`}</span>
+                        <span className="text-xs text-gray-400 ml-2">{requestedPlayer ? requestedPlayer.position : ""}</span>
+                        <span className="text-xs text-gray-400 ml-2">{requestedPlayer ? requestedPlayer.team : ""}</span>
+                      </div>
+                      {droppedPlayer && (
+                        <div className="text-xs text-gray-400 mb-1">Soltaste: <span className="font-semibold text-white">{droppedPlayer.name}</span></div>
+                      )}
+                      <div className="text-xs text-gray-400">Estado: <span className="font-bold capitalize text-white">{req.status}</span></div>
+                      <div className="text-xs text-gray-500 mt-1">Solicitado: {req.created_at ? new Date(req.created_at).toLocaleString() : "-"}</div>
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
         </div>
 
         {/* Modal de solicitud de waiver */}

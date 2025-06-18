@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { PlayerCard } from "@/components/PlayerCard";
 import { WeeklyElimination } from "@/components/WeeklyElimination";
-import { Search, Award, Settings, Play, Pause, RotateCcw, CheckCircle } from "lucide-react";
+import { Search, Award, Settings, Play, Pause, RotateCcw, CheckCircle, Clock } from "lucide-react";
 import { useLocation } from "react-router-dom";
 import { useAvailablePlayers } from "@/hooks/useAvailablePlayers";
 import { useUserFantasyTeam } from "@/hooks/useUserFantasyTeam";
@@ -23,6 +23,11 @@ import { useMyRoster } from "@/hooks/useMyRoster";
 import { toast } from 'sonner';
 import { useQueryClient } from "@tanstack/react-query";
 import type { Player } from "@/types";
+import { DateTime } from "luxon";
+import { supabase } from "@/integrations/supabase/client";
+import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table";
+import { useFantasyTeams } from "@/hooks/useFantasyTeams";
+import { useAuth } from "@/hooks/useAuth";
 
 export default function Draft() {
   // Obtener leagueId desde la URL
@@ -36,11 +41,12 @@ export default function Draft() {
   const { data: draftState, isLoading: loadingDraftState } = useDraftState(leagueId);
   const { data: isOwner = false } = useIsLeagueOwner(leagueId);
   const currentWeek = 1; // Puedes obtener la semana real con useCurrentWeek si lo necesitas
-  const { data: availablePlayers = [], isLoading: loadingPlayers } = useAvailablePlayers(leagueId, currentWeek);
+  const { data: availablePlayers = [], isLoading: loadingPlayers, refetch: refetchPlayers } = useAvailablePlayers(leagueId, currentWeek);
   // Llamar siempre el hook, aunque userTeam no esté listo
   const myTeamId = userTeam?.id || "";
   const isMyTurn = useIsMyDraftTurn(leagueId, myTeamId);
   const { data: myRoster = [] } = useMyRoster(userTeam?.id || "", currentWeek);
+  const { data: teams = [], isLoading: loadingTeams } = useFantasyTeams(leagueId);
 
   // State para filtros y búsqueda
   const [searchTerm, setSearchTerm] = useState('');
@@ -50,6 +56,10 @@ export default function Draft() {
   const [loadingControl, setLoadingControl] = useState(false);
   const [autoTimerEnabled, setAutoTimerEnabled] = useState(true);
   const [showControls, setShowControls] = useState(false);
+
+  // Nuevo estado para fecha programada
+  const [scheduledDate, setScheduledDate] = useState<string>("");
+  const [scheduling, setScheduling] = useState(false);
 
   // Límites de slots
   const SLOT_LIMITS = {
@@ -218,77 +228,153 @@ export default function Draft() {
     toast.info(enabled ? 'Auto-draft habilitado' : 'Auto-draft deshabilitado');
   };
 
-  // Mostrar el orden de picks y el turno actual
-  const renderDraftOrder = () => {
-    if (!draftState?.draft_order) return null;
+  // Mostrar el orden de picks y el turno actual en una tabla
+  const renderDraftOrderTable = () => {
+    if (!draftState?.draft_order || teams.length === 0) return null;
     return (
-      <div className="flex flex-wrap gap-2 mb-4">
-        {draftState.draft_order.map((teamId: string, idx: number) => (
-          <Badge key={teamId} className={idx === draftState.current_pick ? "bg-nfl-blue text-white" : "bg-nfl-gray text-gray-300"}>
-            Pick {idx + 1} {idx === draftState.current_pick && "(Turno)"}
-          </Badge>
-        ))}
-      </div>
+      <Card className="mb-4 bg-nfl-gray border-nfl-light-gray/20">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base text-nfl-blue">Draft Order</CardTitle>
+        </CardHeader>
+        <CardContent className="pt-0">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>#</TableHead>
+                <TableHead>Team</TableHead>
+                <TableHead>Owner</TableHead>
+                <TableHead>Status</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {draftState.draft_order.map((teamId: string, idx: number) => {
+                const team = teams.find((t) => t.id === teamId);
+                const isCurrent = idx === draftState.current_pick;
+                return (
+                  <TableRow key={teamId} className={isCurrent ? "bg-nfl-blue/20" : ""}>
+                    <TableCell className="font-bold">{idx + 1}</TableCell>
+                    <TableCell className="font-semibold text-white">{team?.name || teamId.slice(0, 8)}</TableCell>
+                    <TableCell className="text-gray-300">{team?.owner || "-"}</TableCell>
+                    <TableCell>{isCurrent ? <span className="text-nfl-blue font-bold">Turno</span> : ""}</TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
     );
   };
 
   // Funciones de control del draft (solo para owners)
+  const { user } = useAuth();
   const handlePauseDraft = async () => {
-    if (!userTeam?.id || !leagueId) return;
+    if (!user?.id || !leagueId) return;
     setLoadingControl(true);
     try {
-      const result = await pauseDraft(userTeam.id, leagueId);
+      const result = await pauseDraft(user.id, leagueId);
       if (result.success) {
         toast.success(result.message);
         await refreshDraftData();
       } else {
-        toast.error(result.message);
+        toast.error(result.message || "Error desconocido al pausar draft");
       }
     } catch (error) {
-      toast.error('Error pausando draft');
+      toast.error('Error pausando draft: ' + (error instanceof Error ? error.message : JSON.stringify(error)));
     } finally {
       setLoadingControl(false);
     }
   };
 
   const handleResumeDraft = async () => {
-    if (!userTeam?.id || !leagueId) return;
+    if (!user?.id || !leagueId) return;
     setLoadingControl(true);
     try {
-      const result = await resumeDraft(userTeam.id, leagueId);
+      const result = await resumeDraft(user.id, leagueId);
       if (result.success) {
         toast.success(result.message);
         await refreshDraftData();
       } else {
-        toast.error(result.message);
+        toast.error(result.message || "Error desconocido al reanudar draft");
       }
     } catch (error) {
-      toast.error('Error reanudando draft');
+      toast.error('Error reanudando draft: ' + (error instanceof Error ? error.message : JSON.stringify(error)));
     } finally {
       setLoadingControl(false);
     }
   };
 
   const handleCompleteDraft = async () => {
-    if (!userTeam?.id || !leagueId) return;
-    
+    if (!user?.id || !leagueId) return;
     if (!confirm('¿Estás seguro de que quieres finalizar el draft? Esta acción no se puede deshacer.')) {
       return;
     }
-
     setLoadingControl(true);
     try {
-      const result = await completeDraft(userTeam.id, leagueId);
+      const result = await completeDraft(user.id, leagueId);
       if (result.success) {
         toast.success(result.message);
         await refreshDraftData();
       } else {
-        toast.error(result.message);
+        toast.error(result.message || "Error desconocido al finalizar draft");
       }
     } catch (error) {
-      toast.error('Error finalizando draft');
+      toast.error('Error finalizando draft: ' + (error instanceof Error ? error.message : JSON.stringify(error)));
     } finally {
       setLoadingControl(false);
+    }
+  };
+
+  // Función para empezar el draft inmediatamente
+  const handleStartDraftNow = async () => {
+    if (!userTeam?.id || !leagueId) return;
+    setLoadingControl(true);
+    try {
+      // 1. Obtener todos los equipos de la liga
+      const { data: fantasyTeams, error: teamsError } = await supabase
+        .from("fantasy_teams")
+        .select("id")
+        .eq("league_id", leagueId);
+      if (teamsError) throw teamsError;
+      if (!fantasyTeams || fantasyTeams.length === 0) throw new Error("No hay equipos en la liga");
+
+      // 2. Mezclar aleatoriamente los IDs de los equipos
+      const shuffled = (fantasyTeams as { id: string }[])
+        .map((t) => t.id)
+        .sort(() => Math.random() - 0.5);
+
+      // 3. Guardar el draft_order y poner el draft en progreso
+      const { error } = await supabase
+        .from("leagues")
+        .update({ draft_status: "in_progress", start_date: new Date().toISOString(), draft_order: shuffled, current_pick: 0 })
+        .eq("id", leagueId);
+      if (error) throw error;
+      toast.success("Draft iniciado, inscripciones cerradas y orden generado");
+      await refreshDraftData();
+    } catch (error) {
+      toast.error("Error al iniciar el draft: " + (error instanceof Error ? error.message : ""));
+    } finally {
+      setLoadingControl(false);
+    }
+  };
+
+  // Función para programar el draft
+  const handleScheduleDraft = async () => {
+    if (!userTeam?.id || !leagueId || !scheduledDate) return;
+    setScheduling(true);
+    try {
+      // Guardar fecha programada y cerrar inscripciones
+      const { error } = await supabase
+        .from("leagues")
+        .update({ draft_status: "pending", start_date: DateTime.fromISO(scheduledDate).toUTC().toISO() })
+        .eq("id", leagueId);
+      if (error) throw error;
+      toast.success("Draft programado y inscripciones cerradas");
+      await refreshDraftData();
+    } catch (error) {
+      toast.error("Error al programar el draft");
+    } finally {
+      setScheduling(false);
     }
   };
 
@@ -332,7 +418,42 @@ export default function Draft() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="pt-0">
-                  <div className="flex gap-2 flex-wrap">
+                  <div className="flex gap-2 flex-wrap mb-4">
+                    {/* Nuevo: Empezar Draft Ahora */}
+                    {draftState?.draft_status === 'pending' && (
+                      <Button
+                        onClick={handleStartDraftNow}
+                        disabled={loadingControl}
+                        variant="default"
+                        size="sm"
+                        className="flex items-center gap-1"
+                      >
+                        <Play className="w-3 h-3" />
+                        Empezar Draft Ahora
+                      </Button>
+                    )}
+                    {/* Nuevo: Programar Draft */}
+                    {draftState?.draft_status === 'pending' && (
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="datetime-local"
+                          value={scheduledDate}
+                          onChange={e => setScheduledDate(e.target.value)}
+                          className="border rounded px-2 py-1 text-sm"
+                        />
+                        <Button
+                          onClick={handleScheduleDraft}
+                          disabled={scheduling || !scheduledDate}
+                          variant="outline"
+                          size="sm"
+                          className="flex items-center gap-1"
+                        >
+                          <Clock className="w-3 h-3" />
+                          Programar Draft
+                        </Button>
+                      </div>
+                    )}
+                    {/* Controles existentes */}
                     {draftState?.draft_status === 'in_progress' && (
                       <Button
                         onClick={handlePauseDraft}
@@ -345,7 +466,6 @@ export default function Draft() {
                         Pausar
                       </Button>
                     )}
-                    
                     {draftState?.draft_status === 'pending' && (
                       <Button
                         onClick={handleResumeDraft}
@@ -358,7 +478,6 @@ export default function Draft() {
                         Reanudar
                       </Button>
                     )}
-
                     {draftState?.draft_status !== 'completed' && (
                       <Button
                         onClick={handleCompleteDraft}
@@ -371,7 +490,6 @@ export default function Draft() {
                         Finalizar
                       </Button>
                     )}
-
                     {loadingControl && (
                       <div className="text-xs text-blue-600 flex items-center">
                         ⏳ Procesando...
@@ -390,7 +508,7 @@ export default function Draft() {
                 <div className="mb-2">
                   Status: <span className="font-bold text-nfl-blue">{draftState.draft_status}</span>
                 </div>
-                {renderDraftOrder()}
+                {renderDraftOrderTable()}
                 {isMyTurn && <div className="text-nfl-green font-bold">It's your turn to pick!</div>}
                 {!isMyTurn && <div className="text-gray-400">Waiting for your turn...</div>}
               </div>

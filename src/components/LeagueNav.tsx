@@ -20,6 +20,7 @@ export function LeagueNav({ leagueId }: LeagueNavProps) {
     if (pathname.includes("/draft")) return "draft";
     if (pathname.includes("/waivers")) return "waivers";
     if (pathname.includes("/picks")) return "picks";
+    if (pathname.includes("/trades")) return "trades";
     return "dashboard"; // Default
   };
   
@@ -54,6 +55,15 @@ export function LeagueNav({ leagueId }: LeagueNavProps) {
               <Link to={`/waivers?league=${leagueId}`} className="flex items-center gap-1.5">
                 <ListChecks className="w-4 h-4" />
                 Waivers
+              </Link>
+            </TabsTrigger>
+          )}
+          {/* Mostrar Trades solo si el draft está terminado */}
+          {draftState?.draft_status === "completed" && (
+            <TabsTrigger value="trades" asChild className="data-[state=active]:bg-nfl-blue data-[state=active]:text-white">
+              <Link to={`/trades?league=${leagueId}`} className="flex items-center gap-1.5">
+                <ListChecks className="w-4 h-4" />
+                Trades
               </Link>
             </TabsTrigger>
           )}

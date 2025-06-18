@@ -17,13 +17,17 @@ export function useAvailablePlayers(leagueId: string, week: number) {
       if (teamsError) throw teamsError;
       const teamMap = new Map(nflTeams.map((t) => [t.id, t]));
 
-      // 2. Obtener los jugadores ya drafteados en la semana actual
+      // 2. Obtener los jugadores ya drafteados en la semana actual SOLO para la liga actual
       const { data: rosters, error: rostersError } = await supabase
         .from("team_rosters")
-        .select("player_id")
+        .select("player_id, fantasy_team:fantasy_teams(league_id)")
         .eq("week", week);
       if (rostersError) throw rostersError;
-      const draftedIds = new Set(rosters?.map((r) => r.player_id));
+      const draftedIds = new Set(
+        rosters
+          ?.filter((r) => r.fantasy_team?.league_id === leagueId)
+          .map((r) => r.player_id)
+      );
 
       // 3. Obtener los puntos fantasy de la semana actual
       const { data: stats, error: statsError } = await supabase
@@ -53,5 +57,6 @@ export function useAvailablePlayers(leagueId: string, week: number) {
         .filter((p) => p.available);
     },
     enabled: !!leagueId && !!week,
+    refetchInterval: 2000,
   });
 }
