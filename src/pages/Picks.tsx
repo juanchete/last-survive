@@ -1,3 +1,4 @@
+import { LeagueNav } from "@/components/LeagueNav";
 import { Layout } from "@/components/Layout";
 import {
   Table,
@@ -8,14 +9,14 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { useLeaguePicks } from "@/hooks/useLeaguePicks";
+import { useEliminationHistory } from "@/hooks/useWeeklyElimination";
 import { useLocation } from "react-router-dom";
 
 export default function Picks() {
   const location = useLocation();
-  const searchParams = new URLSearchParams(location.search);
-  const leagueId = searchParams.get("league") || "default";
-  const { data: picks, isLoading } = useLeaguePicks(leagueId);
+  const queryParams = new URLSearchParams(location.search);
+  const leagueId = queryParams.get("league") as string;
+  const { data: eliminationHistory = [], isLoading, error } = useEliminationHistory(leagueId);
 
   return (
     <Layout>
@@ -37,20 +38,14 @@ export default function Picks() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {picks.map((pick, index) => (
-                <TableRow key={index} className="hover:bg-nfl-dark-gray/50 transition-colors">
+              {eliminationHistory.map((team, index) => (
+                <TableRow key={team.id} className="hover:bg-nfl-dark-gray/50 transition-colors">
                   <TableCell className="font-medium text-white">
-                    #{pick.pick_number}
+                    {index + 1}
                   </TableCell>
-                  <TableCell className="text-gray-300">
-                    {pick.fantasy_team?.name || 'Unknown Team'}
-                  </TableCell>
-                  <TableCell className="text-gray-300">
-                    {pick.stats?.player_name || 'No Player Selected'}
-                  </TableCell>
-                  <TableCell className="text-gray-300">
-                    {pick.stats?.position || 'N/A'}
-                  </TableCell>
+                  <TableCell className="text-gray-300">{team.name}</TableCell>
+                  <TableCell className="text-gray-300">{team.users?.full_name || 'N/A'}</TableCell>
+                  <TableCell className="text-center text-nfl-red font-semibold">{team.eliminated_week}</TableCell>
                 </TableRow>
               ))}
             </TableBody>

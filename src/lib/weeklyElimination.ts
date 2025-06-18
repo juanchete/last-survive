@@ -248,188 +248,6 @@ export async function processWeeklyEliminationWithMVP(
   }
 }
 
-// Detectar y eliminar el equipo con menor puntaje
-export async function processWeeklyElimination(
-  leagueId: string,
-  week: number,
-  season: number = 2024
-): Promise<EliminationResult> {
-  try {
-    console.log("⚡ Iniciando proceso de eliminación semanal...", {
-      leagueId,
-      week,
-      season,
-    });
-
-    // 1. Calcular puntajes de todos los equipos
-    const weeklyScores = await calculateWeeklyScores(leagueId, week, season);
-
-    if (weeklyScores.length === 0) {
-      return {
-        success: false,
-        message: "No hay equipos activos para eliminar",
-        weeklyScores,
-      };
-    }
-
-    if (weeklyScores.length === 1) {
-      return {
-        success: false,
-        message: "Solo queda un equipo, no se puede eliminar más",
-        weeklyScores,
-      };
-    }
-
-    // 2. Identificar equipo con menor puntaje
-    const lowestScoreTeam = weeklyScores[0]; // Ya está ordenado de menor a mayor
-
-    console.log(
-      `🎯 Equipo a eliminar: ${lowestScoreTeam.teamName} (${lowestScoreTeam.totalPoints} pts)`
-    );
-
-    // 3. Marcar equipo como eliminado
-    const { error: eliminationError } = await supabase
-      .from("fantasy_teams")
-      .update({
-        eliminated: true,
-        eliminated_week: week,
-      })
-      .eq("id", lowestScoreTeam.fantasyTeamId);
-
-    if (eliminationError) {
-      throw new Error(`Error eliminando equipo: ${eliminationError.message}`);
-    }
-
-    console.log("✅ Equipo marcado como eliminado en base de datos");
-
-    // 4. Liberar jugadores al waiver pool
-    await releasePlayersToWaivers(lowestScoreTeam.fantasyTeamId, week);
-
-    // 5. Crear notificación de eliminación
-    await createEliminationNotification(
-      lowestScoreTeam.userId,
-      leagueId,
-      lowestScoreTeam.teamName,
-      week,
-      lowestScoreTeam.totalPoints
-    );
-
-    console.log("🎉 Proceso de eliminación completado exitosamente");
-
-    return {
-      success: true,
-      message: `Equipo ${lowestScoreTeam.teamName} eliminado con ${lowestScoreTeam.totalPoints} puntos`,
-      eliminatedTeam: {
-        id: lowestScoreTeam.fantasyTeamId,
-        name: lowestScoreTeam.teamName,
-        points: lowestScoreTeam.totalPoints,
-        userId: lowestScoreTeam.userId,
-      },
-      weeklyScores,
-    };
-  } catch (error) {
-    console.error("💥 Error en processWeeklyElimination:", error);
-    return {
-      success: false,
-      message: `Error procesando eliminación: ${
-        error instanceof Error ? error.message : "Error desconocido"
-      }`,
-    };
-  }
-}
-
-// Liberar jugadores de equipo eliminado al waiver pool
-async function releasePlayersToWaivers(
-  fantasyTeamId: string,
-  week: number
-): Promise<void> {
-  try {
-    console.log("🔄 Liberando jugadores al waiver pool...", {
-      fantasyTeamId,
-      week,
-    });
-
-    // 1. Obtener jugadores del equipo eliminado
-    const { data: playersToRelease, error: playersError } = await supabase
-      .from("team_rosters")
-      .select("player_id, slot")
-      .eq("fantasy_team_id", fantasyTeamId)
-      .eq("week", week);
-
-    if (playersError) {
-      throw new Error(`Error obteniendo jugadores: ${playersError.message}`);
-    }
-
-    if (!playersToRelease || playersToRelease.length === 0) {
-      console.log("⚠️ No hay jugadores para liberar");
-      return;
-    }
-
-    // 2. Marcar jugadores como no activos (liberados)
-    const { error: releaseError } = await supabase
-      .from("team_rosters")
-      .update({ is_active: false })
-      .eq("fantasy_team_id", fantasyTeamId)
-      .eq("week", week);
-
-    if (releaseError) {
-      throw new Error(`Error liberando jugadores: ${releaseError.message}`);
-    }
-
-    // 3. Registrar movimientos de liberación
-    const releaseMovements = playersToRelease.map((player) => ({
-      fantasy_team_id: fantasyTeamId,
-      player_id: player.player_id,
-      week,
-      action: "eliminated_release",
-      acquired_type: "elimination",
-    }));
-
-    const { error: movesError } = await supabase
-      .from("roster_moves")
-      .insert(releaseMovements);
-
-    if (movesError) {
-      console.error("⚠️ Error registrando movimientos:", movesError);
-      // No hacer throw aquí, la liberación ya se completó
-    }
-
-    console.log(
-      `✅ Liberados ${playersToRelease.length} jugadores al waiver pool`
-    );
-  } catch (error) {
-    console.error("💥 Error en releasePlayersToWaivers:", error);
-    throw error;
-  }
-}
-
-// Crear notificación de eliminación
-async function createEliminationNotification(
-  userId: string,
-  leagueId: string,
-  teamName: string,
-  week: number,
-  points: number
-): Promise<void> {
-  try {
-    const { error } = await supabase.from("notifications").insert({
-      user_id: userId,
-      league_id: leagueId,
-      message: `Tu equipo "${teamName}" ha sido eliminado en la semana ${week} con ${points} puntos. Tus jugadores han sido liberados al waiver pool.`,
-      type: "warning",
-    });
-
-    if (error) {
-      console.error("⚠️ Error creando notificación:", error);
-      // No hacer throw, la eliminación principal ya se completó
-    } else {
-      console.log("📧 Notificación de eliminación creada");
-    }
-  } catch (error) {
-    console.error("💥 Error en createEliminationNotification:", error);
-  }
-}
-
 // Verificar si un equipo está eliminado
 export async function isTeamEliminated(
   fantasyTeamId: string
@@ -455,28 +273,49 @@ export async function isTeamEliminated(
 
 export async function processWeeklyElimination(leagueId: string, week: number) {
   try {
-    const { data, error } = await supabase.functions.invoke('weekly-elimination', {
-      body: { league_id: leagueId, week }
-    });
+    const { data, error } = await supabase.functions.invoke(
+      "weekly-elimination",
+      {
+        body: { league_id: leagueId, week },
+      }
+    );
 
-    if (error) throw error;
+    if (error) {
+      throw new Error(
+        `Error invocando la función de eliminación: ${error.message}`
+      );
+    }
 
-    // Type assertion for the response data
-    const response = data as {
-      message?: string;
-      elimination_result?: any;
-      mvp_result?: any;
-    };
-
-    console.log('Weekly elimination processed:', {
-      message: response.message,
-      eliminationResult: response.elimination_result,
-      mvpResult: response.mvp_result
-    });
-
-    return response;
+    console.log("✅ Función de eliminación invocada exitosamente:", data);
+    return data;
   } catch (error) {
-    console.error('Error processing weekly elimination:', error);
-    throw error;
+    console.error("💥 Error en processWeeklyElimination:", error);
+    const message =
+      error instanceof Error ? error.message : "Error desconocido";
+    return {
+      success: false,
+      message: `Error procesando eliminación: ${message}`,
+    };
   }
+}
+
+// Función para obtener el estado de la última ejecución de la eliminación semanal
+export async function getLatestEliminationLog(leagueId: string) {
+  const { data, error } = await supabase
+    .from("elimination_log")
+    .select("*")
+    .eq("league_id", leagueId)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .single();
+
+  if (error) {
+    // Es normal no encontrar logs si nunca se ha ejecutado
+    if (error.code === "PGRST116") {
+      return null;
+    }
+    console.error("Error fetching latest elimination log:", error);
+    return null;
+  }
+  return data;
 }
