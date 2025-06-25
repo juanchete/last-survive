@@ -23,8 +23,10 @@ import BrowseLeagues from "./pages/BrowseLeagues";
 import CreateLeague from "./pages/CreateLeague";
 import Profile from "./pages/Profile";
 import JoinLeague from "./pages/JoinLeague";
+import AdminPanel from "./pages/AdminPanel";
 import { AuthProvider } from "@/hooks/useAuth";
 import PrivateRoute from "@/components/PrivateRoute";
+import AdminRoute from "@/components/AdminRoute";
 import Trades from "./pages/Trades";
 
 const queryClient = new QueryClient();
@@ -56,6 +58,10 @@ const App = () => (
             <Route path="/browse-leagues" element={<BrowseLeagues />} />
             <Route path="/create-league" element={<CreateLeague />} />
             <Route path="/profile" element={<Profile />} />
+              </Route>
+              {/* Rutas de administración protegidas */}
+              <Route element={<AdminRoute />}>
+                <Route path="/admin" element={<AdminPanel />} />
               </Route>
             <Route path="*" element={<NotFound />} />
           </Routes>

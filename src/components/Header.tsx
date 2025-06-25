@@ -1,7 +1,7 @@
 
 import { Button } from "@/components/ui/button";
 import { useLeagueStore } from "@/store/leagueStore";
-import { ChevronDown, Menu, Plus, Trophy, Users } from "lucide-react";
+import { ChevronDown, Menu, Plus, Trophy, Users, Shield } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import {
@@ -25,6 +25,13 @@ export function Header() {
     if (!user || !user.email) return "U";
     return user.email.substring(0, 1).toUpperCase();
   };
+
+  // Check if user is admin (temporary check, will be replaced when migration is applied)
+  const isAdmin = user && (
+    user.email?.includes('admin') || 
+    user.email === 'juanlopezlmg@gmail.com' || // Cambiar por tu email
+    user.email === 'admin@lastsurvive.com'
+  );
 
   return (
     <header className="sticky top-0 z-50 backdrop-blur-md bg-transparent">
@@ -140,6 +147,17 @@ export function Header() {
                       Profile Settings
                     </Link>
                   </DropdownMenuItem>
+                  {isAdmin && (
+                    <>
+                      <DropdownMenuSeparator className="bg-nfl-light-gray/20" />
+                      <DropdownMenuItem asChild>
+                        <Link to="/admin" className="cursor-pointer hover:bg-nfl-blue/10 text-nfl-blue">
+                          <Shield className="w-4 h-4 mr-2" />
+                          Panel de Administración
+                        </Link>
+                      </DropdownMenuItem>
+                    </>
+                  )}
                   <DropdownMenuItem onClick={logout} className="cursor-pointer hover:bg-nfl-blue/10 text-red-400">
                     Logout
                   </DropdownMenuItem>

@@ -9,6 +9,71 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      admin_actions: {
+        Row: {
+          action_details: Json | null
+          action_type: string
+          admin_user_id: string
+          created_at: string | null
+          id: string
+          reason: string | null
+          target_league_id: string | null
+          target_player_id: number | null
+          target_user_id: string | null
+        }
+        Insert: {
+          action_details?: Json | null
+          action_type: string
+          admin_user_id: string
+          created_at?: string | null
+          id?: string
+          reason?: string | null
+          target_league_id?: string | null
+          target_player_id?: number | null
+          target_user_id?: string | null
+        }
+        Update: {
+          action_details?: Json | null
+          action_type?: string
+          admin_user_id?: string
+          created_at?: string | null
+          id?: string
+          reason?: string | null
+          target_league_id?: string | null
+          target_player_id?: number | null
+          target_user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "admin_actions_admin_user_id_fkey"
+            columns: ["admin_user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "admin_actions_target_league_id_fkey"
+            columns: ["target_league_id"]
+            isOneToOne: false
+            referencedRelation: "leagues"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "admin_actions_target_player_id_fkey"
+            columns: ["target_player_id"]
+            isOneToOne: false
+            referencedRelation: "players"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "admin_actions_target_user_id_fkey"
+            columns: ["target_user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       fantasy_teams: {
         Row: {
           created_at: string | null
@@ -762,32 +827,71 @@ export type Database = {
       users: {
         Row: {
           avatar_url: string | null
+          banned: boolean | null
+          banned_at: string | null
+          banned_by: string | null
+          banned_reason: string | null
           created_at: string | null
           email: string
           favorite_team: string | null
           full_name: string
           id: string
+          role: string | null
           updated_at: string | null
+          verified: boolean | null
+          verified_at: string | null
+          verified_by: string | null
         }
         Insert: {
           avatar_url?: string | null
+          banned?: boolean | null
+          banned_at?: string | null
+          banned_by?: string | null
+          banned_reason?: string | null
           created_at?: string | null
           email: string
           favorite_team?: string | null
           full_name: string
           id?: string
+          role?: string | null
           updated_at?: string | null
+          verified?: boolean | null
+          verified_at?: string | null
+          verified_by?: string | null
         }
         Update: {
           avatar_url?: string | null
+          banned?: boolean | null
+          banned_at?: string | null
+          banned_by?: string | null
+          banned_reason?: string | null
           created_at?: string | null
           email?: string
           favorite_team?: string | null
           full_name?: string
           id?: string
+          role?: string | null
           updated_at?: string | null
+          verified?: boolean | null
+          verified_at?: string | null
+          verified_by?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "users_banned_by_fkey"
+            columns: ["banned_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "users_verified_by_fkey"
+            columns: ["verified_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       waiver_priority: {
         Row: {
@@ -1120,6 +1224,22 @@ export type Database = {
         Args: { trade_id: string }
         Returns: Json
       }
+      add_player_to_roster: {
+        Args: {
+          admin_id: string
+          team_id: string
+          player_id: number
+          slot: string
+          week_num: number
+          acquired_type?: string
+          reason?: string
+        }
+        Returns: Json
+      }
+      ban_user: {
+        Args: { admin_id: string; target_user_id: string; reason?: string }
+        Returns: Json
+      }
       calculate_team_weekly_score: {
         Args: { team_id: string; week_num: number; season_year?: number }
         Returns: number
@@ -1144,6 +1264,27 @@ export type Database = {
         Args: { league_id: string; week_num?: number }
         Returns: Json
       }
+      edit_player_stats: {
+        Args: {
+          admin_id: string
+          player_id: number
+          week_num: number
+          season_year: number
+          new_fantasy_points: number
+          reason?: string
+        }
+        Returns: Json
+      }
+      edit_roster_player: {
+        Args: {
+          admin_id: string
+          roster_id: number
+          new_player_id: number
+          new_slot?: string
+          reason?: string
+        }
+        Returns: Json
+      }
       execute_trade: {
         Args: { trade_id: string }
         Returns: Json
@@ -1160,6 +1301,10 @@ export type Database = {
           eliminated: boolean
         }[]
       }
+      get_admin_stats: {
+        Args: Record<PropertyKey, never>
+        Returns: Json
+      }
       get_current_nfl_week: {
         Args: Record<PropertyKey, never>
         Returns: number
@@ -1173,9 +1318,28 @@ export type Database = {
           total_points: number
         }[]
       }
+      get_team_roster_admin: {
+        Args: { team_id: string; week_num?: number }
+        Returns: {
+          roster_id: number
+          player_id: number
+          player_name: string
+          player_position: string
+          slot: string
+          is_active: boolean
+          acquired_type: string
+          acquired_week: number
+          fantasy_points: number
+          nfl_team_name: string
+        }[]
+      }
       get_waiver_deadline: {
         Args: { league_id: string }
         Returns: Json
+      }
+      is_admin: {
+        Args: { user_id: string }
+        Returns: boolean
       }
       process_all_weekly_eliminations: {
         Args: { week_num: number; season_year?: number }
@@ -1217,8 +1381,21 @@ export type Database = {
         }
         Returns: Json
       }
+      recalculate_team_scores: {
+        Args: {
+          admin_id: string
+          team_id: string
+          week_num: number
+          season_year?: number
+        }
+        Returns: Json
+      }
       refresh_league_points: {
         Args: { target_league_id: string; target_week?: number }
+        Returns: Json
+      }
+      remove_player_from_roster: {
+        Args: { admin_id: string; roster_id: number; reason?: string }
         Returns: Json
       }
       reset_all_waiver_priorities: {
@@ -1261,6 +1438,10 @@ export type Database = {
         Args: { league_id: string }
         Returns: Json
       }
+      unban_user: {
+        Args: { admin_id: string; target_user_id: string; reason?: string }
+        Returns: Json
+      }
       update_team_rankings: {
         Args: { league_id: string }
         Returns: undefined
@@ -1287,6 +1468,10 @@ export type Database = {
       }
       verify_team_scores: {
         Args: { target_league_id: string; week_num?: number }
+        Returns: Json
+      }
+      verify_user: {
+        Args: { admin_id: string; target_user_id: string }
         Returns: Json
       }
     }

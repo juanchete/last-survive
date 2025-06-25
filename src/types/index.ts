@@ -1,4 +1,3 @@
-
 export interface Player {
   id: string;
   name: string;
@@ -141,4 +140,64 @@ export interface WeeklyMVPHistory {
   points: number;
   earnings: number;
   created_at: string;
+}
+
+// Tipos para sistema de administración
+export type UserRole = "user" | "admin" | "super_admin";
+
+export interface User {
+  id: string;
+  email: string;
+  full_name: string;
+  avatar_url?: string;
+  created_at: string;
+  updated_at?: string;
+  favorite_team?: string;
+  role: UserRole;
+  banned: boolean;
+  verified: boolean;
+  banned_at?: string;
+  banned_reason?: string;
+  banned_by?: string;
+  verified_at?: string;
+  verified_by?: string;
+}
+
+export interface AdminAction {
+  id: string;
+  admin_user_id: string;
+  target_user_id?: string;
+  target_league_id?: string;
+  target_player_id?: number;
+  action_type: string;
+  action_details?: Record<string, unknown>;
+  reason?: string;
+  created_at: string;
+  admin_user?: { full_name: string; email: string };
+  target_user?: { full_name: string; email: string };
+}
+
+export interface AdminStats {
+  total_users: number;
+  banned_users: number;
+  verified_users: number;
+  total_leagues: number;
+  active_leagues: number;
+  total_players: number;
+  recent_actions: AdminAction[];
+}
+
+export interface PlayerEditData {
+  id: number;
+  name: string;
+  position: "QB" | "RB" | "WR" | "TE" | "K" | "DEF";
+  nfl_team_id?: number;
+  photo_url?: string;
+}
+
+export interface RosterEditData {
+  fantasy_team_id: string;
+  player_id: number;
+  action: "add" | "remove";
+  week?: number;
 }
