@@ -1267,7 +1267,7 @@ export type Database = {
       edit_player_stats: {
         Args: {
           admin_id: string
-          player_id: number
+          p_player_id: number
           week_num: number
           season_year: number
           new_fantasy_points: number
@@ -1386,7 +1386,7 @@ export type Database = {
           admin_id: string
           team_id: string
           week_num: number
-          season_year?: number
+          season_year: number
         }
         Returns: Json
       }

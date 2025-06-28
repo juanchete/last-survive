@@ -353,7 +353,7 @@ export const useAdmin = () => {
     try {
       const { data, error } = await supabase.rpc("edit_player_stats", {
         admin_id: user.id,
-        player_id: playerData.player_id,
+        p_player_id: playerData.player_id,
         week_num: playerData.week,
         season_year: playerData.season,
         new_fantasy_points: playerData.fantasy_points,
