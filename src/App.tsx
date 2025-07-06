@@ -28,6 +28,7 @@ import { AuthProvider } from "@/hooks/useAuth";
 import PrivateRoute from "@/components/PrivateRoute";
 import AdminRoute from "@/components/AdminRoute";
 import Trades from "./pages/Trades";
+import LeagueManagerDashboard from "./pages/LeagueManagerDashboard";
 
 const queryClient = new QueryClient();
 
@@ -53,6 +54,7 @@ const App = () => (
             <Route path="/picks" element={<Picks />} />
             <Route path="/waivers" element={<Waivers />} />
             <Route path="/trades" element={<Trades />} />
+            <Route path="/league/:leagueId/manage" element={<LeagueManagerDashboard />} />
             <Route path="/waiver-processing" element={<WaiverProcessing />} />
                 <Route path="/hub" element={<Hub />} />
             <Route path="/browse-leagues" element={<BrowseLeagues />} />
