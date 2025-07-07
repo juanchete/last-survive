@@ -13,12 +13,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { 
   Users, Shield, Settings, AlertTriangle, CheckCircle, Ban, 
   UserCheck, Edit, Database, Trophy, Search, Filter,
-  Calendar, Activity, Eye, Trash2, Plus
+  Calendar, Activity, Eye, Trash2, Plus, Download
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "@/hooks/use-toast";
+import { SleeperAPIControl } from "@/components/SleeperAPIControl";
 
 interface User {
   id: string;
@@ -253,10 +254,11 @@ export default function AdminDashboard() {
 
         {/* Panel de pestañas */}
         <Tabs defaultValue="users" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-3 bg-nfl-gray">
+          <TabsList className="grid w-full grid-cols-4 bg-nfl-gray">
             <TabsTrigger value="users" className="text-white">Gestión de Usuarios</TabsTrigger>
             <TabsTrigger value="leagues" className="text-white">Supervisión de Ligas</TabsTrigger>
             <TabsTrigger value="players" className="text-white">Edición de Jugadores</TabsTrigger>
+            <TabsTrigger value="sleeper" className="text-white">API Sleeper</TabsTrigger>
           </TabsList>
 
           {/* Gestión de Usuarios */}
@@ -564,6 +566,24 @@ export default function AdminDashboard() {
                     ))}
                   </div>
                 )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Sleeper API Management */}
+          <TabsContent value="sleeper" className="space-y-6">
+            <Card className="bg-nfl-gray border-nfl-light-gray/20">
+              <CardHeader>
+                <CardTitle className="text-white flex items-center gap-2">
+                  <Download className="h-5 w-5" />
+                  Gestión de API Sleeper
+                </CardTitle>
+                <p className="text-gray-400">
+                  Sincronización de datos de jugadores, equipos y estadísticas desde Sleeper API
+                </p>
+              </CardHeader>
+              <CardContent>
+                <SleeperAPIControl />
               </CardContent>
             </Card>
           </TabsContent>

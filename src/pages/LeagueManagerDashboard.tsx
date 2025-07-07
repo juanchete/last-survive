@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useParams, Navigate } from 'react-router-dom';
-import { Users, Trophy, TrendingUp, Settings, AlertCircle, Calculator, Trash2, Database } from 'lucide-react';
+import { Users, Trophy, TrendingUp, Settings, AlertCircle, Calculator, Trash2 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
@@ -15,7 +15,6 @@ import { Skeleton } from '@/components/ui/skeleton';
 import DashboardStatsCard from '@/components/DashboardStatsCard';
 import UserManagementTable from '@/components/UserManagementTable';
 import TradeManagementPanel from '@/components/TradeManagementPanel';
-import { SleeperAPIControl } from '@/components/SleeperAPIControl';
 import { useLeagueDashboardData } from '@/hooks/useLeagueDashboardData';
 import { useLeagueDashboardActions } from '@/hooks/useLeagueDashboardActions';
 import { useIsLeagueOwner } from '@/hooks/useIsLeagueOwner';
@@ -191,7 +190,7 @@ const LeagueManagerDashboard: React.FC = () => {
 
       {/* Tabs Navigation */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className="grid w-full grid-cols-5">
+        <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="overview" className="flex items-center gap-2">
             <TrendingUp className="h-4 w-4" />
             Resumen
@@ -207,10 +206,6 @@ const LeagueManagerDashboard: React.FC = () => {
           <TabsTrigger value="scoring" className="flex items-center gap-2">
             <Settings className="h-4 w-4" />
             Puntuación
-          </TabsTrigger>
-          <TabsTrigger value="api" className="flex items-center gap-2">
-            <Database className="h-4 w-4" />
-            API Sleeper
           </TabsTrigger>
         </TabsList>
 
@@ -444,18 +439,6 @@ const LeagueManagerDashboard: React.FC = () => {
           )}
         </TabsContent>
 
-        {/* Sleeper API Tab */}
-        <TabsContent value="api" className="space-y-6">
-          <div className="space-y-4">
-            <div>
-              <h3 className="text-lg font-semibold">Integración con Sleeper API</h3>
-              <p className="text-sm text-muted-foreground">
-                Sincroniza jugadores, equipos y estadísticas semanales con la API de Sleeper para mantener tus datos actualizados automáticamente.
-              </p>
-            </div>
-            <SleeperAPIControl />
-          </div>
-        </TabsContent>
       </Tabs>
     </div>
   );
