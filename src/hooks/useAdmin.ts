@@ -535,6 +535,131 @@ export const useAdmin = () => {
     }
   };
 
+  const syncPlayersFromSleeper = async (
+    fantasyPositionsOnly: boolean = true,
+    activeOnly: boolean = true
+  ): Promise<{ success: boolean; message: string; count?: number }> => {
+    if (!isAdmin || !user) {
+      return { success: false, message: "Sin permisos de administrador" };
+    }
+
+    try {
+      // Import the sync service dynamically to avoid circular dependencies
+      const { sleeperSync } = await import('@/lib/sleeper-sync');
+      return await sleeperSync.syncPlayers(fantasyPositionsOnly, activeOnly);
+    } catch (error) {
+      console.error("Error syncing players from Sleeper:", error);
+      return { 
+        success: false, 
+        message: error instanceof Error ? error.message : "Error desconocido al sincronizar jugadores"
+      };
+    }
+  };
+
+  const syncWeeklyStatsFromSleeper = async (
+    season: number,
+    week: number,
+    scoringType: 'std' | 'ppr' | 'half_ppr' = 'std'
+  ): Promise<{ success: boolean; message: string; count?: number }> => {
+    if (!isAdmin || !user) {
+      return { success: false, message: "Sin permisos de administrador" };
+    }
+
+    try {
+      // Import the sync service dynamically to avoid circular dependencies
+      const { sleeperSync } = await import('@/lib/sleeper-sync');
+      return await sleeperSync.syncWeeklyStats(season, week, scoringType);
+    } catch (error) {
+      console.error("Error syncing weekly stats from Sleeper:", error);
+      return { 
+        success: false, 
+        message: error instanceof Error ? error.message : "Error desconocido al sincronizar estadísticas"
+      };
+    }
+  };
+
+  const syncNFLTeamsFromSleeper = async (): Promise<{ success: boolean; message: string; count?: number }> => {
+    if (!isAdmin || !user) {
+      return { success: false, message: "Sin permisos de administrador" };
+    }
+
+    try {
+      // Import the sync service dynamically to avoid circular dependencies
+      const { sleeperSync } = await import('@/lib/sleeper-sync');
+      return await sleeperSync.syncNFLTeams();
+    } catch (error) {
+      console.error("Error syncing NFL teams from Sleeper:", error);
+      return { 
+        success: false, 
+        message: error instanceof Error ? error.message : "Error desconocido al sincronizar equipos NFL"
+      };
+    }
+  };
+
+  const getSleeperSyncStatus = async () => {
+    if (!isAdmin) return null;
+
+    try {
+      // Import the sync service dynamically to avoid circular dependencies
+      const { sleeperSync } = await import('@/lib/sleeper-sync');
+      return await sleeperSync.getSyncStatus();
+    } catch (error) {
+      console.error("Error getting Sleeper sync status:", error);
+      return null;
+    }
+  };
+
+  const mapExistingPlayersToSleeper = async (): Promise<{ success: boolean; message: string; count?: number }> => {
+    if (!isAdmin || !user) {
+      return { success: false, message: "Sin permisos de administrador" };
+    }
+
+    try {
+      // Import the sync service dynamically to avoid circular dependencies
+      const { sleeperSync } = await import('@/lib/sleeper-sync');
+      return await sleeperSync.mapExistingPlayersToSleeper();
+    } catch (error) {
+      console.error("Error mapping existing players to Sleeper:", error);
+      return { 
+        success: false, 
+        message: error instanceof Error ? error.message : "Error desconocido al mapear jugadores existentes"
+      };
+    }
+  };
+
+  const cleanDuplicatePlayers = async (dryRun: boolean = true): Promise<{ 
+    success: boolean; 
+    message: string; 
+    dry_run?: boolean;
+    result?: any;
+    affected_references?: any;
+    duplicate_players?: any;
+  }> => {
+    if (!isAdmin || !user) {
+      return { success: false, message: "Sin permisos de administrador" };
+    }
+
+    try {
+      const { data, error } = await supabase.rpc("admin_clean_duplicate_players", {
+        admin_id: user.id,
+        dry_run: dryRun
+      });
+
+      if (error) {
+        console.error("Error cleaning duplicate players:", error);
+        return { success: false, message: "Error al limpiar jugadores duplicados" };
+      }
+
+      return data;
+    } catch (error) {
+      console.error("Error cleaning duplicate players:", error);
+      return { 
+        success: false, 
+        message: error instanceof Error ? error.message : "Error desconocido al limpiar duplicados"
+      };
+    }
+  };
+
   return {
     isAdmin,
     loading,
@@ -553,5 +678,12 @@ export const useAdmin = () => {
     addPlayerToRoster,
     removePlayerFromRoster,
     recalculateTeamScores,
+    // Sleeper API integration functions
+    syncPlayersFromSleeper,
+    syncWeeklyStatsFromSleeper,
+    syncNFLTeamsFromSleeper,
+    getSleeperSyncStatus,
+    mapExistingPlayersToSleeper,
+    cleanDuplicatePlayers,
   };
 };

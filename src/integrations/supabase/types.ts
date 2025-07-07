@@ -483,6 +483,7 @@ export type Database = {
           nfl_team_id: number | null
           photo_url: string | null
           position: string
+          sleeper_id: string | null
         }
         Insert: {
           id?: number
@@ -490,6 +491,7 @@ export type Database = {
           nfl_team_id?: number | null
           photo_url?: string | null
           position: string
+          sleeper_id?: string | null
         }
         Update: {
           id?: number
@@ -497,6 +499,7 @@ export type Database = {
           nfl_team_id?: number | null
           photo_url?: string | null
           position?: string
+          sleeper_id?: string | null
         }
         Relationships: [
           {
