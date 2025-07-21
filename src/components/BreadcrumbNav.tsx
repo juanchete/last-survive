@@ -70,7 +70,7 @@ export function BreadcrumbNav() {
     if (currentLeague) {
       items.push({
         label: currentLeague.name,
-        path: `/dashboard?league=${leagueId}`,
+        path: `/league-dashboard?league=${leagueId}`,
         isCurrent: false
       });
       
@@ -78,7 +78,7 @@ export function BreadcrumbNav() {
       if (pathname.includes("/dashboard")) {
         items.push({
           label: "Dashboard",
-          path: `/dashboard?league=${leagueId}`,
+          path: `/league-dashboard?league=${leagueId}`,
           isCurrent: true
         });
       } else if (pathname.includes("/standings")) {

@@ -180,16 +180,16 @@ export const DraftTimer: React.FC<DraftTimerProps> = ({
 
   if (!isActive) {
     return (
-      <Card className="bg-gray-800 border-gray-700">
-        <CardHeader className="pb-3">
-          <CardTitle className="flex items-center gap-2 text-sm">
-            <Clock className="h-4 w-4" />
+      <Card className="bg-nfl-gray border-nfl-light-gray/20">
+        <CardHeader className="pb-3 border-b border-nfl-light-gray/20">
+          <CardTitle className="flex items-center gap-2 text-lg text-white">
+            <Clock className="h-5 w-5 text-nfl-blue" />
             Draft Timer
           </CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="pt-4">
           <div className="text-center text-gray-400">
-            Draft no iniciado
+            Draft not started
           </div>
         </CardContent>
       </Card>
@@ -199,13 +199,13 @@ export const DraftTimer: React.FC<DraftTimerProps> = ({
   return (
     <Card className={`border-2 transition-all duration-300 ${
       isMyTurn 
-        ? 'bg-blue-900/20 border-blue-500 shadow-lg shadow-blue-500/20' 
-        : 'bg-gray-800 border-gray-700'
+        ? 'bg-nfl-blue/20 border-nfl-blue shadow-lg shadow-nfl-blue/20' 
+        : 'bg-nfl-gray border-nfl-light-gray/20'
     }`}>
-      <CardHeader className="pb-3">
-        <CardTitle className="flex items-center justify-between text-sm">
-          <div className="flex items-center gap-2">
-            <Clock className="h-4 w-4" />
+      <CardHeader className="pb-3 border-b border-nfl-light-gray/20">
+        <CardTitle className="flex items-center justify-between text-lg">
+          <div className="flex items-center gap-2 text-white">
+            <Clock className="h-5 w-5 text-nfl-blue" />
             Draft Timer
           </div>
           <div className="flex items-center gap-1">
@@ -230,36 +230,37 @@ export const DraftTimer: React.FC<DraftTimerProps> = ({
           </div>
         </CardTitle>
       </CardHeader>
-      <CardContent className="space-y-4">
+      <CardContent className="space-y-4 pt-4">
         {isMyTurn ? (
           <>
             <div className="text-center">
-              <div className={`text-3xl font-mono font-bold ${getTimerColor()}`}>
+              <div className={`text-4xl font-mono font-bold ${getTimerColor()}`}>
                 {formatTime(timeLeft)}
               </div>
-              <div className="text-xs text-gray-400 mt-1">
-                ¡Es tu turno!
+              <div className="text-sm text-nfl-blue mt-2 font-semibold">
+                It's your turn!
               </div>
             </div>
             
             <Progress 
               value={getProgressValue()} 
-              className="h-2"
+              className="h-3 bg-nfl-dark-gray"
             />
             
             {autoTimedEnabled && (
-              <div className="text-xs text-gray-400 text-center">
-                Selección automática habilitada
+              <div className="text-xs text-gray-400 text-center flex items-center justify-center gap-1">
+                <Zap className="h-3 w-3 text-nfl-blue" />
+                Auto-draft enabled
               </div>
             )}
           </>
         ) : (
-          <div className="text-center">
-            <div className="text-xl font-mono text-gray-400">
+          <div className="text-center py-4">
+            <div className="text-2xl font-mono text-gray-500">
               --:--
             </div>
-            <div className="text-xs text-gray-400 mt-1">
-              Esperando turno...
+            <div className="text-sm text-gray-400 mt-2">
+              Waiting for turn...
             </div>
           </div>
         )}

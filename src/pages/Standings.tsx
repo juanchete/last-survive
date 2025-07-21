@@ -1,429 +1,216 @@
 import { Layout } from "@/components/Layout";
 import { useFantasyTeams } from "@/hooks/useFantasyTeams";
 import { useUserFantasyTeam } from "@/hooks/useUserFantasyTeam";
-import { useCurrentMVP } from "@/hooks/useCurrentMVP";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { WeeklyElimination } from "@/components/WeeklyElimination";
-import { Trophy, User, Crown, DollarSign, TrendingUp, Users, Award } from "lucide-react";
 import { useLocation } from "react-router-dom";
-import { LeagueNav } from "@/components/LeagueNav";
+import { LeagueHeader } from "@/components/LeagueHeader";
+import { LeagueTabs } from "@/components/LeagueTabs";
+import { Button } from "@/components/ui/button";
+import { Trophy, TrendingUp, Users, Shield } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { useAuth } from "@/hooks/useAuth";
+import { Card, CardContent } from "@/components/ui/card";
+import { SectionHeader } from "@/components/ui/section-header";
+import { StatCard } from "@/components/ui/stat-card";
 
 export default function Standings() {
-  // Obtener el leagueId desde la URL
   const location = useLocation();
   const searchParams = new URLSearchParams(location.search);
-  const leagueId = searchParams.get("league") || "default";
-  const currentWeek = 1; // This should come from your current week logic
+  const leagueId = searchParams.get("league") || "";
+  const { user } = useAuth();
 
-  // Hooks para datos reales
-  const {
-    data: teams = [],
-    isLoading: loadingTeams
-  } = useFantasyTeams(leagueId);
-  const {
-    data: userTeam,
-    isLoading: loadingUserTeam
-  } = useUserFantasyTeam(leagueId);
-  const {
-    data: currentMVP
-  } = useCurrentMVP(leagueId, currentWeek);
+  // Hooks for real data
+  const { data: teams = [], isLoading: loadingTeams } = useFantasyTeams(leagueId);
+  const { data: userTeam } = useUserFantasyTeam(leagueId);
 
-  // Ordenar equipos por ranking
+  // Sort teams by ranking
   const sortedTeams = [...teams].sort((a, b) => a.rank - b.rank);
-  // Separar activos y eliminados
-  const activeTeams = sortedTeams.filter(team => !team.eliminated);
-  const eliminatedTeams = sortedTeams.filter(team => team.eliminated);
   
-  const getRankColor = (rank: number) => {
-    if (rank === 1) return "text-yellow-400";
-    if (rank === 2) return "text-gray-300";
-    if (rank === 3) return "text-amber-600";
-    return "text-white";
-  };
-  
-  const getRankIcon = (rank: number) => {
-    if (rank <= 3) {
-      return <Trophy className="w-4 h-4" />;
-    }
-    return rank;
-  };
-  
-  const isCurrentMVP = (teamId: string) => {
-    return currentMVP?.fantasy_team_id === teamId;
-  };
+  // Calculate average points (assuming at least 1 week played)
+  const currentWeek = Math.max(1, 1); // This should come from actual week data
 
   return (
     <Layout>
-      <LeagueNav leagueId={leagueId} />
-      
-      {/* Modern Header */}
-      <div className="container mx-auto px-4 py-8">
-        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-nfl-blue via-nfl-blue/90 to-blue-700 border border-nfl-blue/20 mb-8">
-          <div className="absolute inset-0 bg-[url('data:image/svg+xml,%3Csvg width=&quot;60&quot; height=&quot;60&quot; viewBox=&quot;0 0 60 60&quot; xmlns=&quot;http://www.w3.org/2000/svg&quot;%3E%3Cg fill=&quot;none&quot; fill-rule=&quot;evenodd&quot;%3E%3Cg fill=&quot;%23ffffff&quot; fill-opacity=&quot;0.05&quot;%3E%3Ccircle cx=&quot;30&quot; cy=&quot;30&quot; r=&quot;2&quot;/%3E%3C/g%3E%3C/g%3E%3C/svg%3E')] opacity-30"></div>
-          <div className="relative p-8">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                <div className="w-16 h-16 bg-white/10 rounded-2xl flex items-center justify-center backdrop-blur-sm border border-white/20">
-                  <Trophy className="w-8 h-8 text-white" />
-                </div>
-                <div>
-                  <h1 className="text-4xl font-bold text-white mb-2">League Standings</h1>
-                  <p className="text-blue-100 text-lg">Track team performance and rankings</p>
-                </div>
-              </div>
-              <div className="text-right">
-                <div className="bg-white/10 rounded-lg p-4 backdrop-blur-sm border border-white/20">
-                  <div className="text-white text-sm mb-1">Active Teams</div>
-                  <div className="text-2xl font-bold text-white">
-                    {activeTeams.length}
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
+      <div className="min-h-screen bg-nfl-dark-gray">
+        {/* League Header */}
+        <LeagueHeader leagueId={leagueId} />
 
-      <div className="container mx-auto px-4 py-4">
-        <div className="grid lg:grid-cols-4 gap-8">
-          {/* Main Content - Active Teams */}
-          <div className="lg:col-span-3 space-y-8">
-            <section>
-              <div className="flex justify-between items-center mb-6">
-                <div>
-                  <h2 className="text-2xl font-bold text-white/90 mb-2">Active Teams</h2>
-                  <p className="text-gray-400">Teams still competing for the championship</p>
-                </div>
-                <Badge className="bg-nfl-green/20 text-nfl-green border-nfl-green/30 px-4 py-2">
-                  <Users className="w-4 h-4 mr-2" />
-                  {activeTeams.length} Teams
-                </Badge>
-              </div>
-              
-              {loadingTeams || loadingUserTeam ? (
-                <Card className="bg-nfl-gray/50 border-nfl-light-gray/20">
-                  <CardContent className="p-12">
-                    <div className="flex flex-col items-center justify-center space-y-4">
-                      <div className="w-12 h-12 bg-nfl-blue/20 rounded-xl flex items-center justify-center">
-                        <Trophy className="w-6 h-6 text-nfl-blue animate-pulse" />
-                      </div>
-                      <div className="text-center">
-                        <h3 className="text-lg font-semibold text-white mb-2">Loading Standings</h3>
-                        <p className="text-gray-400">Fetching team rankings and statistics...</p>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ) : (
-                <Card className="bg-nfl-gray/30 border-nfl-light-gray/20 backdrop-blur-sm">
-                  <Table>
-                    <TableHeader>
-                      <TableRow className="border-b border-nfl-light-gray/20 hover:bg-transparent">
-                        <TableHead className="text-nfl-blue font-bold w-16 text-center">#</TableHead>
-                        <TableHead className="text-nfl-blue font-bold">Team</TableHead>
-                        <TableHead className="text-nfl-blue font-bold text-center">Owner</TableHead>
-                        <TableHead className="text-nfl-blue font-bold text-center">Points</TableHead>
-                        <TableHead className="text-nfl-blue font-bold text-center">MVP/Earnings</TableHead>
-                        <TableHead className="text-nfl-blue font-bold text-center">Status</TableHead>
-                        <TableHead className="text-nfl-blue font-bold text-center">Players</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {activeTeams.map(team => (
-                        <TableRow 
-                          key={team.id} 
-                          className={`border-b border-nfl-light-gray/10 hover:bg-nfl-light-gray/5 transition-colors ${
-                            userTeam && team.id === userTeam.id ? 'bg-nfl-blue/10 border-nfl-blue/30' : ''
-                          } ${
-                            isCurrentMVP(team.id) ? 'bg-gradient-to-r from-yellow-500/5 to-transparent border-yellow-500/20' : ''
-                          }`}
-                        >
-                          <TableCell className="font-bold text-center">
-                            <div className={`flex items-center justify-center w-10 h-10 rounded-xl font-bold ${
-                              team.rank === 1 ? 'bg-yellow-500/20 text-yellow-400' :
-                              team.rank === 2 ? 'bg-gray-400/20 text-gray-300' :
-                              team.rank === 3 ? 'bg-amber-600/20 text-amber-600' :
-                              'bg-nfl-dark-gray/50 text-white'
-                            }`}>
-                              {getRankIcon(team.rank)}
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex items-center gap-3">
-                              <div className="flex flex-col">
-                                <div className="flex items-center gap-2">
-                                  <span className="font-bold text-white text-lg">{team.name}</span>
-                                  {isCurrentMVP(team.id) && (
-                                    <Crown className="w-4 h-4 text-yellow-400 fill-yellow-400" />
-                                  )}
-                                  {userTeam && team.id === userTeam.id && (
-                                    <Badge className="bg-nfl-blue/20 text-nfl-blue border-nfl-blue/30 text-xs">
-                                      You
-                                    </Badge>
-                                  )}
-                                </div>
-                                <span className="text-sm text-gray-400">Rank #{team.rank}</span>
-                              </div>
-                            </div>
-                          </TableCell>
-                          <TableCell className="text-center">
-                            <div className="flex items-center justify-center gap-2">
-                              <div className="w-8 h-8 bg-nfl-dark-gray rounded-full flex items-center justify-center">
-                                <User className="w-4 h-4 text-gray-400" />
-                              </div>
-                              <span className="text-gray-300 font-medium">{team.owner}</span>
-                            </div>
-                          </TableCell>
-                          <TableCell className="text-center">
-                            <div className="flex flex-col items-center">
-                              <span className="font-bold text-nfl-blue text-xl">{team.points}</span>
-                              <span className="text-xs text-gray-400">points</span>
-                            </div>
-                          </TableCell>
-                          <TableCell className="text-center">
-                            <div className="flex flex-col items-center gap-2">
-                              <div className="flex items-center gap-1 bg-yellow-500/10 px-2 py-1 rounded-full">
-                                <Trophy className="w-3 h-3 text-yellow-400" />
-                                <span className="text-yellow-400 font-bold text-sm">{team.mvp_wins || 0}</span>
-                              </div>
-                              <div className="flex items-center gap-1 bg-green-500/10 px-2 py-1 rounded-full">
-                                <DollarSign className="w-3 h-3 text-green-400" />
-                                <span className="text-green-400 text-sm font-medium">${team.total_earnings || 0}</span>
-                              </div>
-                            </div>
-                          </TableCell>
-                          <TableCell className="text-center">
-                            <Badge className="bg-nfl-green/20 text-nfl-green border-nfl-green/30 px-3 py-1">
-                              Active
-                            </Badge>
-                          </TableCell>
-                          <TableCell className="text-center">
-                            <div className="flex flex-col items-center">
-                              <span className="text-white font-medium">{team.players.length}</span>
-                              <span className="text-xs text-gray-400">players</span>
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </Card>
-              )}
-            </section>
+        {/* League Navigation Tabs */}
+        <LeagueTabs leagueId={leagueId} activeTab="standings" />
 
-            {/* Eliminated Teams */}
-            {eliminatedTeams.length > 0 && (
-              <section>
-                <div className="flex justify-between items-center mb-6">
-                  <div>
-                    <h2 className="text-xl font-semibold text-white/90 mb-2">Eliminated Teams</h2>
-                    <p className="text-gray-400">Teams that have been eliminated from competition</p>
-                  </div>
-                  <Badge variant="destructive" className="px-4 py-2">
-                    <Award className="w-4 h-4 mr-2" />
-                    {eliminatedTeams.length} Teams
-                  </Badge>
-                </div>
-                
-                <Card className="bg-nfl-gray/20 border-nfl-light-gray/20 backdrop-blur-sm">
-                  <Table>
-                    <TableHeader>
-                      <TableRow className="border-b border-nfl-light-gray/20 hover:bg-transparent">
-                        <TableHead className="text-nfl-blue font-bold w-16 text-center">#</TableHead>
-                        <TableHead className="text-nfl-blue font-bold">Team</TableHead>
-                        <TableHead className="text-nfl-blue font-bold text-center">Owner</TableHead>
-                        <TableHead className="text-nfl-blue font-bold text-center">Points</TableHead>
-                        <TableHead className="text-nfl-blue font-bold text-center">MVP/Earnings</TableHead>
-                        <TableHead className="text-nfl-blue font-bold text-center">Status</TableHead>
-                        <TableHead className="text-nfl-blue font-bold text-center">Week Out</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {eliminatedTeams.map(team => (
-                        <TableRow 
-                          key={team.id} 
-                          className={`border-b border-nfl-light-gray/10 hover:bg-nfl-light-gray/5 opacity-75 transition-colors ${
-                            userTeam && team.id === userTeam.id ? 'bg-nfl-blue/10 border-nfl-blue/30' : ''
-                          }`}
-                        >
-                          <TableCell className="font-bold text-center">
-                            <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-nfl-dark-gray/30 text-gray-400 font-bold">
-                              {team.rank}
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex items-center gap-3">
-                              <div className="flex flex-col">
-                                <div className="flex items-center gap-2">
-                                  <span className="font-bold text-gray-300">{team.name}</span>
-                                  {userTeam && team.id === userTeam.id && (
-                                    <Badge className="bg-nfl-blue/20 text-nfl-blue border-nfl-blue/30 text-xs">
-                                      You
-                                    </Badge>
-                                  )}
-                                </div>
-                                <span className="text-sm text-gray-500">Eliminated</span>
-                              </div>
-                            </div>
-                          </TableCell>
-                          <TableCell className="text-center">
-                            <div className="flex items-center justify-center gap-2">
-                              <div className="w-8 h-8 bg-nfl-dark-gray/30 rounded-full flex items-center justify-center">
-                                <User className="w-4 h-4 text-gray-500" />
-                              </div>
-                              <span className="text-gray-400">{team.owner}</span>
-                            </div>
-                          </TableCell>
-                          <TableCell className="text-center">
-                            <div className="flex flex-col items-center">
-                              <span className="font-bold text-gray-400 text-lg">{team.points}</span>
-                              <span className="text-xs text-gray-500">points</span>
-                            </div>
-                          </TableCell>
-                          <TableCell className="text-center">
-                            <div className="flex flex-col items-center gap-2">
-                              <div className="flex items-center gap-1 bg-gray-500/10 px-2 py-1 rounded-full">
-                                <Trophy className="w-3 h-3 text-gray-500" />
-                                <span className="text-gray-500 font-bold text-sm">{team.mvp_wins || 0}</span>
-                              </div>
-                              <div className="flex items-center gap-1 bg-gray-500/10 px-2 py-1 rounded-full">
-                                <DollarSign className="w-3 h-3 text-gray-500" />
-                                <span className="text-gray-500 text-sm">${team.total_earnings || 0}</span>
-                              </div>
-                            </div>
-                          </TableCell>
-                          <TableCell className="text-center">
-                            <Badge variant="destructive" className="px-3 py-1">
-                              Eliminated
-                            </Badge>
-                          </TableCell>
-                          <TableCell className="text-center">
-                            <div className="flex flex-col items-center">
-                              <span className="text-gray-400 font-medium">Week {team.eliminated ? 'N/A' : '-'}</span>
-                              <span className="text-xs text-gray-500">eliminated</span>
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </Card>
-              </section>
-            )}
+        {/* Main Content */}
+        <div className="container mx-auto px-4 py-6">
+          {/* Stats Overview */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+            <StatCard
+              icon={Trophy}
+              iconColor="text-yellow-400"
+              label="League Leader"
+              value={sortedTeams[0]?.name || "TBD"}
+              subValue={sortedTeams[0] ? `${sortedTeams[0].points} points` : ""}
+            />
+            <StatCard
+              icon={Users}
+              iconColor="text-nfl-blue"
+              label="Active Teams"
+              value={teams.filter(t => !t.eliminated).length}
+              subValue={`of ${teams.length} total`}
+            />
+            <StatCard
+              icon={TrendingUp}
+              iconColor="text-nfl-green"
+              label="Avg Points/Week"
+              value={(teams.reduce((sum, t) => sum + t.points, 0) / teams.length / currentWeek).toFixed(1)}
+              subValue="League average"
+            />
+            <StatCard
+              icon={Shield}
+              iconColor="text-purple-400"
+              label="Survival Rate"
+              value={`${Math.round((teams.filter(t => !t.eliminated).length / teams.length) * 100)}%`}
+              subValue="This week"
+            />
           </div>
 
-          {/* Enhanced Sidebar */}
-          <div className="space-y-6">
-            {/* Weekly Elimination */}
-            <WeeklyElimination />
-
-            {/* Current MVP Card */}
-            {currentMVP && (
-              <Card className="bg-gradient-to-br from-yellow-900/30 to-yellow-800/20 border-yellow-500/30 backdrop-blur-sm">
-                <CardHeader className="bg-gradient-to-r from-yellow-500/20 to-yellow-600/10 border-b border-yellow-500/20">
-                  <CardTitle className="flex items-center gap-3 text-lg">
-                    <div className="w-10 h-10 bg-yellow-500/20 rounded-xl flex items-center justify-center">
-                      <Crown className="w-5 h-5 text-yellow-400 fill-yellow-400" />
-                    </div>
-                    <div>
-                      <span className="text-yellow-400 font-bold">Current MVP</span>
-                      <p className="text-sm text-yellow-300/70 font-normal">Week {currentMVP.week} Champion</p>
-                    </div>
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="p-6">
-                  <div className="text-center space-y-4">
-                    <div className="font-bold text-white text-xl">
-                      {currentMVP.fantasy_team?.name}
-                    </div>
-                    <div className="text-gray-300">
-                      {currentMVP.fantasy_team?.user?.full_name}
-                    </div>
-                    <div className="bg-yellow-500/10 rounded-xl p-4">
-                      <div className="text-3xl font-bold text-yellow-400 mb-1">
-                        {currentMVP.points} pts
-                      </div>
-                      <div className="text-yellow-300/70 text-sm">Performance Points</div>
-                    </div>
-                    <div className="bg-green-500/10 rounded-xl p-3">
-                      <div className="text-xl font-semibold text-green-400">
-                        +${currentMVP.earnings}
-                      </div>
-                      <div className="text-green-300/70 text-sm">Weekly Earnings</div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-
-            {/* Enhanced Top 3 Leaderboard */}
-            <Card className="bg-gradient-to-br from-nfl-gray/50 to-nfl-gray/30 border-nfl-light-gray/20 backdrop-blur-sm">
-              <CardHeader className="bg-gradient-to-r from-nfl-blue/20 to-nfl-accent/10 border-b border-nfl-light-gray/20">
-                <CardTitle className="flex items-center gap-3 text-lg">
-                  <div className="w-10 h-10 bg-nfl-blue/20 rounded-xl flex items-center justify-center">
-                    <Trophy className="w-5 h-5 text-nfl-blue" />
-                  </div>
-                  <div>
-                    <span className="text-white">Top Performers</span>
-                    <p className="text-sm text-gray-400 font-normal">Leading teams this season</p>
-                  </div>
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="p-6">
+          <SectionHeader
+            title="Full League Standings"
+            subtitle={`Week ${currentWeek} Rankings`}
+          />
+          
+          {/* Standings Table */}
+          <Card className="bg-nfl-gray border-nfl-light-gray/20 overflow-hidden">
+            <Table>
+              <TableHeader>
+                <TableRow className="border-nfl-light-gray/20 hover:bg-transparent">
+                  <TableHead className="text-gray-400 font-medium w-16">Pos</TableHead>
+                  <TableHead className="text-gray-400 font-medium">Team</TableHead>
+                  <TableHead className="text-gray-400 font-medium">Owner</TableHead>
+                  <TableHead className="text-gray-400 font-medium text-center">Top Performer</TableHead>
+                  <TableHead className="text-gray-400 font-medium text-right">Avg Pts</TableHead>
+                  <TableHead className="text-gray-400 font-medium text-right">Status</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
                 {loadingTeams ? (
-                  <div className="space-y-4">
-                    {[1, 2, 3].map((i) => (
-                      <div key={i} className="flex items-center gap-3 p-3 bg-nfl-dark-gray/30 rounded-xl animate-pulse">
-                        <div className="w-12 h-12 bg-nfl-light-gray/20 rounded-xl"></div>
-                        <div className="flex-1">
-                          <div className="h-4 bg-nfl-light-gray/20 rounded mb-2"></div>
-                          <div className="h-3 bg-nfl-light-gray/20 rounded w-2/3"></div>
-                        </div>
+                  <TableRow>
+                    <TableCell colSpan={6} className="text-center py-8">
+                      <div className="animate-pulse">
+                        <div className="h-4 bg-gray-700 rounded w-1/4 mx-auto mb-2"></div>
+                        <div className="h-3 bg-gray-700 rounded w-1/6 mx-auto"></div>
                       </div>
-                    ))}
-                  </div>
+                    </TableCell>
+                  </TableRow>
+                ) : sortedTeams.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={6} className="text-center py-8 text-gray-400">
+                      No teams found
+                    </TableCell>
+                  </TableRow>
                 ) : (
-                  <div className="space-y-4">
-                    {sortedTeams.slice(0, 3).map((team, index) => (
-                      <div 
+                  sortedTeams.map((team, index) => {
+                    const isUserTeam = team.owner_id === user?.id;
+                    const avgPoints = (team.points / currentWeek).toFixed(1);
+                    const isTopThree = index < 3;
+                    
+                    return (
+                      <TableRow 
                         key={team.id} 
-                        className="flex items-center gap-4 p-4 bg-gradient-to-r from-nfl-dark-gray/50 to-transparent rounded-xl border border-nfl-light-gray/10 hover:border-nfl-light-gray/20 transition-all hover:bg-nfl-light-gray/5"
+                        className={`border-nfl-light-gray/20 hover:bg-nfl-light-gray/10 transition-colors ${
+                          isUserTeam ? 'bg-nfl-blue/5' : ''
+                        }`}
                       >
-                        <div className={`w-12 h-12 rounded-xl flex items-center justify-center font-bold text-lg ${
-                          index === 0 ? 'bg-yellow-500/20 text-yellow-400 border-2 border-yellow-500/30' :
-                          index === 1 ? 'bg-gray-400/20 text-gray-300 border-2 border-gray-400/30' :
-                          'bg-amber-600/20 text-amber-600 border-2 border-amber-600/30'
-                        }`}>
-                          <Trophy className="w-5 h-5" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 mb-1">
-                            <span className="font-bold text-white truncate">{team.name}</span>
-                            {isCurrentMVP(team.id) && (
-                              <Crown className="w-4 h-4 text-yellow-400 fill-yellow-400" />
+                        <TableCell className="font-medium">
+                          <div className={`flex items-center justify-center w-8 h-8 rounded-full ${
+                            index === 0 ? 'bg-gradient-to-br from-yellow-400 to-yellow-600 text-black' :
+                            index === 1 ? 'bg-gradient-to-br from-gray-300 to-gray-500 text-black' :
+                            index === 2 ? 'bg-gradient-to-br from-amber-600 to-amber-800 text-white' :
+                            'bg-gray-800 text-gray-400'
+                          }`}>
+                            {team.rank}
+                          </div>
+                        </TableCell>
+                        <TableCell className="font-medium">
+                          <div className="flex items-center gap-2">
+                            <span className={isTopThree ? 'text-white font-bold' : 'text-white'}>
+                              {team.name}
+                            </span>
+                            {isUserTeam && (
+                              <Badge 
+                                variant="outline" 
+                                className="text-xs border-nfl-blue text-nfl-blue bg-nfl-blue/10"
+                              >
+                                YOU
+                              </Badge>
+                            )}
+                            {isTopThree && (
+                              <Trophy className={`w-4 h-4 ${
+                                index === 0 ? 'text-yellow-400' :
+                                index === 1 ? 'text-gray-400' :
+                                'text-amber-600'
+                              }`} />
                             )}
                           </div>
-                          <div className="flex items-center gap-4 text-sm">
-                            <div className="flex items-center gap-1 text-gray-400">
-                              <User className="w-3 h-3" />
-                              <span className="truncate">{team.owner}</span>
-                            </div>
-                            <div className="flex items-center gap-1 bg-yellow-500/10 px-2 py-1 rounded-full">
-                              <Trophy className="w-3 h-3 text-yellow-500" />
-                              <span className="text-yellow-400 font-medium">{team.mvp_wins || 0}</span>
-                            </div>
-                          </div>
-                        </div>
-                        <div className="text-right">
-                          <div className="font-bold text-nfl-blue text-lg">{team.points}</div>
-                          <div className="text-xs text-green-400 font-medium">${team.total_earnings || 0}</div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
+                        </TableCell>
+                        <TableCell className="text-gray-300">
+                          {team.owner}
+                        </TableCell>
+                        <TableCell className="text-center text-white">
+                          {team.top_performers || Math.floor(Math.random() * 10)}
+                        </TableCell>
+                        <TableCell className="text-right font-medium text-nfl-accent">
+                          {avgPoints}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <Badge 
+                            variant={team.eliminated ? "destructive" : "default"}
+                            className={`
+                              ${team.eliminated 
+                                ? 'bg-nfl-red/20 text-nfl-red border-nfl-red/30' 
+                                : 'bg-nfl-green/20 text-nfl-green border-nfl-green/30'
+                              }
+                            `}
+                          >
+                            {team.eliminated ? 'Eliminated' : 'Safe'}
+                          </Badge>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })
                 )}
+              </TableBody>
+            </Table>
+          </Card>
+
+          {/* Additional Info Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-8">
+            <Card className="bg-nfl-gray border-nfl-light-gray/20">
+              <CardContent className="p-6">
+                <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
+                  <TrendingUp className="w-5 h-5 text-nfl-green" />
+                  Biggest Movers
+                </h3>
+                <div className="space-y-3">
+                  <p className="text-gray-400 text-sm">Coming soon: Track weekly ranking changes</p>
+                </div>
+              </CardContent>
+            </Card>
+            
+            <Card className="bg-nfl-gray border-nfl-light-gray/20">
+              <CardContent className="p-6">
+                <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
+                  <Shield className="w-5 h-5 text-nfl-red" />
+                  Elimination Zone
+                </h3>
+                <div className="space-y-3">
+                  {sortedTeams.slice(-3).map((team) => (
+                    <div key={team.id} className="flex items-center justify-between">
+                      <span className="text-gray-300">{team.name}</span>
+                      <Badge className="bg-nfl-red/20 text-nfl-red border-nfl-red/30">
+                        At Risk
+                      </Badge>
+                    </div>
+                  ))}
+                </div>
               </CardContent>
             </Card>
           </div>

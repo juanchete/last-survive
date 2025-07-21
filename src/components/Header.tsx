@@ -69,7 +69,7 @@ export function Header() {
                     leagues.slice(0, 5).map((league) => (
                       <DropdownMenuItem key={league.id} asChild>
                         <Link 
-                          to={`/dashboard?league=${league.id}`}
+                          to={`/league-dashboard?league=${league.id}`}
                           className="flex items-center cursor-pointer hover:bg-nfl-blue/10"
                         >
                           <Trophy className="w-4 h-4 mr-2 text-nfl-blue" />

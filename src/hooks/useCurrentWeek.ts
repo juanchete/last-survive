@@ -8,13 +8,18 @@ export function useCurrentWeek(leagueId: string) {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("weeks")
-        .select("*")
+        .select("number")
         .eq("league_id", leagueId)
-        .order("number", { ascending: false })
-        .limit(1)
+        .eq("status", "active")
         .single();
-      if (error) throw error;
-      return data?.number || 1; // Return just the week number
+      
+      if (error) {
+        console.error("Error fetching current week:", error);
+        // If no active week found, return default object
+        return { number: 1 };
+      }
+      
+      return data || { number: 1 };
     },
     enabled: !!leagueId,
   });

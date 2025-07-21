@@ -1,514 +1,821 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect } from "react";
 import { Layout } from "@/components/Layout";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useUserFantasyTeam } from "@/hooks/useUserFantasyTeam";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
-import { Loader2, ArrowRightLeft, Clock, CheckCircle, XCircle, User, Calendar, Trophy } from "lucide-react";
-import { toast } from "@/components/ui/use-toast";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { useFantasyTeams } from "@/hooks/useFantasyTeams";
+import { useRosterWithPlayerDetails } from "@/hooks/useRosterWithPlayerDetails";
+import { useLocation } from "react-router-dom";
+import { LeagueHeader } from "@/components/LeagueHeader";
+import { LeagueTabs } from "@/components/LeagueTabs";
 import { Button } from "@/components/ui/button";
+import { ArrowRightLeft, Users, Check, X, Clock, CheckCircle, XCircle } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { LeagueNav } from "@/components/LeagueNav";
+import { Checkbox } from "@/components/ui/checkbox";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "@/components/ui/use-toast";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
-// Definir tipos explícitos para los datos de trade y player
-interface TradeItem {
-  id: string;
+interface RosterPlayer {
   player_id: number;
-  team_id: string;
-}
-interface Trade {
-  id: string;
-  proposer_team_id: string;
-  target_team_id: string;
-  status: string;
-  created_at: string;
-  trade_items: TradeItem[];
-  target_team?: { name: string };
-  proposer_team?: { name: string };
-}
-interface Player {
-  id: number;
-  name: string;
+  player_name: string;
   position: string;
-  nfl_team?: { abbreviation: string };
+  fantasy_points: number;
+  team_abbreviation: string;
+  overall_rating: number;
 }
-
-const getStatusColor = (status: string) => {
-  switch (status) {
-    case 'pending': return 'bg-yellow-500/20 text-yellow-300 border-yellow-500/30';
-    case 'accepted': return 'bg-green-500/20 text-green-300 border-green-500/30';
-    case 'rejected': return 'bg-red-500/20 text-red-300 border-red-500/30';
-    default: return 'bg-gray-500/20 text-gray-300 border-gray-500/30';
-  }
-};
-
-const getStatusIcon = (status: string) => {
-  switch (status) {
-    case 'pending': return <Clock className="w-3 h-3" />;
-    case 'accepted': return <CheckCircle className="w-3 h-3" />;
-    case 'rejected': return <XCircle className="w-3 h-3" />;
-    default: return <Clock className="w-3 h-3" />;
-  }
-};
 
 export default function Trades() {
-  const [tab, setTab] = useState("received");
-  // Obtener el equipo del usuario (asume que leagueId está en la URL o contexto)
-  const leagueId = new URLSearchParams(window.location.search).get("league") || "default";
+  const location = useLocation();
+  const searchParams = new URLSearchParams(location.search);
+  const leagueId = searchParams.get("league") || "";
+  
   const { data: userTeam } = useUserFantasyTeam(leagueId);
-  const queryClient = useQueryClient();
-  const [confirmTradeId, setConfirmTradeId] = useState<string | null>(null);
-  const [executingTrade, setExecutingTrade] = useState(false);
+  const { data: teams = [] } = useFantasyTeams(leagueId);
+  
+  const [selectedTeamId, setSelectedTeamId] = useState<string>("");
+  const [selectedMyPlayers, setSelectedMyPlayers] = useState<number[]>([]);
+  const [selectedTheirPlayers, setSelectedTheirPlayers] = useState<number[]>([]);
 
-  // Consultar trades enviados y recibidos
-  const { data: tradesSent = [], isLoading: loadingSent } = useQuery({
-    queryKey: ["tradesSent", userTeam?.id, leagueId],
+  // Get current week
+  const { data: currentWeek } = useQuery({
+    queryKey: ["currentWeek", leagueId],
     queryFn: async () => {
-      if (!userTeam?.id) return [];
       const { data, error } = await supabase
-        .from("trades")
-        .select("*, trade_items(*), target_team:fantasy_teams!trades_target_team_id_fkey(name), proposer_team:fantasy_teams!trades_proposer_team_id_fkey(name)")
-        .eq("proposer_team_id", userTeam.id)
+        .from("weeks")
+        .select("number")
         .eq("league_id", leagueId)
-        .order("created_at", { ascending: false });
-      if (error) throw error;
-      return data as unknown as Trade[];
-    },
-    enabled: !!userTeam?.id,
-  });
-
-  const { data: tradesReceived = [], isLoading: loadingReceived } = useQuery({
-    queryKey: ["tradesReceived", userTeam?.id, leagueId],
-    queryFn: async () => {
-      if (!userTeam?.id) return [];
-      const { data, error } = await supabase
-        .from("trades")
-        .select("*, trade_items(*), proposer_team:fantasy_teams!trades_proposer_team_id_fkey(name), target_team:fantasy_teams!trades_target_team_id_fkey(name)")
-        .eq("target_team_id", userTeam.id)
-        .eq("league_id", leagueId)
-        .order("created_at", { ascending: false });
-      if (error) throw error;
-      return data as unknown as Trade[];
-    },
-    enabled: !!userTeam?.id,
-  });
-
-  // Obtener todos los IDs de jugadores involucrados en los trades
-  const allPlayerIds = useMemo(() => {
-    const ids = new Set<number>();
-    for (const t of [...tradesSent, ...tradesReceived] as Trade[]) {
-      if (t.trade_items) {
-        t.trade_items.forEach((item: TradeItem) => ids.add(item.player_id));
-      }
-    }
-    return Array.from(ids);
-  }, [tradesSent, tradesReceived]);
-
-  // Consultar detalles de todos los jugadores involucrados
-  const { data: allPlayers = [] } = useQuery<Player[]>({
-    queryKey: ["tradePlayersDetails", allPlayerIds],
-    queryFn: async () => {
-      if (!allPlayerIds.length) return [];
-      const { data, error } = await supabase
-        .from("players")
-        .select("id, name, position, nfl_team:nfl_teams(abbreviation)")
-        .in("id", allPlayerIds);
-      if (error) throw error;
-      return data as Player[];
-    },
-    enabled: allPlayerIds.length > 0,
-  });
-  const playerMap = useMemo(() => {
-    const map = new Map<number, Player>();
-    allPlayers.forEach((p: Player) => {
-      map.set(p.id, p);
-    });
-    return map;
-  }, [allPlayers]);
-
-  // Handler para aceptar trade con confirmación y ejecución
-  const handleAcceptTrade = (tradeId: string) => {
-    setConfirmTradeId(tradeId);
-  };
-  const handleConfirmAccept = async () => {
-    if (!confirmTradeId) return;
-    setExecutingTrade(true);
-    try {
-      // 1. Actualizar estado a 'accepted'
-      const { error: updateError, data: tradeData } = await supabase
-        .from("trades")
-        .update({ status: "accepted" })
-        .eq("id", confirmTradeId)
-        .select()
+        .eq("status", "active")
         .single();
-      if (updateError) throw updateError;
-      // 2. Ejecutar el trade
-      const { error: execError } = await supabase.rpc("execute_trade", { trade_id: confirmTradeId });
-      if (execError) throw execError;
-      // 3. Notificaciones
-      if (tradeData) {
-        await supabase.from("notifications").insert([
-          {
-            user_id: tradeData.proposer_team_id, // proponente
-            league_id: tradeData.league_id,
-            message: `Tu trade con el equipo ${tradeData.target_team_id} fue aceptado y ejecutado.`,
-            type: "success",
-            read: false,
-          },
-          {
-            user_id: tradeData.target_team_id, // receptor
-            league_id: tradeData.league_id,
-            message: `Has aceptado y ejecutado un trade con el equipo ${tradeData.proposer_team_id}.`,
-            type: "success",
-            read: false,
-          },
-        ]);
-      }
-      toast({ title: "Trade ejecutado", description: "El intercambio de jugadores se realizó correctamente." });
-      setConfirmTradeId(null);
-      queryClient.invalidateQueries({ queryKey: ["tradesReceived", userTeam?.id] });
-      queryClient.invalidateQueries({ queryKey: ["tradesSent", userTeam?.id] });
-    } catch (e: unknown) {
-      const message = e instanceof Error ? e.message : "No se pudo ejecutar el trade";
-      toast({ title: "Error", description: message, variant: "destructive" });
-    } finally {
-      setExecutingTrade(false);
+      
+      if (error) return { number: 1 };
+      return data;
+    },
+    enabled: !!leagueId,
+  });
+
+  // Get user team roster using the safe hook
+  const { data: myRosterData = [], isLoading: loadingMyRoster } = useRosterWithPlayerDetails(
+    userTeam?.id || "",
+    currentWeek?.number || 1
+  );
+  
+  // Transform the roster data to match the expected format
+  const myRoster: RosterPlayer[] = myRosterData.map((player) => ({
+    player_id: parseInt(player.id),
+    player_name: player.name || "Unknown Player",
+    position: player.position || "POS",
+    fantasy_points: player.stats?.fantasy_points || player.points || 0,
+    team_abbreviation: player.team || "FA",
+    overall_rating: Math.floor(Math.random() * 20) + 80, // Mock OVR
+  }));
+
+  // Get selected team roster using the safe hook
+  const { data: theirRosterData = [], isLoading: loadingTheirRoster } = useRosterWithPlayerDetails(
+    selectedTeamId || "",
+    currentWeek?.number || 1
+  );
+  
+  // Transform the roster data to match the expected format
+  const theirRoster: RosterPlayer[] = theirRosterData.map((player) => ({
+    player_id: parseInt(player.id),
+    player_name: player.name || "Unknown Player",
+    position: player.position || "POS",
+    fantasy_points: player.stats?.fantasy_points || player.points || 0,
+    team_abbreviation: player.team || "FA",
+    overall_rating: Math.floor(Math.random() * 20) + 80, // Mock OVR
+  }));
+
+  const togglePlayerSelection = (playerId: number, isMyTeam: boolean) => {
+    if (isMyTeam) {
+      setSelectedMyPlayers(prev => 
+        prev.includes(playerId) 
+          ? prev.filter(id => id !== playerId)
+          : [...prev, playerId].slice(0, 3) // Max 3 players
+      );
+    } else {
+      setSelectedTheirPlayers(prev => 
+        prev.includes(playerId) 
+          ? prev.filter(id => id !== playerId)
+          : [...prev, playerId].slice(0, 3) // Max 3 players
+      );
     }
   };
 
-  const handleTradeAction = async (tradeId: string, action: "accepted" | "rejected") => {
-    if (action === "accepted") {
-      handleAcceptTrade(tradeId);
+  const queryClient = useQueryClient();
+
+  const proposeTrade = async () => {
+    if (selectedMyPlayers.length === 0 || selectedTheirPlayers.length === 0) {
+      toast({
+        title: "Invalid Trade",
+        description: "You must select at least one player from each team",
+        variant: "destructive",
+      });
       return;
     }
+
+    if (!userTeam?.id || !selectedTeamId) {
+      toast({
+        title: "Error",
+        description: "Team information is missing",
+        variant: "destructive",
+      });
+      return;
+    }
+
     try {
-      const { error, data: tradeData } = await supabase
+      // First validate the trade proposal
+      const { data: validationResult, error: validationError } = await supabase
+        .rpc("validate_trade_proposal", {
+          current_week: currentWeek?.number || 1,
+          league_id: leagueId,
+          proposer_team_id: userTeam.id,
+          target_team_id: selectedTeamId,
+          proposer_player_ids: selectedMyPlayers,
+          target_player_ids: selectedTheirPlayers,
+        });
+
+      if (validationError) {
+        throw validationError;
+      }
+
+      if (!validationResult?.valid) {
+        toast({
+          title: "Invalid Trade",
+          description: validationResult?.message || "This trade cannot be completed",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Create the trade record
+      const { data: trade, error: tradeError } = await supabase
         .from("trades")
-        .update({ status: action })
+        .insert({
+          league_id: leagueId,
+          proposer_team_id: userTeam.id,
+          target_team_id: selectedTeamId,
+          status: "pending",
+          season: new Date().getFullYear(),
+          week: currentWeek?.number || 1,
+          notes: "",
+        })
+        .select()
+        .single();
+
+      if (tradeError) {
+        throw tradeError;
+      }
+
+      // Create trade items for proposer's players
+      const proposerItems = selectedMyPlayers.map(playerId => ({
+        trade_id: trade.id,
+        player_id: playerId,
+        team_id: userTeam.id,
+      }));
+
+      // Create trade items for target's players
+      const targetItems = selectedTheirPlayers.map(playerId => ({
+        trade_id: trade.id,
+        player_id: playerId,
+        team_id: selectedTeamId,
+      }));
+
+      const { error: itemsError } = await supabase
+        .from("trade_items")
+        .insert([...proposerItems, ...targetItems]);
+
+      if (itemsError) {
+        throw itemsError;
+      }
+
+      toast({
+        title: "Trade Proposed",
+        description: "Your trade proposal has been sent successfully",
+      });
+
+      // Invalidate trades query to refresh the list
+      queryClient.invalidateQueries({ queryKey: ["trades", leagueId, userTeam?.id] });
+
+      // Reset selections
+      setSelectedMyPlayers([]);
+      setSelectedTheirPlayers([]);
+      setSelectedTeamId("");
+
+    } catch (error) {
+      console.error("Error proposing trade:", error);
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to propose trade",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const otherTeams = teams.filter(team => team.id !== userTeam?.id);
+
+  // Fetch existing trades
+  const { data: trades = [], isLoading: tradesLoading } = useQuery({
+    queryKey: ["trades", leagueId, userTeam?.id],
+    queryFn: async () => {
+      if (!userTeam?.id) return [];
+      
+      const { data, error } = await supabase
+        .from("trades")
+        .select(`
+          id,
+          status,
+          created_at,
+          proposer_team_id,
+          target_team_id,
+          proposer_team:fantasy_teams!proposer_team_id(id, name, owner: users(full_name)),
+          target_team:fantasy_teams!target_team_id(id, name, owner: users(full_name)),
+          trade_items(
+            id,
+            player_id,
+            team_id,
+            players(id, name, position)
+          )
+        `)
+        .eq("league_id", leagueId)
+        .or(`proposer_team_id.eq.${userTeam.id},target_team_id.eq.${userTeam.id}`)
+        .order("created_at", { ascending: false });
+
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!leagueId && !!userTeam?.id,
+  });
+
+  // Accept trade mutation
+  const acceptTradeMutation = useMutation({
+    mutationFn: async (tradeId: string) => {
+      const { data, error } = await supabase
+        .from("trades")
+        .update({ status: "accepted", responded_at: new Date().toISOString() })
         .eq("id", tradeId)
         .select()
         .single();
+
       if (error) throw error;
-      // Notificaciones
-      if (tradeData) {
-        await supabase.from("notifications").insert([
-          {
-            user_id: tradeData.proposer_team_id,
-            league_id: tradeData.league_id,
-            message: `Tu trade con el equipo ${tradeData.target_team_id} fue rechazado.`,
-            type: "info",
-            read: false,
-          },
-          {
-            user_id: tradeData.target_team_id,
-            league_id: tradeData.league_id,
-            message: `Has rechazado un trade con el equipo ${tradeData.proposer_team_id}.`,
-            type: "info",
-            read: false,
-          },
-        ]);
-      }
-      toast({ title: `Trade rechazado` });
-      queryClient.invalidateQueries({ queryKey: ["tradesReceived", userTeam?.id] });
-      queryClient.invalidateQueries({ queryKey: ["tradesSent", userTeam?.id] });
-    } catch (e: unknown) {
-      const message = e instanceof Error ? e.message : "No se pudo actualizar el trade";
-      toast({ title: "Error", description: message, variant: "destructive" });
-    }
-  };
 
-  const TradeCard = ({ trade, isSent }: { trade: Trade; isSent: boolean }) => {
-    const otherTeam = isSent ? trade.target_team : trade.proposer_team;
-    const myPlayers = trade.trade_items?.filter((item) => 
-      isSent ? item.team_id === userTeam?.id : item.team_id === trade.target_team_id
-    ) || [];
-    const theirPlayers = trade.trade_items?.filter((item) => 
-      isSent ? item.team_id === trade.target_team_id : item.team_id === trade.proposer_team_id
-    ) || [];
+      // Execute the trade
+      const { error: executeError } = await supabase
+        .rpc("execute_trade", { trade_id: tradeId });
 
-    return (
-      <Card className="bg-gradient-to-br from-nfl-dark-gray to-nfl-gray border-nfl-light-gray/20 hover:border-nfl-blue/30 transition-all duration-300 hover:shadow-lg hover:shadow-nfl-blue/10">
-        <CardHeader className="pb-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-nfl-blue/20 rounded-full flex items-center justify-center">
-                <User className="w-5 h-5 text-nfl-blue" />
-              </div>
-              <div>
-                <CardTitle className="text-lg text-white">
-                  {isSent ? `To: ${otherTeam?.name || "Unknown Team"}` : `From: ${otherTeam?.name || "Unknown Team"}`}
-                </CardTitle>
-                <div className="flex items-center gap-2 mt-1">
-                  <Calendar className="w-3 h-3 text-gray-400" />
-                  <span className="text-xs text-gray-400">
-                    {trade.created_at ? new Date(trade.created_at).toLocaleDateString() : "-"}
-                  </span>
-                </div>
-              </div>
-            </div>
-            <Badge className={`${getStatusColor(trade.status)} border px-3 py-1`}>
-              <div className="flex items-center gap-1.5">
-                {getStatusIcon(trade.status)}
-                <span className="capitalize text-xs font-medium">{trade.status}</span>
-              </div>
-            </Badge>
-          </div>
-        </CardHeader>
-        
-        <CardContent className="space-y-6">
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 items-center">
-            {/* Your Players */}
-            <div className="space-y-3">
-              <h4 className="text-sm font-semibold text-nfl-blue flex items-center gap-2">
-                <Trophy className="w-4 h-4" />
-                {isSent ? "You Give" : "You Get"}
-              </h4>
-              <div className="space-y-2">
-                {myPlayers.map((item) => {
-                  const player = playerMap.get(item.player_id);
-                  return (
-                    <div key={item.id} className="bg-nfl-darker/50 rounded-lg p-3 border border-nfl-light-gray/10">
-                      <div className="flex items-center justify-between">
-                        <span className="text-white font-medium text-sm">
-                          {player?.name || `Player #${item.player_id}`}
-                        </span>
-                        <div className="flex items-center gap-2">
-                          <Badge variant="outline" className="text-xs px-2 py-0.5 bg-nfl-blue/20 text-nfl-blue border-nfl-blue/30">
-                            {player?.position}
-                          </Badge>
-                          {player?.nfl_team?.abbreviation && (
-                            <span className="text-xs text-gray-400">{player.nfl_team.abbreviation}</span>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
+      if (executeError) throw executeError;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["trades"] });
+      queryClient.invalidateQueries({ queryKey: ["rosterWithDetails"] });
+      toast({
+        title: "Trade Accepted",
+        description: "The trade has been accepted and executed",
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to accept trade",
+        variant: "destructive",
+      });
+    },
+  });
 
-            {/* Trade Arrow */}
-            <div className="flex justify-center">
-              <div className="w-12 h-12 bg-gradient-to-r from-nfl-blue to-nfl-lightblue rounded-full flex items-center justify-center shadow-lg">
-                <ArrowRightLeft className="w-6 h-6 text-white" />
-              </div>
-            </div>
+  // Reject trade mutation
+  const rejectTradeMutation = useMutation({
+    mutationFn: async (tradeId: string) => {
+      const { data, error } = await supabase
+        .from("trades")
+        .update({ status: "rejected", responded_at: new Date().toISOString() })
+        .eq("id", tradeId)
+        .select()
+        .single();
 
-            {/* Their Players */}
-            <div className="space-y-3">
-              <h4 className="text-sm font-semibold text-nfl-lightblue flex items-center gap-2">
-                <Trophy className="w-4 h-4" />
-                {isSent ? "You Get" : "You Give"}
-              </h4>
-              <div className="space-y-2">
-                {theirPlayers.map((item) => {
-                  const player = playerMap.get(item.player_id);
-                  return (
-                    <div key={item.id} className="bg-nfl-darker/50 rounded-lg p-3 border border-nfl-light-gray/10">
-                      <div className="flex items-center justify-between">
-                        <span className="text-white font-medium text-sm">
-                          {player?.name || `Player #${item.player_id}`}
-                        </span>
-                        <div className="flex items-center gap-2">
-                          <Badge variant="outline" className="text-xs px-2 py-0.5 bg-nfl-lightblue/20 text-nfl-lightblue border-nfl-lightblue/30">
-                            {player?.position}
-                          </Badge>
-                          {player?.nfl_team?.abbreviation && (
-                            <span className="text-xs text-gray-400">{player.nfl_team.abbreviation}</span>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["trades"] });
+      toast({
+        title: "Trade Rejected",
+        description: "The trade has been rejected",
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to reject trade",
+        variant: "destructive",
+      });
+    },
+  });
 
-          {/* Action Buttons for Received Trades */}
-          {!isSent && trade.status === "pending" && (
-            <div className="flex gap-3 pt-4 border-t border-nfl-light-gray/10">
-              <Button
-                onClick={() => handleTradeAction(trade.id, "accepted")}
-                className="flex-1 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white border-0"
-              >
-                <CheckCircle className="w-4 h-4 mr-2" />
-                Accept Trade
-              </Button>
-              <Button
-                onClick={() => handleTradeAction(trade.id, "rejected")}
-                variant="outline"
-                className="flex-1 border-red-500/30 text-red-400 hover:bg-red-500/10 hover:border-red-500/50"
-              >
-                <XCircle className="w-4 h-4 mr-2" />
-                Reject
-              </Button>
-            </div>
-          )}
-        </CardContent>
-      </Card>
-    );
-  };
+  // Cancel trade mutation
+  const cancelTradeMutation = useMutation({
+    mutationFn: async (tradeId: string) => {
+      const { data, error } = await supabase
+        .from("trades")
+        .update({ status: "cancelled" })
+        .eq("id", tradeId)
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["trades"] });
+      toast({
+        title: "Trade Cancelled",
+        description: "The trade has been cancelled",
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to cancel trade",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const pendingTrades = trades.filter(t => t.status === "pending");
+  const completedTrades = trades.filter(t => t.status === "accepted" || t.status === "rejected" || t.status === "cancelled" || t.status === "vetoed");
+
+  // Set up real-time subscription for trades
+  useEffect(() => {
+    if (!leagueId || !userTeam?.id) return;
+
+    const channel = supabase
+      .channel(`trades-${leagueId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'trades',
+          filter: `league_id=eq.${leagueId}`,
+        },
+        (payload) => {
+          // Invalidate and refetch trades when changes occur
+          queryClient.invalidateQueries({ queryKey: ["trades", leagueId] });
+          
+          // Show notification for new trades
+          if (payload.eventType === 'INSERT' && payload.new) {
+            const newTrade = payload.new as { target_team_id: string };
+            if (newTrade.target_team_id === userTeam.id) {
+              toast({
+                title: "New Trade Proposal",
+                description: "You have received a new trade proposal",
+              });
+            }
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [leagueId, userTeam?.id, queryClient]);
 
   return (
     <Layout>
-      <LeagueNav leagueId={leagueId} />
-      <div className="container mx-auto px-4 py-8 max-w-7xl">
-        {/* Header */}
-        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-nfl-blue via-nfl-blue/90 to-blue-700 border border-nfl-blue/20 mb-8">
-        <div className="absolute inset-0 bg-[url('data:image/svg+xml,%3Csvg width=&quot;60&quot; height=&quot;60&quot; viewBox=&quot;0 0 60 60&quot; xmlns=&quot;http://www.w3.org/2000/svg&quot;%3E%3Cg fill=&quot;none&quot; fill-rule=&quot;evenodd&quot;%3E%3Cg fill=&quot;%23ffffff&quot; fill-opacity=&quot;0.05&quot;%3E%3Ccircle cx=&quot;30&quot; cy=&quot;30&quot; r=&quot;2&quot;/%3E%3C/g%3E%3C/g%3E%3C/svg%3E')] opacity-30"></div>
-          <div className="relative p-8">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                <div className="w-16 h-16 bg-white/10 rounded-2xl flex items-center justify-center backdrop-blur-sm border border-white/20">
-                  <ArrowRightLeft className="w-8 h-8 text-white" />
-                </div>
-                <div>
-                  <h1 className="text-4xl font-bold text-white mb-2">Trade Center</h1>
-                  <p className="text-blue-100 text-lg">Manage your player trades and proposals</p>
-                </div>
-              </div>
-              <div className="text-right">
-                <div className="bg-white/10 rounded-lg p-4 backdrop-blur-sm border border-white/20">
-                  <div className="text-white text-sm mb-1">Active Trades</div>
-                  <div className="text-2xl font-bold text-white">
-                    {[...tradesReceived, ...tradesSent].filter(t => t.status === 'pending').length}
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
+      <div className="min-h-screen bg-nfl-dark-gray">
+        {/* League Header */}
+        <LeagueHeader leagueId={leagueId} />
 
-        <Tabs value={tab} onValueChange={setTab} className="space-y-6">
-          <TabsList className="bg-nfl-gray border border-nfl-light-gray/20 p-1">
-            <TabsTrigger 
-              value="received" 
-              className="data-[state=active]:bg-nfl-blue data-[state=active]:text-white px-6 py-2.5 rounded-md transition-all"
-            >
-              <div className="flex items-center gap-2">
-                <div className="w-2 h-2 bg-current rounded-full"></div>
-                Incoming Trades
-                {tradesReceived.filter(t => t.status === 'pending').length > 0 && (
-                  <Badge className="bg-nfl-red text-white text-xs ml-2">
-                    {tradesReceived.filter(t => t.status === 'pending').length}
+
+        {/* League Navigation Tabs */}
+        <LeagueTabs leagueId={leagueId} activeTab="trades" />
+
+        {/* Main Content */}
+        <div className="container mx-auto px-4 py-6">
+          <div className="flex items-center gap-2 mb-6">
+            <ArrowRightLeft className="w-6 h-6 text-nfl-blue" />
+            <h2 className="text-2xl font-bold text-white">Trade Center</h2>
+          </div>
+          
+          <Tabs defaultValue="propose" className="w-full">
+            <TabsList className="grid w-full grid-cols-3">
+              <TabsTrigger value="propose">Propose Trade</TabsTrigger>
+              <TabsTrigger value="pending">
+                Pending
+                {pendingTrades.length > 0 && (
+                  <Badge className="ml-2" variant="secondary">
+                    {pendingTrades.length}
                   </Badge>
                 )}
-              </div>
-            </TabsTrigger>
-            <TabsTrigger 
-              value="sent" 
-              className="data-[state=active]:bg-nfl-blue data-[state=active]:text-white px-6 py-2.5 rounded-md transition-all"
-            >
-              <div className="flex items-center gap-2">
-                <div className="w-2 h-2 bg-current rounded-full"></div>
-                Sent Trades
-              </div>
-            </TabsTrigger>
-          </TabsList>
+              </TabsTrigger>
+              <TabsTrigger value="history">History</TabsTrigger>
+            </TabsList>
 
-          <TabsContent value="received" className="space-y-6">
-            {loadingReceived ? (
-              <div className="flex items-center justify-center py-12">
-                <div className="flex items-center gap-3 text-gray-400">
-                  <Loader2 className="animate-spin w-5 h-5" />
-                  <span>Loading incoming trades...</span>
+            <TabsContent value="propose" className="mt-6">
+              {/* Trade Interface */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* My Team */}
+            <Card className="bg-nfl-gray border-nfl-blue/50">
+              <CardHeader className="border-b border-nfl-light-gray/20">
+                <CardTitle className="flex items-center gap-2 text-white">
+                  <Users className="w-5 h-5" />
+                  My Team
+                </CardTitle>
+                <p className="text-sm text-gray-400 mt-1">{userTeam?.name}</p>
+              </CardHeader>
+              <CardContent className="p-4">
+                <div className="mb-4">
+                  <p className="text-sm text-gray-400">
+                    {selectedMyPlayers.length}/3 selected
+                  </p>
                 </div>
-              </div>
-            ) : tradesReceived.length === 0 ? (
-              <div className="text-center py-12">
-                <div className="w-24 h-24 bg-nfl-dark-gray rounded-full flex items-center justify-center mx-auto mb-4">
-                  <ArrowRightLeft className="w-12 h-12 text-gray-500" />
+                
+                <div className="space-y-2">
+                  {loadingMyRoster ? (
+                    <div className="text-center py-8 text-gray-400">
+                      Loading roster...
+                    </div>
+                  ) : myRoster.length === 0 ? (
+                    <div className="text-center py-8 text-gray-400">
+                      No players in roster
+                    </div>
+                  ) : (
+                    <>
+                      <h3 className="text-sm font-medium text-gray-400 mb-2">Roster</h3>
+                      {myRoster.map((player) => (
+                        <div
+                          key={player.player_id}
+                          className={`
+                            p-3 rounded-lg border cursor-pointer transition-all
+                            ${selectedMyPlayers.includes(player.player_id)
+                              ? 'bg-nfl-blue/20 border-nfl-blue'
+                              : 'bg-nfl-dark-gray border-nfl-light-gray/20 hover:border-nfl-light-gray/40'
+                            }
+                          `}
+                          onClick={() => togglePlayerSelection(player.player_id, true)}
+                        >
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                              <Checkbox
+                                checked={selectedMyPlayers.includes(player.player_id)}
+                                onCheckedChange={() => togglePlayerSelection(player.player_id, true)}
+                                onClick={(e) => e.stopPropagation()}
+                              />
+                              <Badge variant="outline" className="text-xs">
+                                {player.position}
+                              </Badge>
+                              <div>
+                                <p className="font-medium text-white">
+                                  {player.player_name}
+                                </p>
+                                <p className="text-xs text-gray-400">
+                                  {player.team_abbreviation}
+                                </p>
+                              </div>
+                            </div>
+                            <div className="text-right">
+                              <p className="font-bold text-white">
+                                {player.fantasy_points.toFixed(1)}
+                              </p>
+                              <p className="text-xs text-gray-400">
+                                {player.overall_rating} OVR
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </>
+                  )}
                 </div>
-                <h3 className="text-xl font-semibold text-white mb-2">No incoming trades</h3>
-                <p className="text-gray-400">You don't have any trade proposals at the moment.</p>
-              </div>
-            ) : (
-              <div className="space-y-6">
-                {(tradesReceived as unknown as Trade[]).map((trade) => (
-                  <TradeCard key={trade.id} trade={trade} isSent={false} />
-                ))}
-              </div>
-            )}
-          </TabsContent>
+              </CardContent>
+            </Card>
 
-          <TabsContent value="sent" className="space-y-6">
-            {loadingSent ? (
-              <div className="flex items-center justify-center py-12">
-                <div className="flex items-center gap-3 text-gray-400">
-                  <Loader2 className="animate-spin w-5 h-5" />
-                  <span>Loading sent trades...</span>
-                </div>
-              </div>
-            ) : tradesSent.length === 0 ? (
-              <div className="text-center py-12">
-                <div className="w-24 h-24 bg-nfl-dark-gray rounded-full flex items-center justify-center mx-auto mb-4">
-                  <ArrowRightLeft className="w-12 h-12 text-gray-500" />
-                </div>
-                <h3 className="text-xl font-semibold text-white mb-2">No sent trades</h3>
-                <p className="text-gray-400">You haven't proposed any trades yet.</p>
-              </div>
-            ) : (
-              <div className="space-y-6">
-                {(tradesSent as unknown as Trade[]).map((trade) => (
-                  <TradeCard key={trade.id} trade={trade} isSent={true} />
-                ))}
-              </div>
-            )}
-          </TabsContent>
-        </Tabs>
-
-        {/* Modal de confirmación de aceptación de trade */}
-        <Dialog open={!!confirmTradeId} onOpenChange={open => !open && setConfirmTradeId(null)}>
-          <DialogContent className="bg-nfl-dark-gray border-nfl-light-gray/20">
-            <DialogHeader>
-              <DialogTitle className="text-white flex items-center gap-2">
-                <CheckCircle className="w-5 h-5 text-green-400" />
-                Confirm Trade Acceptance
-              </DialogTitle>
-            </DialogHeader>
-            <div className="py-4">
-              <div className="bg-nfl-darker/50 rounded-lg p-4 border border-nfl-light-gray/10 mb-4">
-                <p className="text-gray-300 mb-2">
-                  Are you sure you want to accept this trade? This action cannot be undone.
-                </p>
-                <p className="text-sm text-yellow-400 flex items-center gap-2">
-                  <Clock className="w-4 h-4" />
-                  The players will be automatically swapped between teams.
-                </p>
-              </div>
-            </div>
-            <DialogFooter className="gap-3">
-              <Button 
-                variant="outline" 
-                onClick={() => setConfirmTradeId(null)} 
-                disabled={executingTrade}
-                className="border-nfl-light-gray/30 text-gray-300 hover:bg-nfl-light-gray/10"
-              >
-                Cancel
-              </Button>
-              <Button 
-                onClick={handleConfirmAccept} 
-                disabled={executingTrade}
-                className="bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white border-0"
-              >
-                {executingTrade ? (
-                  <div className="flex items-center gap-2">
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    Executing...
-                  </div>
+            {/* Trade With */}
+            <Card className="bg-nfl-gray border-nfl-red/50">
+              <CardHeader className="border-b border-nfl-light-gray/20">
+                <CardTitle className="flex items-center gap-2 text-white">
+                  <Users className="w-5 h-5" />
+                  Trade With
+                </CardTitle>
+                <Select value={selectedTeamId} onValueChange={setSelectedTeamId}>
+                  <SelectTrigger className="mt-2">
+                    <SelectValue placeholder="Select a team..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {otherTeams.map((team) => (
+                      <SelectItem key={team.id} value={team.id}>
+                        {team.name} ({team.owner})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </CardHeader>
+              <CardContent className="p-4">
+                {selectedTeamId ? (
+                  <>
+                    <div className="mb-4">
+                      <p className="text-sm text-gray-400">
+                        {selectedTheirPlayers.length}/3 selected
+                      </p>
+                    </div>
+                    
+                    <div className="space-y-2">
+                      {loadingTheirRoster ? (
+                        <div className="text-center py-8 text-gray-400">
+                          Loading roster...
+                        </div>
+                      ) : theirRoster.length === 0 ? (
+                        <div className="text-center py-8 text-gray-400">
+                          No players in roster
+                        </div>
+                      ) : (
+                        <>
+                          <h3 className="text-sm font-medium text-gray-400 mb-2">Roster</h3>
+                          {theirRoster.map((player) => (
+                            <div
+                              key={player.player_id}
+                              className={`
+                                p-3 rounded-lg border cursor-pointer transition-all
+                                ${selectedTheirPlayers.includes(player.player_id)
+                                  ? 'bg-nfl-red/20 border-nfl-red'
+                                  : 'bg-nfl-dark-gray border-nfl-light-gray/20 hover:border-nfl-light-gray/40'
+                                }
+                              `}
+                              onClick={() => togglePlayerSelection(player.player_id, false)}
+                            >
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-3">
+                                  <Checkbox
+                                    checked={selectedTheirPlayers.includes(player.player_id)}
+                                    onCheckedChange={() => togglePlayerSelection(player.player_id, false)}
+                                    onClick={(e) => e.stopPropagation()}
+                                  />
+                                  <Badge variant="outline" className="text-xs">
+                                    {player.position}
+                                  </Badge>
+                                  <div>
+                                    <p className="font-medium text-white">
+                                      {player.player_name}
+                                    </p>
+                                    <p className="text-xs text-gray-400">
+                                      {player.team_abbreviation}
+                                    </p>
+                                  </div>
+                                </div>
+                                <div className="text-right">
+                                  <p className="font-bold text-white">
+                                    {player.fantasy_points.toFixed(1)}
+                                  </p>
+                                  <p className="text-xs text-gray-400">
+                                    {player.overall_rating} OVR
+                                  </p>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </>
+                      )}
+                    </div>
+                  </>
                 ) : (
-                  <div className="flex items-center gap-2">
-                    <CheckCircle className="w-4 h-4" />
-                    Confirm & Execute
+                  <div className="text-center py-12 text-gray-400">
+                    Select a team to view their roster
                   </div>
                 )}
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Trade Actions */}
+          {selectedMyPlayers.length > 0 && selectedTheirPlayers.length > 0 && (
+            <div className="mt-6 flex justify-center">
+              <Button
+                size="lg"
+                className="bg-nfl-green hover:bg-nfl-green/90"
+                onClick={proposeTrade}
+              >
+                <Check className="w-5 h-5 mr-2" />
+                Propose Trade
               </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+            </div>
+          )}
+            </TabsContent>
+
+            <TabsContent value="pending" className="mt-6">
+              {tradesLoading ? (
+                <div className="text-center py-8 text-gray-400">
+                  Loading trades...
+                </div>
+              ) : pendingTrades.length === 0 ? (
+                <Card className="bg-nfl-gray border-nfl-light-gray/20">
+                  <CardContent className="text-center py-12">
+                    <p className="text-gray-400">No pending trades</p>
+                  </CardContent>
+                </Card>
+              ) : (
+                <div className="space-y-4">
+                  {pendingTrades.map((trade) => {
+                    const isProposer = trade.proposer_team_id === userTeam?.id;
+                    const proposerPlayers = trade.trade_items?.filter(item => item.team_id === trade.proposer_team_id) || [];
+                    const targetPlayers = trade.trade_items?.filter(item => item.team_id === trade.target_team_id) || [];
+                    
+                    return (
+                      <Card key={trade.id} className="bg-nfl-gray border-nfl-light-gray/20">
+                        <CardHeader className="border-b border-nfl-light-gray/20">
+                          <div className="flex items-center justify-between">
+                            <CardTitle className="text-white flex items-center gap-2">
+                              <Clock className="w-5 h-5 text-yellow-500" />
+                              {isProposer ? "Trade Sent" : "Trade Received"}
+                            </CardTitle>
+                            <Badge variant="secondary">Pending</Badge>
+                          </div>
+                          <p className="text-sm text-gray-400 mt-1">
+                            {new Date(trade.created_at).toLocaleDateString()}
+                          </p>
+                        </CardHeader>
+                        <CardContent className="p-4">
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                              <h4 className="text-sm font-semibold text-white mb-2">
+                                {trade.proposer_team?.name} gives:
+                              </h4>
+                              <div className="space-y-1">
+                                {proposerPlayers.map((item) => (
+                                  <div key={item.id} className="flex items-center gap-2">
+                                    <Badge variant="outline" className="text-xs">
+                                      {item.players?.position}
+                                    </Badge>
+                                    <span className="text-sm text-white">
+                                      {item.players?.name}
+                                    </span>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                            <div>
+                              <h4 className="text-sm font-semibold text-white mb-2">
+                                {trade.target_team?.name} gives:
+                              </h4>
+                              <div className="space-y-1">
+                                {targetPlayers.map((item) => (
+                                  <div key={item.id} className="flex items-center gap-2">
+                                    <Badge variant="outline" className="text-xs">
+                                      {item.players?.position}
+                                    </Badge>
+                                    <span className="text-sm text-white">
+                                      {item.players?.name}
+                                    </span>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          </div>
+                          
+                          <div className="mt-4 flex gap-2 justify-end">
+                            {isProposer ? (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => cancelTradeMutation.mutate(trade.id)}
+                                disabled={cancelTradeMutation.isPending}
+                              >
+                                <X className="w-4 h-4 mr-1" />
+                                Cancel
+                              </Button>
+                            ) : (
+                              <>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => rejectTradeMutation.mutate(trade.id)}
+                                  disabled={rejectTradeMutation.isPending || acceptTradeMutation.isPending}
+                                  className="text-red-500 hover:text-red-600"
+                                >
+                                  <X className="w-4 h-4 mr-1" />
+                                  Reject
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  onClick={() => acceptTradeMutation.mutate(trade.id)}
+                                  disabled={acceptTradeMutation.isPending || rejectTradeMutation.isPending}
+                                  className="bg-nfl-green hover:bg-nfl-green/90"
+                                >
+                                  <Check className="w-4 h-4 mr-1" />
+                                  Accept
+                                </Button>
+                              </>
+                            )}
+                          </div>
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
+                </div>
+              )}
+            </TabsContent>
+
+            <TabsContent value="history" className="mt-6">
+              {tradesLoading ? (
+                <div className="text-center py-8 text-gray-400">
+                  Loading trades...
+                </div>
+              ) : completedTrades.length === 0 ? (
+                <Card className="bg-nfl-gray border-nfl-light-gray/20">
+                  <CardContent className="text-center py-12">
+                    <p className="text-gray-400">No trade history</p>
+                  </CardContent>
+                </Card>
+              ) : (
+                <div className="space-y-4">
+                  {completedTrades.map((trade) => {
+                    const proposerPlayers = trade.trade_items?.filter(item => item.team_id === trade.proposer_team_id) || [];
+                    const targetPlayers = trade.trade_items?.filter(item => item.team_id === trade.target_team_id) || [];
+                    
+                    return (
+                      <Card key={trade.id} className="bg-nfl-gray border-nfl-light-gray/20">
+                        <CardHeader className="border-b border-nfl-light-gray/20">
+                          <div className="flex items-center justify-between">
+                            <CardTitle className="text-white">
+                              {trade.proposer_team?.name} ⇄ {trade.target_team?.name}
+                            </CardTitle>
+                            <div className="flex items-center gap-2">
+                              {trade.status === "accepted" && (
+                                <Badge className="bg-green-500/20 text-green-500 border-green-500/50">
+                                  <CheckCircle className="w-3 h-3 mr-1" />
+                                  Completed
+                                </Badge>
+                              )}
+                              {trade.status === "rejected" && (
+                                <Badge className="bg-red-500/20 text-red-500 border-red-500/50">
+                                  <XCircle className="w-3 h-3 mr-1" />
+                                  Rejected
+                                </Badge>
+                              )}
+                              {trade.status === "cancelled" && (
+                                <Badge variant="secondary">
+                                  Cancelled
+                                </Badge>
+                              )}
+                              {trade.status === "vetoed" && (
+                                <Badge className="bg-red-500/20 text-red-500 border-red-500/50">
+                                  <XCircle className="w-3 h-3 mr-1" />
+                                  Vetoed
+                                </Badge>
+                              )}
+                            </div>
+                          </div>
+                          <p className="text-sm text-gray-400 mt-1">
+                            {new Date(trade.created_at).toLocaleDateString()}
+                          </p>
+                        </CardHeader>
+                        <CardContent className="p-4">
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                              <h4 className="text-sm font-semibold text-white mb-2">
+                                {trade.proposer_team?.name} traded:
+                              </h4>
+                              <div className="space-y-1">
+                                {proposerPlayers.map((item) => (
+                                  <div key={item.id} className="flex items-center gap-2">
+                                    <Badge variant="outline" className="text-xs">
+                                      {item.players?.position}
+                                    </Badge>
+                                    <span className="text-sm text-gray-400">
+                                      {item.players?.name}
+                                    </span>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                            <div>
+                              <h4 className="text-sm font-semibold text-white mb-2">
+                                {trade.target_team?.name} traded:
+                              </h4>
+                              <div className="space-y-1">
+                                {targetPlayers.map((item) => (
+                                  <div key={item.id} className="flex items-center gap-2">
+                                    <Badge variant="outline" className="text-xs">
+                                      {item.players?.position}
+                                    </Badge>
+                                    <span className="text-sm text-gray-400">
+                                      {item.players?.name}
+                                    </span>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
+                </div>
+              )}
+            </TabsContent>
+          </Tabs>
+        </div>
       </div>
     </Layout>
   );

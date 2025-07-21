@@ -1,5 +1,6 @@
 import { Layout } from "@/components/Layout";
-import { LeagueNav } from "@/components/LeagueNav";
+import { LeagueHeader } from "@/components/LeagueHeader";
+import { LeagueTabs } from "@/components/LeagueTabs";
 import { DraftTimer } from "@/components/DraftTimer";
 import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -7,9 +8,8 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { PlayerCard } from "@/components/PlayerCard";
-import { WeeklyElimination } from "@/components/WeeklyElimination";
-import { Search, Award, Settings, Play, Pause, RotateCcw, CheckCircle, Clock } from "lucide-react";
+import { DraftPlayerCard } from "@/components/DraftPlayerCard";
+import { Search, Award, Settings, Play, Pause, RotateCcw, CheckCircle, Clock, Trophy, Users } from "lucide-react";
 import { useLocation } from "react-router-dom";
 import { useAvailablePlayers } from "@/hooks/useAvailablePlayers";
 import { useUserFantasyTeam } from "@/hooks/useUserFantasyTeam";
@@ -21,13 +21,14 @@ import { pauseDraft, resumeDraft, resetDraft, completeDraft } from "@/lib/draftC
 import { executeAutoDraft } from "@/lib/autoDraft";
 import { useMyRoster } from "@/hooks/useMyRoster";
 import { toast } from 'sonner';
-import { useQueryClient } from "@tanstack/react-query";
+import { useQueryClient, useQuery } from "@tanstack/react-query";
 import type { Player } from "@/types";
 import { DateTime } from "luxon";
 import { supabase } from "@/integrations/supabase/client";
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table";
 import { useFantasyTeams } from "@/hooks/useFantasyTeams";
 import { useAuth } from "@/hooks/useAuth";
+import { cn } from "@/lib/utils";
 
 export default function Draft() {
   // Obtener leagueId desde la URL
@@ -45,7 +46,42 @@ export default function Draft() {
   // Llamar siempre el hook, aunque userTeam no esté listo
   const myTeamId = userTeam?.id || "";
   const isMyTurn = useIsMyDraftTurn(leagueId, myTeamId);
-  const { data: myRoster = [] } = useMyRoster(userTeam?.id || "", currentWeek);
+  // Get roster with player details
+  const { data: rosterData = [] } = useQuery({
+    queryKey: ["draftRoster", userTeam?.id, currentWeek],
+    queryFn: async () => {
+      if (!userTeam?.id) return [];
+      const { data, error } = await supabase
+        .from("team_rosters")
+        .select(`
+          id,
+          player_id,
+          slot,
+          players!inner(
+            id,
+            name,
+            position,
+            nfl_teams(abbreviation)
+          )
+        `)
+        .eq("fantasy_team_id", userTeam.id)
+        .eq("week", currentWeek);
+      
+      if (error) throw error;
+      
+      return data?.map(item => ({
+        id: item.id,
+        player_id: item.player_id,
+        slot: item.slot,
+        name: item.players.name,
+        position: item.players.position,
+        team: item.players.nfl_teams?.abbreviation || "FA"
+      })) || [];
+    },
+    enabled: !!userTeam?.id && !!currentWeek,
+  });
+  
+  const myRoster = rosterData;
   const { data: teams = [], isLoading: loadingTeams } = useFantasyTeams(leagueId);
 
   // State para filtros y búsqueda
@@ -67,10 +103,11 @@ export default function Draft() {
     RB: 2,
     WR: 2,
     TE: 1,
-    FLEX: 1,
+    FLEX: 1,    // RB/WR only
     K: 1,
     DEF: 1,
-    BENCH: 7,
+    DP: 1,      // Defensive Player
+    BENCH: 4,   // Reduced to 4
   };
 
   // Cuenta los slots ocupados
@@ -90,9 +127,10 @@ export default function Draft() {
     if (player.position === "RB" && canDraftInSlot("RB")) return "RB";
     if (player.position === "WR" && canDraftInSlot("WR")) return "WR";
     if (player.position === "TE" && canDraftInSlot("TE")) return "TE";
-    if (["RB", "WR", "TE"].includes(player.position) && canDraftInSlot("FLEX")) return "FLEX";
+    if (["RB", "WR"].includes(player.position) && canDraftInSlot("FLEX")) return "FLEX"; // Only RB/WR for FLEX
     if (player.position === "K" && canDraftInSlot("K")) return "K";
     if (player.position === "DEF" && canDraftInSlot("DEF")) return "DEF";
+    if (player.position === "DP" && canDraftInSlot("DP")) return "DP";
     if (canDraftInSlot("BENCH")) return "BENCH";
     return null;
   };
@@ -102,9 +140,10 @@ export default function Draft() {
     if (player.position === "QB" && !canDraftInSlot("QB")) return "You already have the maximum of starting QBs.";
     if (player.position === "RB" && !canDraftInSlot("RB") && !canDraftInSlot("FLEX")) return "You already have the maximum of starting RBs and FLEX.";
     if (player.position === "WR" && !canDraftInSlot("WR") && !canDraftInSlot("FLEX")) return "You already have the maximum of starting WRs and FLEX.";
-    if (player.position === "TE" && !canDraftInSlot("TE") && !canDraftInSlot("FLEX")) return "You already have the maximum of starting TEs and FLEX.";
+    if (player.position === "TE" && !canDraftInSlot("TE")) return "You already have the maximum of starting TEs.";
     if (player.position === "K" && !canDraftInSlot("K")) return "You already have the maximum of Kickers.";
     if (player.position === "DEF" && !canDraftInSlot("DEF")) return "You already have the maximum of Defenses.";
+    if (player.position === "DP" && !canDraftInSlot("DP")) return "You already have the maximum of Defensive Players.";
     if (!canDraftInSlot("BENCH")) return "Your bench is full.";
     return null;
   };
@@ -112,7 +151,7 @@ export default function Draft() {
   // Filtrar y ordenar jugadores - properly type the available players
   const typedAvailablePlayers: Player[] = availablePlayers.map(player => ({
     ...player,
-    position: player.position as "QB" | "RB" | "WR" | "TE" | "K" | "DEF"
+    position: player.position as "QB" | "RB" | "WR" | "TE" | "K" | "DEF" | "DP"
   }));
 
   const filteredPlayers = typedAvailablePlayers.filter(player => {
@@ -378,11 +417,25 @@ export default function Draft() {
     }
   };
 
+  // Position colors for badges
+  const positionColors = {
+    QB: "bg-nfl-blue",
+    RB: "bg-nfl-green",
+    WR: "bg-nfl-yellow",
+    TE: "bg-nfl-accent",
+    K: "bg-nfl-lightblue",
+    DEF: "bg-nfl-red",
+    DP: "bg-purple-600"
+  };
+
   return (
     <Layout>
-      <LeagueNav leagueId={leagueId} />
-      <div className="container mx-auto px-4 py-8">
-        <div className="flex flex-col lg:flex-row justify-between items-start gap-8">
+      <div className="min-h-screen bg-nfl-dark-gray">
+        <LeagueHeader leagueId={leagueId} />
+        <LeagueTabs leagueId={leagueId} activeTab="draft" />
+        
+        <div className="container mx-auto px-4 py-6">
+          <div className="flex flex-col lg:flex-row justify-between items-start gap-8">
           {/* Main Content */}
           <div className="flex-1">
             <div className="flex justify-between items-center mb-6">
@@ -544,6 +597,7 @@ export default function Draft() {
                         <SelectItem value="TE">Tight End (TE)</SelectItem>
                         <SelectItem value="K">Kicker (K)</SelectItem>
                         <SelectItem value="DEF">Defense (DEF)</SelectItem>
+                        <SelectItem value="DP">Defensive Player (DP)</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -594,17 +648,23 @@ export default function Draft() {
                       disabledReason = "No es tu turno";
                     }
                     
+                    // Add mock status and matchup for now
+                    const enhancedPlayer = {
+                      ...player,
+                      status: "healthy" as const,
+                      matchup: `vs ${["KC", "BUF", "SF", "DAL", "GB"][Math.floor(Math.random() * 5)]}`
+                    };
+                    
                     return (
-                      <div key={player.id} className="flex flex-col gap-2">
-                        <PlayerCard
-                          player={player}
-                          onDraft={canDraft ? (playerId) => handleDraft(Number(playerId), slot!) : undefined}
-                          showDraftButton={canDraft}
-                        />
-                        {disabledReason && (
-                          <div className="text-xs text-red-400 px-2">{disabledReason}</div>
-                        )}
-                      </div>
+                      <DraftPlayerCard
+                        key={player.id}
+                        player={enhancedPlayer}
+                        onDraft={canDraft ? (playerId) => handleDraft(Number(playerId), slot!) : undefined}
+                        canDraft={canDraft}
+                        slot={slot}
+                        disabled={!canDraft}
+                        disabledReason={disabledReason}
+                      />
                     );
                   })}
                 </div>
@@ -625,7 +685,7 @@ export default function Draft() {
             </div>
           </div>
           {/* Sidebar */}
-          <div className="lg:w-80 space-y-8">
+          <div className="lg:w-80 space-y-6">
             {/* Draft Timer */}
             <DraftTimer
               isMyTurn={isMyTurn}
@@ -635,7 +695,127 @@ export default function Draft() {
               timerDuration={60}
             />
             
-            <WeeklyElimination />
+            {/* Draft Order */}
+            {draftState?.draft_order && teams.length > 0 && (
+              <Card className="bg-nfl-gray border-nfl-light-gray/20">
+                <CardHeader className="bg-nfl-dark-gray border-b border-nfl-light-gray/20 pb-3">
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <Trophy className="w-5 h-5 text-nfl-blue" />
+                    <span>Draft Order</span>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="p-0">
+                  <div className="max-h-60 overflow-y-auto">
+                    {draftState.draft_order.map((teamId: string, idx: number) => {
+                      const team = teams.find((t) => t.id === teamId);
+                      const isCurrent = idx === (draftState.current_pick || 0);
+                      const isMyTeam = team?.id === userTeam?.id;
+                      
+                      return (
+                        <div
+                          key={teamId}
+                          className={cn(
+                            "px-4 py-2 border-b border-nfl-light-gray/10 last:border-0 flex items-center justify-between",
+                            isCurrent && "bg-nfl-blue/20",
+                            isMyTeam && "bg-nfl-green/10"
+                          )}
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className={cn(
+                              "w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold",
+                              isCurrent ? "bg-nfl-blue text-white" : "bg-nfl-dark-gray text-gray-400"
+                            )}>
+                              {idx + 1}
+                            </div>
+                            <div>
+                              <div className={cn(
+                                "font-medium",
+                                isMyTeam ? "text-nfl-green" : "text-white"
+                              )}>
+                                {team?.name || "Unknown"}
+                              </div>
+                              <div className="text-xs text-gray-400">{team?.owner || "-"}</div>
+                            </div>
+                          </div>
+                          {isCurrent && (
+                            <Badge className="bg-nfl-blue text-white">Now</Badge>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* My Team Roster */}
+            {userTeam && (
+              <Card className="bg-nfl-gray border-nfl-light-gray/20">
+                <CardHeader className="bg-nfl-dark-gray border-b border-nfl-light-gray/20 pb-3">
+                  <CardTitle className="text-lg flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Users className="w-5 h-5 text-nfl-green" />
+                      <span>My Team</span>
+                    </div>
+                    <Badge variant="secondary">
+                      {myRoster.length}/13
+                    </Badge>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="p-0">
+                  <div className="max-h-80 overflow-y-auto">
+                    {myRoster.length === 0 ? (
+                      <div className="p-4 text-center text-gray-400">
+                        No players drafted yet
+                      </div>
+                    ) : (
+                      <div className="divide-y divide-nfl-light-gray/10">
+                        {/* Group by position */}
+                        {Object.entries(SLOT_LIMITS).map(([position, limit]) => {
+                          const playersInPosition = myRoster.filter(p => p.slot === position);
+                          if (playersInPosition.length === 0 && position !== "BENCH") return null;
+                          
+                          return (
+                            <div key={position} className="p-3">
+                              <div className="flex items-center justify-between mb-2">
+                                <span className="text-xs font-medium text-gray-400 uppercase">
+                                  {position === "FLEX" ? "RB/WR" : position}
+                                </span>
+                                <span className="text-xs text-gray-500">
+                                  {playersInPosition.length}/{limit}
+                                </span>
+                              </div>
+                              <div className="space-y-1">
+                                {playersInPosition.map((player) => (
+                                  <div key={player.id} className="flex items-center gap-2 text-sm">
+                                    <Badge className={cn(
+                                      "text-xs",
+                                      positionColors[player.position] || "bg-gray-600",
+                                      "text-white"
+                                    )}>
+                                      {player.position}
+                                    </Badge>
+                                    <span className="text-white truncate">{player.name}</span>
+                                  </div>
+                                ))}
+                                {/* Show empty slots */}
+                                {Array.from({ length: limit - playersInPosition.length }).map((_, idx) => (
+                                  <div key={`empty-${position}-${idx}`} className="flex items-center gap-2 text-sm">
+                                    <div className="w-8 h-5 rounded bg-nfl-dark-gray/50"></div>
+                                    <span className="text-gray-500 italic">Empty</span>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+            
             {/* Draft rules */}
             <Card className="bg-nfl-gray border-nfl-light-gray/20">
               <CardHeader className="bg-nfl-dark-gray border-b border-nfl-light-gray/20">
@@ -663,6 +843,7 @@ export default function Draft() {
             </Card>
           </div>
         </div>
+      </div>
       </div>
     </Layout>
   );

@@ -15,6 +15,7 @@ export function LeagueNav({ leagueId }: LeagueNavProps) {
   
   // Determine which tab is active based on current path
   const getActiveTab = () => {
+    if (pathname.includes("/league-dashboard")) return "dashboard";
     if (pathname.includes("/dashboard")) return "dashboard";
     if (pathname.includes("/standings")) return "standings";
     if (pathname.includes("/draft")) return "draft";
@@ -29,7 +30,7 @@ export function LeagueNav({ leagueId }: LeagueNavProps) {
       <Tabs value={getActiveTab()} className="w-full">
         <TabsList className="bg-nfl-gray border border-nfl-light-gray/20 w-full flex justify-start overflow-x-auto">
           <TabsTrigger value="dashboard" asChild className="data-[state=active]:bg-nfl-blue data-[state=active]:text-white">
-            <Link to={`/dashboard?league=${leagueId}`} className="flex items-center gap-1.5">
+            <Link to={`/league-dashboard?league=${leagueId}`} className="flex items-center gap-1.5">
               <ChartBar className="w-4 h-4" />
               Dashboard
             </Link>

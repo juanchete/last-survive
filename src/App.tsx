@@ -29,6 +29,9 @@ import PrivateRoute from "@/components/PrivateRoute";
 import AdminRoute from "@/components/AdminRoute";
 import Trades from "./pages/Trades";
 import LeagueManagerDashboard from "./pages/LeagueManagerDashboard";
+import LeagueDashboard from "./pages/LeagueDashboard";
+import TeamBattle from "./pages/TeamBattle";
+import Team from "./pages/Team";
 
 const queryClient = new QueryClient();
 
@@ -46,6 +49,9 @@ const App = () => (
               <Route path="/join-league" element={<JoinLeague />} />
               <Route element={<PrivateRoute />}>
             <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/league-dashboard" element={<LeagueDashboard />} />
+            <Route path="/team-battle" element={<TeamBattle />} />
+            <Route path="/team" element={<Team />} />
             <Route path="/draft" element={<Draft />} />
             <Route path="/draft-testing" element={<DraftTesting />} />
             <Route path="/draft-debug/:id" element={<DraftDebug />} />

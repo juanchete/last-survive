@@ -1,20 +1,34 @@
-
 import { Card, CardContent } from "@/components/ui/card";
-import { Player } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { User, Shield, AlertTriangle, Clock, CheckCircle } from "lucide-react";
+import { cn } from "@/lib/utils";
+import type { Player } from "@/types";
 
-interface PlayerCardProps {
-  player: Player;
+interface DraftPlayerCardProps {
+  player: Player & {
+    matchup?: string;
+    status?: "healthy" | "questionable" | "doubtful" | "out" | "bye";
+  };
   onDraft?: (playerId: string) => void;
-  showDraftButton?: boolean;
-  buttonText?: string;
+  canDraft?: boolean;
+  slot?: string;
+  disabled?: boolean;
+  disabledReason?: string;
 }
 
-export function PlayerCard({ player, onDraft, showDraftButton = false, buttonText = "Draft Player" }: PlayerCardProps) {
+export function DraftPlayerCard({ 
+  player, 
+  onDraft, 
+  canDraft = false, 
+  slot,
+  disabled = false,
+  disabledReason
+}: DraftPlayerCardProps) {
   const positionColors = {
     QB: "bg-nfl-blue",
-    RB: "bg-nfl-green",
+    RB: "bg-nfl-green", 
     WR: "bg-nfl-yellow",
     TE: "bg-nfl-accent",
     K: "bg-nfl-lightblue",
@@ -22,24 +36,77 @@ export function PlayerCard({ player, onDraft, showDraftButton = false, buttonTex
     DP: "bg-purple-600"
   };
 
+  const getStatusIcon = () => {
+    switch (player.status) {
+      case "healthy":
+        return <CheckCircle className="w-4 h-4 text-green-500" />;
+      case "questionable":
+        return <AlertTriangle className="w-4 h-4 text-yellow-500" />;
+      case "doubtful":
+      case "out":
+        return <AlertTriangle className="w-4 h-4 text-red-500" />;
+      case "bye":
+        return <Clock className="w-4 h-4 text-gray-400" />;
+      default:
+        return null;
+    }
+  };
+
+  const getStatusBg = () => {
+    switch (player.status) {
+      case "healthy":
+        return "";
+      case "questionable":
+        return "bg-yellow-500/10";
+      case "doubtful":
+      case "out":
+        return "bg-red-500/10";
+      case "bye":
+        return "bg-gray-500/10";
+      default:
+        return "";
+    }
+  };
+
   return (
-    <Card className="overflow-hidden bg-nfl-gray border-nfl-light-gray/20 hover:border-nfl-blue/50 transition-all duration-200">
+    <Card className={cn(
+      "overflow-hidden bg-nfl-gray border-nfl-light-gray/20 transition-all duration-200",
+      canDraft && !disabled && "hover:border-nfl-blue/50",
+      disabled && "opacity-60"
+    )}>
       <CardContent className="p-0">
-        <div className="flex flex-col">
+        <div className={cn("flex flex-col", getStatusBg())}>
+          {/* Header with position, team, and points */}
           <div className="bg-nfl-dark-gray p-3 flex justify-between items-center">
             <div className="flex items-center gap-2">
-              <Badge className={`${positionColors[player.position]} text-white`}>
+              <Badge className={cn(positionColors[player.position], "text-white")}>
                 {player.position}
               </Badge>
               <span className="text-sm text-gray-400">{player.team}</span>
+              {getStatusIcon()}
             </div>
             <div className="text-nfl-blue font-bold">{player.points} PTS</div>
           </div>
           
+          {/* Player info */}
           <div className="p-4">
-            <h3 className="font-bold text-lg mb-2">{player.name}</h3>
+            <div className="flex items-center gap-3 mb-3">
+              <Avatar className="h-12 w-12 border-2 border-nfl-light-gray/20">
+                <AvatarImage src={player.photo} alt={player.name} />
+                <AvatarFallback className="bg-nfl-dark-gray">
+                  <User className="h-6 w-6 text-gray-400" />
+                </AvatarFallback>
+              </Avatar>
+              <div className="flex-1">
+                <h3 className="font-bold text-lg">{player.name}</h3>
+                {player.matchup && (
+                  <p className="text-sm text-gray-400">{player.matchup}</p>
+                )}
+              </div>
+            </div>
             
-            <div className="grid grid-cols-2 gap-2 mt-4 text-sm">
+            {/* Stats grid */}
+            <div className="grid grid-cols-2 gap-2 text-sm mb-4">
               {player.stats?.passingYards && (
                 <div className="flex justify-between">
                   <span className="text-gray-400">Pass Yards</span>
@@ -111,22 +178,19 @@ export function PlayerCard({ player, onDraft, showDraftButton = false, buttonTex
               )}
             </div>
             
-            {player.eliminated && (
-              <Badge variant="destructive" className="mt-4 w-full justify-center">
-                Eliminated
-              </Badge>
-            )}
-            
-            {showDraftButton && !player.eliminated && (
-              <div className="mt-4">
-                <Button 
-                  className="w-full bg-nfl-blue hover:bg-nfl-lightblue" 
-                  onClick={() => onDraft && onDraft(player.id)}
-                >
-                  {buttonText}
-                </Button>
+            {/* Draft button or disabled reason */}
+            {canDraft && !disabled ? (
+              <Button 
+                className="w-full bg-nfl-blue hover:bg-nfl-lightblue" 
+                onClick={() => onDraft && onDraft(player.id)}
+              >
+                Draft to {slot}
+              </Button>
+            ) : disabledReason ? (
+              <div className="text-xs text-red-400 text-center p-2 bg-red-500/10 rounded">
+                {disabledReason}
               </div>
-            )}
+            ) : null}
           </div>
         </div>
       </CardContent>

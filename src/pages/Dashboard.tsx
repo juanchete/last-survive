@@ -9,9 +9,12 @@ import { Button } from "@/components/ui/button";
 import { TeamCard } from "@/components/TeamCard";
 import { PlayerCard } from "@/components/PlayerCard";
 import { WeeklyElimination } from "@/components/WeeklyElimination";
-import { ArrowRight, User, Trophy, Calendar, LayoutDashboard, TrendingUp, Star } from "lucide-react";
+import { ArrowRight, User, Trophy, Calendar, LayoutDashboard, TrendingUp, Star, Shield, Target } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import { LeagueNav } from "@/components/LeagueNav";
+import { PageHeader } from "@/components/ui/page-header";
+import { SectionHeader } from "@/components/ui/section-header";
+import { StatCard } from "@/components/ui/stat-card";
 import { FantasyTeam, Player } from "@/types";
 
 
@@ -45,76 +48,99 @@ export default function Dashboard() {
   return (
     <Layout>
       <LeagueNav leagueId={leagueId} />
-      <div className="container mx-auto px-4 py-6">
-        {/* Enhanced Header Section */}
-        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-nfl-blue via-nfl-blue/90 to-blue-700 border border-nfl-blue/20 mb-8">
-          <div className="absolute inset-0 bg-[url('data:image/svg+xml,%3Csvg width=&quot;60&quot; height=&quot;60&quot; viewBox=&quot;0 0 60 60&quot; xmlns=&quot;http://www.w3.org/2000/svg&quot;%3E%3Cg fill=&quot;none&quot; fill-rule=&quot;evenodd&quot;%3E%3Cg fill=&quot;%23ffffff&quot; fill-opacity=&quot;0.05&quot;%3E%3Ccircle cx=&quot;30&quot; cy=&quot;30&quot; r=&quot;2&quot;/%3E%3C/g%3E%3C/g%3E%3C/svg%3E')] opacity-30"></div>
-          <div className="relative p-8">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                <div className="w-16 h-16 bg-white/10 rounded-2xl flex items-center justify-center backdrop-blur-sm border border-white/20">
-                  <LayoutDashboard className="w-8 h-8 text-white" />
-                </div>
-                <div>
-                  <h1 className="text-4xl font-bold text-white mb-2">Dashboard</h1>
-                  <p className="text-blue-100 text-lg">Week {currentWeek} • Command your fantasy empire</p>
-                </div>
-              </div>
-              {userTeam && (
-                <div className="text-right">
-                  <Badge variant="outline" className="bg-white/10 text-white border-white/30 backdrop-blur-sm px-4 py-2 text-sm mb-2">
-                    <Star className="w-4 h-4 mr-2" />
-                    Rank #{userTeam.rank}
-                  </Badge>
-                  <div className="text-white/80 text-sm">
-                    {userTeam.points} Points
-                  </div>
-                </div>
-              )}
+      <div className="min-h-screen bg-nfl-dark-gray">
+        <div className="container mx-auto px-4 py-6">
+          {/* Enhanced Header Section */}
+          <PageHeader 
+            title="Team Dashboard"
+            subtitle={`Week ${currentWeek} • Command your fantasy empire`}
+            badge={userTeam && !userTeam.eliminated ? { text: "ACTIVE", variant: "default" } : undefined}
+            stats={userTeam ? [
+              { label: "Rank", value: `#${userTeam.rank}`, highlight: userTeam.rank <= 3 },
+              { label: "Points", value: userTeam.points }
+            ] : undefined}
+            className="mb-8"
+          />
+
+          {/* Quick Stats */}
+          {userTeam && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+              <StatCard
+                icon={Trophy}
+                iconColor="text-yellow-400"
+                label="Current Rank"
+                value={`#${userTeam.rank}`}
+                subValue={`of ${teams.length} teams`}
+                trend={userTeam.rank <= 3 ? "up" : userTeam.rank > teams.length * 0.5 ? "down" : "neutral"}
+              />
+              <StatCard
+                icon={TrendingUp}
+                iconColor="text-nfl-green"
+                label="Total Points"
+                value={userTeam.points}
+                subValue="Season total"
+              />
+              <StatCard
+                icon={Shield}
+                iconColor="text-nfl-blue"
+                label="Win Rate"
+                value="75%"
+                subValue="Last 4 weeks"
+                trend="up"
+              />
+              <StatCard
+                icon={Target}
+                iconColor="text-purple-400"
+                label="Projected Finish"
+                value="Top 5"
+                subValue="Based on performance"
+              />
             </div>
-          </div>
-        </div>
+          )}
 
         <div className="grid lg:grid-cols-3 gap-8">
           {/* Main Content Column */}
           <div className="lg:col-span-2 space-y-8">
             {/* Your Team Section */}
             <section>
-              <div className="flex justify-between items-center mb-6">
-                <div>
-                  <h2 className="text-2xl font-bold text-white mb-2">Your Team</h2>
-                  <p className="text-gray-400">Manage your roster and optimize your lineup</p>
-                </div>
-                <Button asChild variant="outline" className="border-nfl-blue text-nfl-blue hover:bg-nfl-blue/10 backdrop-blur-sm">
-                  <Link to="/team" className="flex items-center gap-1">
-                    Manage Team <ArrowRight className="w-4 h-4" />
-                  </Link>
-                </Button>
-              </div>
+              <SectionHeader
+                title="Your Team"
+                subtitle="Manage your roster and optimize your lineup"
+                action={
+                  <Button asChild variant="outline" className="border-nfl-blue text-nfl-blue hover:bg-nfl-blue/10 backdrop-blur-sm">
+                    <Link to="/team" className="flex items-center gap-1">
+                      Manage Team <ArrowRight className="w-4 h-4" />
+                    </Link>
+                  </Button>
+                }
+              />
               
               {loadingUserTeam ? (
-                <Card className="bg-gradient-to-br from-nfl-gray via-nfl-gray/95 to-nfl-gray/90 border-nfl-light-gray/20">
+                <Card className="bg-nfl-gray border-nfl-light-gray/20">
                   <CardContent className="p-8">
                     <div className="animate-pulse">
-                      <div className="h-6 bg-gray-600 rounded mb-4 w-3/4"></div>
-                      <div className="h-4 bg-gray-600 rounded w-1/2"></div>
+                      <div className="h-6 bg-gray-700 rounded mb-4 w-3/4"></div>
+                      <div className="h-4 bg-gray-700 rounded w-1/2"></div>
                     </div>
                   </CardContent>
                 </Card>
               ) : userTeam ? (
-                <div className="bg-gradient-to-br from-nfl-gray via-nfl-gray/95 to-nfl-gray/90 border border-nfl-light-gray/20 rounded-2xl overflow-hidden">
+                <Card className="bg-nfl-gray border-nfl-light-gray/20 overflow-hidden hover:border-nfl-blue/30 transition-all duration-300">
                   <div className="bg-gradient-to-r from-nfl-blue/10 to-transparent p-1">
-                    <div className="bg-nfl-dark-gray/50 rounded-xl p-6">
+                    <div className="p-6">
                       <TeamCard team={userTeam} isUser={true} />
                     </div>
                   </div>
-                </div>
+                </Card>
               ) : (
-                <Card className="bg-gradient-to-br from-nfl-gray via-nfl-gray/95 to-nfl-gray/90 border-nfl-light-gray/20">
+                <Card className="bg-nfl-gray border-nfl-light-gray/20">
                   <CardContent className="p-8 text-center">
-                    <User className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                    <p className="text-gray-400 text-lg">You don't have a team in this league</p>
-                    <Button asChild className="mt-4 bg-nfl-blue hover:bg-nfl-lightblue">
+                    <div className="w-16 h-16 bg-gray-800 rounded-full flex items-center justify-center mx-auto mb-4">
+                      <User className="w-8 h-8 text-gray-400" />
+                    </div>
+                    <p className="text-gray-400 text-lg mb-2">You don't have a team in this league</p>
+                    <p className="text-gray-500 text-sm mb-6">Join now to start competing</p>
+                    <Button asChild className="bg-nfl-blue hover:bg-nfl-lightblue">
                       <Link to={`/join-league?league=${leagueId}`}>Join League</Link>
                     </Button>
                   </CardContent>
@@ -124,48 +150,48 @@ export default function Dashboard() {
 
             {/* Top Available Players */}
             <section>
-              <div className="flex justify-between items-center mb-6">
-                <div>
-                  <h2 className="text-2xl font-bold text-white mb-2">Top Available Players</h2>
-                  <p className="text-gray-400">High-performing players ready to join your roster</p>
-                </div>
-                <Button asChild variant="outline" className="border-nfl-blue text-nfl-blue hover:bg-nfl-blue/10 backdrop-blur-sm">
-                  <Link to={`/draft?league=${leagueId}`} className="flex items-center gap-1">
-                    View All <ArrowRight className="w-4 h-4" />
-                  </Link>
-                </Button>
-              </div>
+              <SectionHeader
+                title="Top Available Players"
+                subtitle="High-performing players ready to join your roster"
+                action={
+                  <Button asChild variant="outline" className="border-nfl-blue text-nfl-blue hover:bg-nfl-blue/10 backdrop-blur-sm">
+                    <Link to={`/draft?league=${leagueId}`} className="flex items-center gap-1">
+                      View All <ArrowRight className="w-4 h-4" />
+                    </Link>
+                  </Button>
+                }
+              />
               
               {loadingPlayers ? (
                 <div className="grid sm:grid-cols-2 gap-4">
                   {Array(4).fill(0).map((_, i) => (
-                    <Card key={i} className="bg-gradient-to-br from-nfl-gray via-nfl-gray/95 to-nfl-gray/90 border-nfl-light-gray/20">
+                    <Card key={i} className="bg-nfl-gray border-nfl-light-gray/20">
                       <CardContent className="p-6">
                         <div className="animate-pulse">
-                          <div className="h-6 bg-gray-600 rounded mb-2 w-3/4"></div>
-                          <div className="h-4 bg-gray-600 rounded w-1/2"></div>
+                          <div className="h-6 bg-gray-700 rounded mb-2 w-3/4"></div>
+                          <div className="h-4 bg-gray-700 rounded w-1/2"></div>
                         </div>
                       </CardContent>
                     </Card>
                   ))}
                 </div>
               ) : topAvailablePlayers.length === 0 ? (
-                <Card className="bg-gradient-to-br from-nfl-gray via-nfl-gray/95 to-nfl-gray/90 border-nfl-light-gray/20">
+                <Card className="bg-nfl-gray border-nfl-light-gray/20">
                   <CardContent className="p-8 text-center">
-                    <TrendingUp className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                    <div className="w-16 h-16 bg-gray-800 rounded-full flex items-center justify-center mx-auto mb-4">
+                      <TrendingUp className="w-8 h-8 text-gray-400" />
+                    </div>
                     <p className="text-gray-400 text-lg">No players available at the moment</p>
                   </CardContent>
                 </Card>
               ) : (
                 <div className="grid sm:grid-cols-2 gap-4">
                   {topAvailablePlayers.map(player => (
-                    <div key={player.id} className="bg-gradient-to-br from-nfl-gray via-nfl-gray/95 to-nfl-gray/90 border border-nfl-light-gray/20 rounded-2xl overflow-hidden hover:border-nfl-blue/30 transition-all duration-300">
-                      <div className="bg-gradient-to-r from-nfl-blue/10 to-transparent p-1">
-                        <div className="bg-nfl-dark-gray/50 rounded-xl p-4">
-                          <PlayerCard player={player} />
-                        </div>
-                      </div>
-                    </div>
+                    <Card key={player.id} className="bg-nfl-gray border-nfl-light-gray/20 overflow-hidden hover:border-nfl-blue/30 transition-all duration-300">
+                      <CardContent className="p-4">
+                        <PlayerCard player={player} />
+                      </CardContent>
+                    </Card>
                   ))}
                 </div>
               )}
@@ -173,7 +199,7 @@ export default function Dashboard() {
 
             {/* Quick Actions */}
             <section>
-              <h2 className="text-2xl font-bold text-white mb-6">Quick Actions</h2>
+              <SectionHeader title="Quick Actions" className="mb-4" />
               <div className="grid sm:grid-cols-3 gap-4">
                 <Button asChild className="h-auto p-6 bg-gradient-to-br from-nfl-blue to-nfl-lightblue hover:from-nfl-lightblue hover:to-nfl-blue transition-all duration-300">
                   <Link to={`/draft?league=${leagueId}`} className="flex flex-col items-center gap-2">
@@ -200,32 +226,30 @@ export default function Dashboard() {
           {/* Sidebar Column */}
           <div className="space-y-6">
             {/* Weekly Elimination */}
-            <div className="bg-gradient-to-br from-nfl-gray via-nfl-gray/95 to-nfl-gray/90 border border-nfl-light-gray/20 rounded-2xl overflow-hidden">
+            <Card className="bg-nfl-gray border-nfl-light-gray/20 overflow-hidden">
               <div className="bg-gradient-to-r from-nfl-red/10 to-transparent p-1">
-                <div className="rounded-xl">
-                  <WeeklyElimination />
-                </div>
+                <WeeklyElimination />
               </div>
-            </div>
+            </Card>
 
             {/* Leaderboard */}
-            <Card className="bg-gradient-to-br from-nfl-gray via-nfl-gray/95 to-nfl-gray/90 border-nfl-light-gray/20 overflow-hidden">
+            <Card className="bg-nfl-gray border-nfl-light-gray/20 overflow-hidden">
               <div className="bg-gradient-to-r from-yellow-500/10 to-transparent p-1">
-                <CardHeader className="bg-nfl-dark-gray/50 border-b border-nfl-light-gray/20 rounded-t-xl">
+                <CardHeader className="border-b border-nfl-light-gray/20">
                   <CardTitle className="flex items-center gap-2 text-lg">
                     <Trophy className="w-5 h-5 text-yellow-400" />
                     <span>League Leaders</span>
                   </CardTitle>
                 </CardHeader>
-                <CardContent className="p-6 bg-nfl-dark-gray/30 rounded-b-xl">
+                <CardContent className="p-6">
                   {loadingTeams ? (
                     <div className="space-y-4">
                       {Array(3).fill(0).map((_, i) => (
                         <div key={i} className="animate-pulse flex items-center gap-3 p-3">
-                          <div className="w-8 h-8 bg-gray-600 rounded-full"></div>
+                          <div className="w-8 h-8 bg-gray-700 rounded-full"></div>
                           <div className="flex-1">
-                            <div className="h-4 bg-gray-600 rounded mb-2 w-3/4"></div>
-                            <div className="h-3 bg-gray-600 rounded w-1/2"></div>
+                            <div className="h-4 bg-gray-700 rounded mb-2 w-3/4"></div>
+                            <div className="h-3 bg-gray-700 rounded w-1/2"></div>
                           </div>
                         </div>
                       ))}
@@ -258,15 +282,15 @@ export default function Dashboard() {
             </Card>
 
             {/* Season Timeline */}
-            <Card className="bg-gradient-to-br from-nfl-gray via-nfl-gray/95 to-nfl-gray/90 border-nfl-light-gray/20 overflow-hidden">
+            <Card className="bg-nfl-gray border-nfl-light-gray/20 overflow-hidden">
               <div className="bg-gradient-to-r from-nfl-blue/10 to-transparent p-1">
-                <CardHeader className="bg-nfl-dark-gray/50 border-b border-nfl-light-gray/20 rounded-t-xl">
+                <CardHeader className="border-b border-nfl-light-gray/20">
                   <CardTitle className="flex items-center gap-2 text-lg">
                     <Calendar className="w-5 h-5 text-nfl-blue" />
                     <span>Season Progress</span>
                   </CardTitle>
                 </CardHeader>
-                <CardContent className="p-4 bg-nfl-dark-gray/30 rounded-b-xl">
+                <CardContent className="p-4">
                   <div className="space-y-2 max-h-[300px] overflow-y-auto scrollbar-thin scrollbar-thumb-nfl-blue/20 scrollbar-track-transparent pr-2">
                     {Array.from({ length: 18 }, (_, i) => i + 1).map((week) => (
                       <div key={week} 
@@ -297,6 +321,7 @@ export default function Dashboard() {
               </div>
             </Card>
           </div>
+        </div>
         </div>
       </div>
     </Layout>

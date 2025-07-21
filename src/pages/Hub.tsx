@@ -126,7 +126,7 @@ const Hub = () => {
                     <div className="text-sm text-muted-foreground">
                       {league.max_members ? `${league.max_members} max members` : ""}
                     </div>
-                    <Link to={`/dashboard?league=${league.id}`}>
+                    <Link to={`/league-dashboard?league=${league.id}`}>
                       <Button variant="outline" size="sm">
                         View League
                       </Button>

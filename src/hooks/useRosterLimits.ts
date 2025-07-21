@@ -36,19 +36,20 @@ export function useRosterLimits(
 
       // Calcular límites manualmente ya que la función SQL puede no estar disponible aún
       const currentRosterCount = data?.length || 0;
-      const maxRosterSize = 16;
+      const maxRosterSize = 13;
 
       const positionCount =
         data?.filter((roster) => roster.players.position === positionToAdd)
           .length || 0;
 
       const maxPositionLimits: Record<string, number> = {
-        QB: 3,
-        RB: 6,
-        WR: 6,
-        TE: 3,
-        K: 2,
-        DEF: 2,
+        QB: 1,
+        RB: 3,  // 2 starting + 1 flex potential
+        WR: 3,  // 2 starting + 1 flex potential
+        TE: 1,
+        K: 1,
+        DEF: 1,
+        DP: 1,
       };
 
       const maxPositionCount = maxPositionLimits[positionToAdd] || 3;

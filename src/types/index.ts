@@ -1,7 +1,7 @@
 export interface Player {
   id: string;
   name: string;
-  position: "QB" | "RB" | "WR" | "TE" | "K" | "DEF";
+  position: "QB" | "RB" | "WR" | "TE" | "K" | "DEF" | "DP";
   team: string;
   stats?: {
     passingYards?: number;
@@ -190,7 +190,7 @@ export interface AdminStats {
 export interface PlayerEditData {
   id: number;
   name: string;
-  position: "QB" | "RB" | "WR" | "TE" | "K" | "DEF";
+  position: "QB" | "RB" | "WR" | "TE" | "K" | "DEF" | "DP";
   nfl_team_id?: number;
   photo_url?: string;
 }
