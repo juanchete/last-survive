@@ -15,7 +15,7 @@ import { LeagueNav } from "@/components/LeagueNav";
 import { PageHeader } from "@/components/ui/page-header";
 import { SectionHeader } from "@/components/ui/section-header";
 import { StatCard } from "@/components/ui/stat-card";
-import { FantasyTeam, Player } from "@/types";
+
 
 
 export default function Dashboard() {

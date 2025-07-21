@@ -55,14 +55,12 @@ export default function DraftDebug() {
 
   // Función para refrescar todos los datos
   const refreshAllData = async () => {
-    console.log('🔄 Refrescando todos los datos...');
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: ["availablePlayers", leagueId, currentWeek] }),
       queryClient.invalidateQueries({ queryKey: ["draftState", leagueId] }),
       queryClient.invalidateQueries({ queryKey: ["fantasyTeams", leagueId] }),
       queryClient.invalidateQueries({ queryKey: ["isLeagueOwner", leagueId, user?.id] }),
     ]);
-    console.log('✅ Datos refrescados exitosamente');
   };
 
   // Cargar info de debug
@@ -79,7 +77,6 @@ export default function DraftDebug() {
       isOwner,
     };
     setDebugInfo(info);
-    console.log('🔍 Debug Info:', info);
   }, [leagueId, user, userTeam, teams, availablePlayers, draftState, isMyTurn, isOwner]);
 
   // Control functions
@@ -189,11 +186,6 @@ export default function DraftDebug() {
   };
 
   const handleDebugDraft = async (playerId: number) => {
-    console.log('🎯 INICIO DEBUG DRAFT');
-    console.log('Player ID:', playerId);
-    console.log('User Team:', userTeam);
-    console.log('Is My Turn:', isMyTurn);
-    console.log('League ID:', leagueId);
 
     if (!userTeam) {
       console.error('❌ No userTeam found');
@@ -210,7 +202,6 @@ export default function DraftDebug() {
     setLoadingPick(true);
     
     try {
-      console.log('🚀 Ejecutando draftPlayer...');
       
       const result = await draftPlayer({
         leagueId,
@@ -220,7 +211,6 @@ export default function DraftDebug() {
         slot: "bench", // Slot por defecto para debug
       });
 
-      console.log('✅ Draft EXITOSO:', result);
       toast.success(`¡Jugador ${playerId} drafteado exitosamente!`);
       
       // Refrescar datos después del draft
@@ -402,7 +392,6 @@ export default function DraftDebug() {
               🔄 Refresh Data
             </Button>
             <Button 
-              onClick={() => console.log('Current state:', { debugInfo, availablePlayers, teams, userTeam })}
               variant="outline"
             >
               🖨️ Log State

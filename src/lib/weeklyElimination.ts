@@ -40,12 +40,6 @@ export async function calculateWeeklyScores(
   season: number = 2024
 ): Promise<WeeklyScore[]> {
   try {
-    console.log("🔢 Calculando puntajes semanales...", {
-      leagueId,
-      week,
-      season,
-    });
-
     // 1. Obtener todos los equipos de la liga
     const { data: teams, error: teamsError } = await supabase
       .from("fantasy_teams")
@@ -56,11 +50,9 @@ export async function calculateWeeklyScores(
     if (teamsError)
       throw new Error(`Error obteniendo equipos: ${teamsError.message}`);
     if (!teams || teams.length === 0) {
-      console.log("⚠️ No se encontraron equipos activos en la liga");
       return [];
     }
 
-    console.log(`📊 Calculando para ${teams.length} equipos activos`);
 
     const weeklyScores: WeeklyScore[] = [];
 
@@ -93,14 +85,6 @@ export async function calculateWeeklyScores(
 
     // 3. Ordenar por puntaje (menor a mayor para identificar eliminación)
     weeklyScores.sort((a, b) => a.totalPoints - b.totalPoints);
-
-    console.log(
-      "✅ Puntajes calculados:",
-      weeklyScores.map(
-        (s) =>
-          `${s.teamName}: ${s.totalPoints} pts (${s.activePlayersCount} jugadores)`
-      )
-    );
 
     return weeklyScores;
   } catch (error) {
@@ -146,9 +130,6 @@ async function calculateTeamWeeklyScore(
   if (rosterError)
     throw new Error(`Error obteniendo roster: ${rosterError.message}`);
   if (!roster || roster.length === 0) {
-    console.log(
-      `⚠️ No se encontró roster para equipo ${fantasyTeamId} en semana ${week}`
-    );
     return {
       totalPoints: 0,
       activePlayersCount: 0,
@@ -209,12 +190,6 @@ export async function processWeeklyEliminationWithMVP(
   season: number = 2024
 ): Promise<EliminationResult> {
   try {
-    console.log("⚡ Iniciando proceso semanal con MVP...", {
-      leagueId,
-      week,
-      season,
-    });
-
     // Usar la función de base de datos que procesa MVP + eliminación
     const { data, error } = await supabase.rpc(
       "process_weekly_elimination_with_mvp",
@@ -229,7 +204,6 @@ export async function processWeeklyEliminationWithMVP(
       throw new Error(`Error procesando semana: ${error.message}`);
     }
 
-    console.log("✅ Proceso completado:", data);
 
     return {
       success: true,
@@ -286,7 +260,6 @@ export async function processWeeklyElimination(leagueId: string, week: number) {
       );
     }
 
-    console.log("✅ Función de eliminación invocada exitosamente:", data);
     return data;
   } catch (error) {
     console.error("💥 Error en processWeeklyElimination:", error);

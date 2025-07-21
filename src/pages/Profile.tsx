@@ -40,7 +40,6 @@ const Profile = () => {
     
     try {
       // For now this is a placeholder - we'll connect to Supabase later
-      console.log("Profile data to save:", data);
       setTimeout(() => {
         setIsLoading(false);
         alert("Profile updated successfully!");

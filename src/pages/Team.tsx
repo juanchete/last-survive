@@ -12,7 +12,7 @@ import { useRosterWithPlayerDetails } from "@/hooks/useRosterWithPlayerDetails";
 import { useCurrentWeek } from "@/hooks/useCurrentWeek";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
-import { toast } from "@/components/ui/use-toast";
+import { toast } from "@/hooks/use-toast";
 import { User, Save, AlertTriangle, CheckCircle, XCircle, Clock, Shield } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Player } from "@/types";

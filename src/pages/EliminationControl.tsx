@@ -71,7 +71,7 @@ export default function EliminationControl() {
     const confirmed = window.confirm(
       `¿Estás seguro de procesar la eliminación para la semana ${selectedWeek}?\n\n` +
       `Esto eliminará al equipo: ${weeklyScores[0]?.teamName} (${weeklyScores[0]?.totalPoints} pts)\n\n` +
-      `Esta acción NO se puede deshacer.`
+      `Esta acción no se puede deshacer.`
     );
 
     if (confirmed) {

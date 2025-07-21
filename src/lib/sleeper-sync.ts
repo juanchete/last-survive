@@ -26,7 +26,6 @@ export class SleeperSyncService {
    */
   async syncNFLTeams(): Promise<{ success: boolean; message: string; count?: number }> {
     try {
-      console.log('🏈 Starting NFL teams sync...');
       
       // Get current teams from database
       const { data: existingTeams } = await supabase
@@ -122,9 +121,7 @@ export class SleeperSyncService {
                 .update({ name: teamName })
                 .eq('abbreviation', teamAbbr);
               
-              if (updateError) {
-                console.warn(`Could not update team ${teamAbbr}:`, updateError);
-              } else {
+              if (!updateError) {
                 teamsUpdated++;
               }
             } else {
@@ -136,7 +133,6 @@ export class SleeperSyncService {
         }
       }
 
-      console.log(`✅ NFL teams sync completed: ${teamsInserted} added, ${teamsUpdated} updated`);
       
       return {
         success: true,
@@ -160,7 +156,6 @@ export class SleeperSyncService {
     activeOnly: boolean = true
   ): Promise<{ success: boolean; message: string; count?: number }> {
     try {
-      console.log('👥 Starting players sync...');
       
       // Ensure teams are synced first
       await this.syncNFLTeams();
@@ -210,7 +205,6 @@ export class SleeperSyncService {
       filteredPlayers.forEach(([sleeperId, player]) => {
         // Additional validation
         if (!player || !player.position || !player.full_name) {
-          console.warn(`Skipping invalid player with ID ${sleeperId}`);
           return;
         }
         
@@ -255,7 +249,6 @@ export class SleeperSyncService {
 
       // Use upsert to handle conflicts automatically
       if (playersToInsert.length > 0) {
-        console.log(`Inserting ${playersToInsert.length} new players...`);
         
         const batchSize = 100;
         for (let i = 0; i < playersToInsert.length; i += batchSize) {
@@ -268,7 +261,6 @@ export class SleeperSyncService {
           
           if (insertError) {
             // If batch insert fails, handle conflicts individually
-            console.warn(`Batch insert failed, trying individual inserts for batch ${i/batchSize + 1}`);
             
             for (const playerData of batch) {
               const { error: singleInsertError } = await supabase
@@ -291,7 +283,6 @@ export class SleeperSyncService {
                     playersUpdated++;
                   } else {
                     // If update by sleeper_id fails, skip this player
-                    console.warn(`Skipping player ${playerData.name} - conflict and update failed`);
                   }
                 } else {
                   console.error(`Error with player ${playerData.name}:`, singleInsertError);
@@ -313,14 +304,11 @@ export class SleeperSyncService {
           .update(playerUpdate.updates)
           .eq('id', playerUpdate.id);
         
-        if (updateError) {
-          console.warn(`Could not update existing player:`, updateError);
-        } else {
+        if (!updateError) {
           playersUpdated++;
         }
       }
 
-      console.log(`✅ Players sync completed: ${playersInserted} added, ${playersUpdated} updated`);
       
       return {
         success: true,
@@ -345,7 +333,6 @@ export class SleeperSyncService {
     scoringType: 'std' | 'ppr' | 'half_ppr' = 'std'
   ): Promise<{ success: boolean; message: string; count?: number }> {
     try {
-      console.log(`📊 Starting weekly stats sync for ${season} Week ${week}...`);
       
       // Get current players from database
       const { data: players } = await supabase
@@ -454,7 +441,6 @@ export class SleeperSyncService {
         if (updateError) throw updateError;
       }
 
-      console.log(`✅ Weekly stats sync completed: ${statsToInsert.length} added, ${statsToUpdate.length} updated`);
       
       return {
         success: true,
@@ -475,7 +461,6 @@ export class SleeperSyncService {
    */
   async mapExistingPlayersToSleeper(): Promise<{ success: boolean; message: string; count?: number }> {
     try {
-      console.log('🔄 Starting existing players mapping to Sleeper...');
       
       // Get existing players without sleeper_id
       const { data: existingPlayers } = await supabase
@@ -491,13 +476,12 @@ export class SleeperSyncService {
         };
       }
 
-      console.log(`Found ${existingPlayers.length} players without sleeper_id`);
 
       // Get all players from Sleeper
       const sleeperPlayers = await sleeperAPI.getAllPlayers();
       
       let mappedCount = 0;
-      let unmappedPlayers: string[] = [];
+      const unmappedPlayers: string[] = [];
 
       // Map each existing player
       for (const player of existingPlayers) {
@@ -543,7 +527,6 @@ export class SleeperSyncService {
 
           if (existingPlayerWithSleeperId) {
             // Sleeper ID already exists - this is a duplicate player
-            console.warn(`🔄 Duplicate found: ${player.name} (ID: ${player.id}) already exists as ${existingPlayerWithSleeperId.name} (ID: ${existingPlayerWithSleeperId.id}) with Sleeper ID ${sleeperMatch}`);
             unmappedPlayers.push(`${player.name} (duplicate - Sleeper ID ${sleeperMatch} already used by player ID ${existingPlayerWithSleeperId.id})`);
           } else {
             // No duplicate, safe to update
@@ -557,20 +540,13 @@ export class SleeperSyncService {
               unmappedPlayers.push(`${player.name} (update failed)`);
             } else {
               mappedCount++;
-              console.log(`✅ Mapped ${player.name} to Sleeper ID ${sleeperMatch}`);
             }
           }
         } else {
           unmappedPlayers.push(player.name);
-          console.warn(`❌ Could not find Sleeper match for ${player.name} (${player.position})`);
         }
       }
 
-      console.log(`✅ Player mapping completed: ${mappedCount} mapped, ${unmappedPlayers.length} unmapped`);
-      
-      if (unmappedPlayers.length > 0) {
-        console.log('Unmapped players:', unmappedPlayers);
-      }
       
       return {
         success: true,

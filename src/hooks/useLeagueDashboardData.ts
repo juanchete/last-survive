@@ -167,7 +167,6 @@ export function useLeagueDashboardData(leagueId: string, week?: number) {
         .single();
       if (error) {
         // Si no hay semana activa, usar semana 1 por defecto
-        console.warn("No active week found, using week 1");
         return { number: 1 };
       }
       return data;

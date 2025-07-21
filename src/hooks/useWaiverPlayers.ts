@@ -17,8 +17,6 @@ export function useWaiverPlayers(leagueId: string, week: number) {
         rosters
           ?.filter((r) => r.fantasy_team?.league_id === leagueId)
           .map((r) => r.player_id) || [];
-      console.log("[useWaiverPlayers] Rosters asignados:", rosters);
-      console.log("[useWaiverPlayers] IDs asignados:", assignedIds);
 
       // Get unassigned players
       let query = supabase
@@ -29,7 +27,6 @@ export function useWaiverPlayers(leagueId: string, week: number) {
       }
       const { data: players, error } = await query;
       if (error) throw error;
-      console.log("[useWaiverPlayers] Jugadores encontrados:", players);
 
       // Get player stats for the current week
       const { data: stats, error: statsError } = await supabase
@@ -63,7 +60,6 @@ export function useWaiverPlayers(leagueId: string, week: number) {
           photo: player.photo_url,
         } as Player;
       });
-      console.log("[useWaiverPlayers] Resultado final:", result);
       return result;
     },
     enabled: !!leagueId && !!week,

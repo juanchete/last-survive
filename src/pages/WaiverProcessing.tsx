@@ -7,9 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useIsLeagueOwner } from "@/hooks/useIsLeagueOwner";
-import { useMyWaiverRequests } from "@/hooks/useMyWaiverRequests";
 import { supabase } from "@/integrations/supabase/client";
-import { toast } from "@/components/ui/use-toast";
+import { toast } from "@/hooks/use-toast";
 import { 
   Loader2, 
   Settings, 
@@ -103,7 +102,6 @@ const WaiverProcessing = () => {
         title: "Debug Info",
         description: `Waivers pendientes: ${result.pending_waiver_requests || 0}, Prioridades: ${result.waiver_priority_records || 0}, Matches: ${result.joined_records_matching_criteria || 0}`,
       });
-      console.log("Debug Waiver Processing:", result);
     } catch (error: any) {
       toast({
         title: "Error en Debug",

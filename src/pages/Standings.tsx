@@ -4,7 +4,6 @@ import { useUserFantasyTeam } from "@/hooks/useUserFantasyTeam";
 import { useLocation } from "react-router-dom";
 import { LeagueHeader } from "@/components/LeagueHeader";
 import { LeagueTabs } from "@/components/LeagueTabs";
-import { Button } from "@/components/ui/button";
 import { Trophy, TrendingUp, Users, Shield } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";

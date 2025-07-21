@@ -1,6 +1,14 @@
 
 "use client";
-import { AnimatedWords } from "./AnimatedWords";
+
+// Simple animated words component
+const AnimatedWords = () => {
+  return (
+    <span className="text-4xl md:text-6xl font-bold text-white">
+      Survive or Get Eliminated
+    </span>
+  );
+};
 
 function HeroStadium({
   badge = "Survive the Fantasy",

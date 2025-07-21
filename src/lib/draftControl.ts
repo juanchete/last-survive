@@ -116,12 +116,6 @@ export async function simulateCompleteDraft(
   maxRounds: number = 15
 ): Promise<SimulateDraftResult> {
   try {
-    console.log("🤖 Iniciando simulación de draft completo...", {
-      userId,
-      leagueId,
-      maxRounds,
-    });
-
     // Verificar permisos
     const isOwner = await verifyLeagueOwnership(userId, leagueId);
     if (!isOwner) {
@@ -164,25 +158,16 @@ export async function simulateCompleteDraft(
     let consecutiveErrors = 0;
     const maxErrors = 5;
 
-    console.log(
-      `🎯 Iniciando simulación: ${maxPicks} picks totales, empezando en pick ${currentPick}`
-    );
-
     // Simular picks uno por uno
     while (currentPick < maxPicks && consecutiveErrors < maxErrors) {
       try {
         const teamIndex = currentPick % totalTeams;
         const currentTeamId = currentState.draft_order[teamIndex];
 
-        console.log(
-          `🏈 Pick ${currentPick + 1}/${maxPicks} - Team: ${currentTeamId}`
-        );
-
         // Obtener datos actualizados para este pick
         const { availablePlayers } = await getSimulationData(leagueId, 1);
 
         if (availablePlayers.length === 0) {
-          console.log("⚠️ No hay más jugadores disponibles");
           break;
         }
 
@@ -205,11 +190,6 @@ export async function simulateCompleteDraft(
         if (autoDraftResult.success) {
           completedPicks++;
           consecutiveErrors = 0;
-          console.log(
-            `✅ Pick ${currentPick + 1} completado: ${
-              autoDraftResult.player?.name
-            }`
-          );
 
           // Pequeña pausa para no sobrecargar
           await new Promise((resolve) => setTimeout(resolve, 100));
@@ -242,7 +222,6 @@ export async function simulateCompleteDraft(
       console.error("Error finalizando draft:", finalizeError);
     }
 
-    console.log(`🎉 Simulación completada: ${completedPicks} picks realizados`);
 
     return {
       success: true,
@@ -268,7 +247,6 @@ export async function pauseDraft(
   leagueId: string
 ): Promise<DraftControlResult> {
   try {
-    console.log("⏸️ Pausando draft...", { userId, leagueId });
 
     // Verificar permisos
     const isOwner = await verifyLeagueOwnership(userId, leagueId);
@@ -296,7 +274,6 @@ export async function pauseDraft(
 
     if (error) throw error;
 
-    console.log("✅ Draft pausado exitosamente");
     return {
       success: true,
       message: "Draft pausado exitosamente",
@@ -319,7 +296,6 @@ export async function resumeDraft(
   leagueId: string
 ): Promise<DraftControlResult> {
   try {
-    console.log("▶️ Reanudando draft...", { userId, leagueId });
 
     // Verificar permisos
     const isOwner = await verifyLeagueOwnership(userId, leagueId);
@@ -347,7 +323,6 @@ export async function resumeDraft(
 
     if (error) throw error;
 
-    console.log("✅ Draft reanudado exitosamente");
     return {
       success: true,
       message: "Draft reanudado exitosamente",
@@ -370,7 +345,6 @@ export async function completeDraft(
   leagueId: string
 ): Promise<DraftControlResult> {
   try {
-    console.log("✅ Finalizando draft...", { userId, leagueId });
 
     // Verificar permisos
     const isOwner = await verifyLeagueOwnership(userId, leagueId);
@@ -398,7 +372,6 @@ export async function completeDraft(
 
     if (error) throw error;
 
-    console.log("✅ Draft finalizado exitosamente");
     return {
       success: true,
       message: "Draft finalizado exitosamente",
@@ -421,7 +394,6 @@ export async function resetDraft(
   leagueId: string
 ): Promise<DraftControlResult> {
   try {
-    console.log("🔄 Reseteando draft...", { userId, leagueId });
 
     // Verificar permisos
     const isOwner = await verifyLeagueOwnership(userId, leagueId);
@@ -433,7 +405,6 @@ export async function resetDraft(
     }
 
     // Limpiar datos del draft en una transacción
-    console.log("🗑️ Limpiando team_rosters...");
     const { error: rosterError } = await supabase
       .from("team_rosters")
       .delete()
@@ -443,7 +414,6 @@ export async function resetDraft(
       console.error("Error limpiando team_rosters:", rosterError);
     }
 
-    console.log("🗑️ Limpiando roster_moves...");
     const { error: movesError } = await supabase
       .from("roster_moves")
       .delete()
@@ -453,7 +423,6 @@ export async function resetDraft(
       console.error("Error limpiando roster_moves:", movesError);
     }
 
-    console.log("🔄 Reseteando estado de liga...");
     const { error: leagueError } = await supabase
       .from("leagues")
       .update({
@@ -464,7 +433,6 @@ export async function resetDraft(
 
     if (leagueError) throw leagueError;
 
-    console.log("✅ Draft reseteado exitosamente");
     return {
       success: true,
       message:

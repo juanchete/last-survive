@@ -14,14 +14,6 @@ export async function draftPlayer({
   slot: string;
 }) {
   try {
-    console.log("🏈 Iniciando draft player:", {
-      leagueId,
-      fantasyTeamId,
-      playerId,
-      week,
-      slot,
-    });
-
     // 1. Insertar en team_rosters
     const { data: rosterData, error: rosterError } = await supabase
       .from("team_rosters")
@@ -41,7 +33,6 @@ export async function draftPlayer({
       throw new Error(`Error adding to roster: ${rosterError.message}`);
     }
 
-    console.log("✅ Player agregado a roster:", rosterData);
 
     // 2. Insertar en roster_moves
     const { data: moveData, error: moveError } = await supabase
@@ -60,7 +51,6 @@ export async function draftPlayer({
       throw new Error(`Error recording move: ${moveError.message}`);
     }
 
-    console.log("✅ Draft move registrado:", moveData);
 
     // 3. Avanzar el turno del draft
     const { data: leagueData, error: leagueError } = await supabase
@@ -75,12 +65,6 @@ export async function draftPlayer({
     } else if (leagueData && leagueData.draft_order) {
       const nextPick = (leagueData.current_pick || 0) + 1;
       const totalTeams = leagueData.draft_order.length;
-
-      console.log("🔄 Avanzando turno:", {
-        currentPick: leagueData.current_pick,
-        nextPick,
-        totalTeams,
-      });
 
       // Si llegamos al final, el draft podría completarse o continuar en snake
       const newPick = nextPick % totalTeams;
@@ -97,12 +81,9 @@ export async function draftPlayer({
 
       if (updateError) {
         console.error("❌ Error actualizando turno:", updateError);
-      } else {
-        console.log("✅ Turno avanzado exitosamente a:", newPick);
       }
     }
 
-    console.log("🎉 Draft completado exitosamente");
     return { success: true, data: { roster: rosterData, move: moveData } };
   } catch (error) {
     console.error("💥 Error en draftPlayer:", error);

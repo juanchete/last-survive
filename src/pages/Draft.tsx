@@ -19,7 +19,6 @@ import { useIsLeagueOwner } from "@/hooks/useIsLeagueOwner";
 import { draftPlayer } from "@/lib/draft";
 import { pauseDraft, resumeDraft, resetDraft, completeDraft } from "@/lib/draftControl";
 import { executeAutoDraft } from "@/lib/autoDraft";
-import { useMyRoster } from "@/hooks/useMyRoster";
 import { toast } from 'sonner';
 import { useQueryClient, useQuery } from "@tanstack/react-query";
 import type { Player } from "@/types";
@@ -174,7 +173,6 @@ export default function Draft() {
 
   // Función para refrescar todos los datos relacionados con el draft
   const refreshDraftData = async () => {
-    console.log('🔄 Refrescando datos del draft...');
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: ["availablePlayers", leagueId, currentWeek] }),
       queryClient.invalidateQueries({ queryKey: ["draftState", leagueId] }),
@@ -182,12 +180,10 @@ export default function Draft() {
       queryClient.invalidateQueries({ queryKey: ["myRoster", userTeam?.id, currentWeek] }),
       queryClient.invalidateQueries({ queryKey: ["isLeagueOwner", leagueId] }),
     ]);
-    console.log('✅ Datos refrescados');
   };
 
   // Manejar el pick de un jugador
   const handleDraft = async (playerId: number, slot: string) => {
-    console.log('🎯 Intentando draft:', { playerId, slot, userTeam: userTeam?.id });
     
     if (!userTeam) {
       console.error('❌ No userTeam');
@@ -209,7 +205,6 @@ export default function Draft() {
 
     setLoadingPick(true);
     try {
-      console.log('🚀 Ejecutando draftPlayer...');
       
       const result = await draftPlayer({
         leagueId,
@@ -219,7 +214,6 @@ export default function Draft() {
         slot,
       });
 
-      console.log('✅ Draft exitoso:', result);
       toast.success('¡Jugador drafteado exitosamente!');
       
       // Refrescar datos después del draft

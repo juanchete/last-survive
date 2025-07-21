@@ -123,7 +123,7 @@ export const DraftTimer: React.FC<DraftTimerProps> = ({
       oscillator.start(audioContext.currentTime);
       oscillator.stop(audioContext.currentTime + 0.3);
     } catch (error) {
-      console.log('Audio not supported');
+      // Silently fail if audio is not supported
     }
   };
 
@@ -148,7 +148,7 @@ export const DraftTimer: React.FC<DraftTimerProps> = ({
       oscillator.start(audioContext.currentTime);
       oscillator.stop(audioContext.currentTime + 0.4);
     } catch (error) {
-      console.log('Audio not supported');
+      // Silently fail if audio is not supported
     }
   };
 

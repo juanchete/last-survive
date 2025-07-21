@@ -121,9 +121,7 @@ export const useAdmin = () => {
         .order("created_at", { ascending: false });
 
       if (searchTerm) {
-        query = query.or(
-          `full_name.ilike.%${searchTerm}%,email.ilike.%${searchTerm}%`
-        );
+        query = query.or(`email.ilike.%${searchTerm}%,full_name.ilike.%${searchTerm}%`);
       }
 
       const { data, error } = await query;

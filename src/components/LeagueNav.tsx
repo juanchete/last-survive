@@ -1,5 +1,4 @@
 import { useLocation, Link } from "react-router-dom";
-import { useLeagueStore } from "@/store/leagueStore";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ChartBar, ListChecks, Trophy, Users } from "lucide-react";
 import { useDraftState } from "@/hooks/useDraftState";
