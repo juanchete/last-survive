@@ -16,6 +16,7 @@ import { toast } from "@/hooks/use-toast";
 import { User, Save, AlertTriangle, CheckCircle, XCircle, Clock, Shield } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Player } from "@/types";
+import { useQueryClient } from "@tanstack/react-query";
 
 // Define lineup positions and requirements
 const LINEUP_SLOTS = [
@@ -49,6 +50,7 @@ export default function Team() {
   const searchParams = new URLSearchParams(location.search);
   const leagueId = searchParams.get("league") || "";
   const { user } = useAuth();
+  const queryClient = useQueryClient();
   
   const { data: currentWeekData } = useCurrentWeek(leagueId);
   const currentWeek = currentWeekData?.number || 1;
@@ -64,12 +66,43 @@ export default function Team() {
   const [hasChanges, setHasChanges] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
+  // Check if roster needs initialization for current week
+  useEffect(() => {
+    const checkAndInitializeRoster = async () => {
+      if (userTeam?.id && currentWeek && rosterData.length === 0 && !isLoading) {
+        // No roster data for current week, try to initialize
+        try {
+          const { data, error } = await supabase.rpc('admin_initialize_rosters', {
+            p_league_id: leagueId,
+            p_week: currentWeek
+          });
+          
+          if (data?.success) {
+            // Invalidate the query to refetch the newly created roster
+            await queryClient.invalidateQueries({
+              queryKey: ["rosterWithDetails", userTeam.id, currentWeek]
+            });
+            
+            toast({
+              title: "Roster Initialized",
+              description: `Your roster has been set up for week ${currentWeek}`,
+            });
+          }
+        } catch (error) {
+          console.error("Error initializing roster:", error);
+        }
+      }
+    };
+    
+    checkAndInitializeRoster();
+  }, [userTeam?.id, currentWeek, rosterData.length, isLoading, leagueId, queryClient]);
+
   // Convert roster data to our format
   useEffect(() => {
     if (rosterData.length > 0) {
       const players: RosterPlayer[] = rosterData.map(item => ({
-        id: item.id,
-        player_id: parseInt(item.id),
+        id: item.id, // This is the roster entry ID
+        player_id: item.player_id, // Use the actual player_id from the roster data
         name: item.name || "Unknown Player",
         position: item.position as "QB" | "RB" | "WR" | "TE" | "K" | "DEF" | "DP",
         team: item.team || "FA",
@@ -95,12 +128,27 @@ export default function Team() {
 
       // Assign players to lineup based on their current slot
       players.forEach(player => {
-        if (player.is_active && player.slot) {
-          // Map the slot to our lineup key format
-          const slotKey = getSlotKey(player.slot);
-          if (slotKey && !newLineup[slotKey]) {
-            newLineup[slotKey] = player;
-          } else {
+        if (player.is_active && player.slot && player.slot !== "BENCH") {
+          // Find the first available slot for this position
+          let assigned = false;
+          
+          // Check exact position slots first
+          for (const [key, value] of Object.entries(newLineup)) {
+            if (!value && key.startsWith(player.slot) && canPlaceInSlot(player, key)) {
+              newLineup[key] = player;
+              assigned = true;
+              break;
+            }
+          }
+          
+          // If not assigned and it's a FLEX-eligible player, try FLEX slot
+          if (!assigned && ["RB", "WR"].includes(player.position) && !newLineup["FLEX"]) {
+            newLineup["FLEX"] = player;
+            assigned = true;
+          }
+          
+          // If still not assigned, add to bench
+          if (!assigned) {
             benchPlayers.push(player);
           }
         } else {
@@ -113,20 +161,6 @@ export default function Team() {
     }
   }, [rosterData]);
 
-  // Helper to get slot key from position
-  const getSlotKey = (slot: string): string | null => {
-    if (slot === "FLEX") return "FLEX";
-    
-    // Count how many of this position are already in lineup
-    const positionCount = Object.keys(lineup).filter(key => key.startsWith(slot)).length;
-    const slotConfig = LINEUP_SLOTS.find(s => s.position === slot);
-    
-    if (slotConfig && positionCount < slotConfig.count) {
-      return slotConfig.count > 1 ? `${slot}_${positionCount + 1}` : slot;
-    }
-    
-    return null;
-  };
 
   // Check if a player can be placed in a slot
   const canPlaceInSlot = (player: RosterPlayer, slotKey: string): boolean => {
@@ -195,34 +229,48 @@ export default function Team() {
 
   // Save lineup changes
   const saveLineup = async () => {
-    if (!userTeam || !currentWeek) return;
+    if (!userTeam || !currentWeek) {
+      toast({
+        title: "Error",
+        description: "Unable to save: Team or week information is missing",
+        variant: "destructive",
+      });
+      return;
+    }
 
     setIsSaving(true);
     try {
-      // Update all roster positions in database
+      // Prepare all updates
       const updates = [];
+      const failedUpdates = [];
 
       // Update lineup players
       for (const [slotKey, player] of Object.entries(lineup)) {
         if (player) {
-          updates.push(
-            supabase
+          const slot = slotKey.split("_")[0]; // Remove number suffix (e.g., "QB_1" -> "QB")
+          updates.push({
+            type: 'lineup',
+            player,
+            slotKey,
+            promise: supabase
               .from("team_rosters")
               .update({ 
-                slot: slotKey.split("_")[0], // Remove number suffix
+                slot: slot,
                 is_active: true 
               })
               .eq("fantasy_team_id", userTeam.id)
               .eq("player_id", player.player_id)
               .eq("week", currentWeek)
-          );
+          });
         }
       }
 
       // Update bench players
       for (const player of bench) {
-        updates.push(
-          supabase
+        updates.push({
+          type: 'bench',
+          player,
+          promise: supabase
             .from("team_rosters")
             .update({ 
               slot: "BENCH",
@@ -231,18 +279,55 @@ export default function Team() {
             .eq("fantasy_team_id", userTeam.id)
             .eq("player_id", player.player_id)
             .eq("week", currentWeek)
-        );
+        });
       }
 
-      // Execute all updates
-      await Promise.all(updates);
+      // Execute all updates and check results
+      const results = await Promise.allSettled(updates.map(u => u.promise));
+      
+      // Check each result
+      results.forEach((result, index) => {
+        const update = updates[index];
+        if (result.status === 'rejected') {
+          failedUpdates.push({
+            player: update.player,
+            error: result.reason
+          });
+        } else if (result.value.error) {
+          failedUpdates.push({
+            player: update.player,
+            error: result.value.error
+          });
+        } else if (result.value.count === 0) {
+          // No rows were updated - this player might not exist in the roster
+          failedUpdates.push({
+            player: update.player,
+            error: { message: `Player ${update.player.name} not found in roster for week ${currentWeek}` }
+          });
+        }
+      });
 
-      toast({
-        title: "Lineup Saved",
-        description: "Your lineup has been saved successfully",
+      if (failedUpdates.length > 0) {
+        console.error("Failed updates:", failedUpdates);
+        toast({
+          title: "Partial Save",
+          description: `Some players could not be updated: ${failedUpdates.map(f => f.player.name).join(", ")}`,
+          variant: "destructive",
+        });
+      } else {
+        // All updates successful
+        toast({
+          title: "Lineup Saved",
+          description: "Your lineup has been saved successfully",
+        });
+        setHasChanges(false);
+      }
+
+      // Always invalidate the roster query to refetch fresh data
+      await queryClient.invalidateQueries({ 
+        queryKey: ["rosterWithDetails", userTeam.id, currentWeek] 
       });
       
-      setHasChanges(false);
     } catch (error) {
       console.error("Error saving lineup:", error);
       toast({
@@ -308,7 +393,51 @@ export default function Team() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="p-4">
-                  <div className="space-y-3">
+                  {rosterData.length === 0 && !isLoading ? (
+                    <div className="text-center py-12">
+                      <p className="text-gray-400 mb-4">
+                        No roster found for week {currentWeek}
+                      </p>
+                      <Button
+                        onClick={async () => {
+                          try {
+                            const { data, error } = await supabase.rpc('admin_initialize_rosters', {
+                              p_league_id: leagueId,
+                              p_week: currentWeek
+                            });
+                            
+                            if (data?.success) {
+                              await queryClient.invalidateQueries({
+                                queryKey: ["rosterWithDetails", userTeam?.id, currentWeek]
+                              });
+                              
+                              toast({
+                                title: "Roster Initialized",
+                                description: `Your roster has been set up for week ${currentWeek}`,
+                              });
+                            } else {
+                              toast({
+                                title: "Initialization Failed",
+                                description: data?.message || "Could not initialize roster",
+                                variant: "destructive",
+                              });
+                            }
+                          } catch (error) {
+                            console.error("Error initializing roster:", error);
+                            toast({
+                              title: "Error",
+                              description: "Failed to initialize roster",
+                              variant: "destructive",
+                            });
+                          }
+                        }}
+                        className="bg-nfl-blue hover:bg-nfl-blue/90"
+                      >
+                        Initialize Roster for Week {currentWeek}
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
                     {LINEUP_SLOTS.map(slot => {
                       const slots = [];
                       for (let i = 0; i < slot.count; i++) {
@@ -331,6 +460,7 @@ export default function Team() {
                       return slots;
                     })}
                   </div>
+                  )}
                 </CardContent>
               </Card>
             </div>
