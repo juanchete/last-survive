@@ -5,23 +5,23 @@ export interface AutoDraftOptions {
   leagueId: string;
   fantasyTeamId: string;
   availablePlayers: Player[];
-  currentRoster: Array<{ slot: string; [key: string]: unknown }>;
+  currentRoster: Array<{ slot: string; position?: string; [key: string]: unknown }>;
   currentWeek: number;
 }
 
-// Límites de slots para el auto-draft
+// Límites de slots para el auto-draft (sin banca - 9 jugadores totales)
 const SLOT_LIMITS = {
   QB: 1,
   RB: 2,
   WR: 2,
   TE: 1,
-  FLEX: 1,
+  FLEX: 1,  // Solo RB/WR
   K: 1,
   DEF: 1,
-  BENCH: 7,
+  DP: 1,    // Defensive Player
 };
 
-// Prioridades de posiciones para auto-draft
+// Prioridades de posiciones para auto-draft (orden de importancia)
 const POSITION_PRIORITY = {
   QB: 1,
   RB: 2,
@@ -29,6 +29,50 @@ const POSITION_PRIORITY = {
   TE: 4,
   K: 5,
   DEF: 6,
+  DP: 7,
+};
+
+/**
+ * Cuenta los slots ocupados por posición
+ */
+const getSlotCounts = (roster: Array<{ slot: string; [key: string]: unknown }>) => {
+  return roster.reduce((acc, item) => {
+    acc[item.slot] = (acc[item.slot] || 0) + 1;
+    return acc;
+  }, {} as Record<string, number>);
+};
+
+/**
+ * Verifica si una posición específica necesita ser llenada
+ */
+const needsPosition = (
+  position: string,
+  slotCounts: Record<string, number>
+): boolean => {
+  switch (position) {
+    case "QB":
+      return (slotCounts.QB || 0) < SLOT_LIMITS.QB;
+    case "RB":
+      // RB puede ir en su slot o en FLEX
+      const rbCount = (slotCounts.RB || 0);
+      const flexUsedByRB = roster => 
+        roster.filter(r => r.slot === "FLEX" && r.position === "RB").length;
+      return rbCount < SLOT_LIMITS.RB;
+    case "WR":
+      // WR puede ir en su slot o en FLEX
+      const wrCount = (slotCounts.WR || 0);
+      return wrCount < SLOT_LIMITS.WR;
+    case "TE":
+      return (slotCounts.TE || 0) < SLOT_LIMITS.TE;
+    case "K":
+      return (slotCounts.K || 0) < SLOT_LIMITS.K;
+    case "DEF":
+      return (slotCounts.DEF || 0) < SLOT_LIMITS.DEF;
+    case "DP":
+      return (slotCounts.DP || 0) < SLOT_LIMITS.DP;
+    default:
+      return false;
+  }
 };
 
 /**
@@ -36,75 +80,69 @@ const POSITION_PRIORITY = {
  */
 const getAvailableSlot = (
   player: Player,
-  currentRoster: Array<{ slot: string; [key: string]: unknown }>
-) => {
-  // Contar slots ocupados
-  const slotCounts = currentRoster.reduce((acc, item) => {
-    acc[item.slot] = (acc[item.slot] || 0) + 1;
-    return acc;
-  }, {} as Record<string, number>);
+  currentRoster: Array<{ slot: string; position?: string; [key: string]: unknown }>
+): string | null => {
+  const slotCounts = getSlotCounts(currentRoster);
 
   const canDraftInSlot = (slot: string) => {
     return (slotCounts[slot] || 0) < SLOT_LIMITS[slot];
   };
 
+  // Verificar slots específicos primero
   if (player.position === "QB" && canDraftInSlot("QB")) return "QB";
   if (player.position === "RB" && canDraftInSlot("RB")) return "RB";
   if (player.position === "WR" && canDraftInSlot("WR")) return "WR";
   if (player.position === "TE" && canDraftInSlot("TE")) return "TE";
-  if (["RB", "WR", "TE"].includes(player.position) && canDraftInSlot("FLEX"))
-    return "FLEX";
   if (player.position === "K" && canDraftInSlot("K")) return "K";
   if (player.position === "DEF" && canDraftInSlot("DEF")) return "DEF";
-  if (canDraftInSlot("BENCH")) return "BENCH";
+  if (player.position === "DP" && canDraftInSlot("DP")) return "DP";
+  
+  // FLEX solo para RB/WR (no TE)
+  if (["RB", "WR"].includes(player.position) && canDraftInSlot("FLEX")) {
+    return "FLEX";
+  }
+  
   return null;
 };
 
 /**
- * Calcula la puntuación de necesidad para una posición
- * Mayor puntuación = mayor necesidad
+ * Obtiene las posiciones que necesitan ser llenadas, ordenadas por prioridad
  */
-const getPositionNeed = (
-  position: string,
-  currentRoster: Array<{ slot: string; [key: string]: unknown }>
-) => {
-  const slotCounts = currentRoster.reduce((acc, item) => {
-    acc[item.slot] = (acc[item.slot] || 0) + 1;
-    return acc;
-  }, {} as Record<string, number>);
+const getNeededPositions = (
+  currentRoster: Array<{ slot: string; position?: string; [key: string]: unknown }>
+): string[] => {
+  const slotCounts = getSlotCounts(currentRoster);
+  const needed: string[] = [];
 
-  // Calcular slots vacíos para esta posición
-  const positionSlots = {
-    QB: slotCounts.QB || 0,
-    RB: (slotCounts.RB || 0) + (slotCounts.FLEX || 0), // RB puede ir en FLEX
-    WR: (slotCounts.WR || 0) + (slotCounts.FLEX || 0), // WR puede ir en FLEX
-    TE: (slotCounts.TE || 0) + (slotCounts.FLEX || 0), // TE puede ir en FLEX
-    K: slotCounts.K || 0,
-    DEF: slotCounts.DEF || 0,
-  };
-
-  const maxSlots = {
-    QB: SLOT_LIMITS.QB,
-    RB: SLOT_LIMITS.RB + SLOT_LIMITS.FLEX,
-    WR: SLOT_LIMITS.WR + SLOT_LIMITS.FLEX,
-    TE: SLOT_LIMITS.TE + SLOT_LIMITS.FLEX,
-    K: SLOT_LIMITS.K,
-    DEF: SLOT_LIMITS.DEF,
-  };
-
-  const filled = positionSlots[position as keyof typeof positionSlots] || 0;
-  const max = maxSlots[position as keyof typeof maxSlots] || 0;
-  const need = max - filled;
-
-  // Prioridad base por posición + necesidad
-  return (
-    need * 10 +
-    (10 - (POSITION_PRIORITY[position as keyof typeof POSITION_PRIORITY] || 7))
+  // Verificar cada posición en orden de prioridad
+  const positions = Object.keys(POSITION_PRIORITY).sort(
+    (a, b) => POSITION_PRIORITY[a as keyof typeof POSITION_PRIORITY] - 
+              POSITION_PRIORITY[b as keyof typeof POSITION_PRIORITY]
   );
+
+  for (const position of positions) {
+    if (needsPosition(position, slotCounts)) {
+      needed.push(position);
+    }
+  }
+
+  // Verificar si necesitamos llenar FLEX (después de RB/WR principales)
+  if ((slotCounts.FLEX || 0) < SLOT_LIMITS.FLEX) {
+    // Solo agregar si ya tenemos los RB y WR principales
+    if ((slotCounts.RB || 0) >= SLOT_LIMITS.RB && 
+        (slotCounts.WR || 0) >= SLOT_LIMITS.WR) {
+      // FLEX puede ser llenado por RB o WR
+      if (!needed.includes("RB") && !needed.includes("WR")) {
+        needed.push("FLEX");
+      }
+    }
+  }
+
+  return needed;
 };
 
 /**
- * Ejecuta el auto-draft seleccionando el mejor jugador disponible
+ * Ejecuta el auto-draft priorizando posiciones faltantes
  */
 export const executeAutoDraft = async ({
   leagueId,
@@ -118,40 +156,73 @@ export const executeAutoDraft = async ({
   error?: string;
 }> => {
   try {
-    // Filtrar jugadores disponibles
-    const draftablePlayers = availablePlayers.filter((player) => {
-      if (!player.available) return false;
-      const slot = getAvailableSlot(player, currentRoster);
-      return slot !== null;
-    });
-
-    if (draftablePlayers.length === 0) {
+    // Obtener posiciones necesarias en orden de prioridad
+    const neededPositions = getNeededPositions(currentRoster);
+    
+    // Si no necesitamos ninguna posición específica, el roster está completo
+    if (neededPositions.length === 0) {
       return {
         success: false,
-        error: "No hay jugadores disponibles para auto-draft",
+        error: "Roster completo (9 jugadores)",
       };
     }
 
-    // Calcular puntuación para cada jugador
-    const scoredPlayers = draftablePlayers.map((player) => {
-      const positionNeed = getPositionNeed(player.position, currentRoster);
-      const playerScore = player.points || 0;
+    let selectedPlayer: Player | null = null;
+    let selectedSlot: string | null = null;
 
-      // Puntuación final: combina necesidad de posición y puntos del jugador
-      const finalScore = positionNeed * 0.3 + playerScore * 0.7;
+    // Intentar llenar posiciones en orden de prioridad
+    for (const neededPosition of neededPositions) {
+      let candidatePlayers: Player[] = [];
 
-      return {
-        ...player,
-        autoDraftScore: finalScore,
-        slot: getAvailableSlot(player, currentRoster)!,
-      };
-    });
+      if (neededPosition === "FLEX") {
+        // Para FLEX, buscar RB o WR disponibles
+        candidatePlayers = availablePlayers.filter(player => {
+          if (!player.available) return false;
+          if (!["RB", "WR"].includes(player.position)) return false;
+          const slot = getAvailableSlot(player, currentRoster);
+          return slot === "FLEX";
+        });
+      } else {
+        // Para otras posiciones, buscar jugadores de esa posición específica
+        candidatePlayers = availablePlayers.filter(player => {
+          if (!player.available) return false;
+          if (player.position !== neededPosition) return false;
+          const slot = getAvailableSlot(player, currentRoster);
+          return slot !== null;
+        });
+      }
 
-    // Ordenar por puntuación descendente
-    scoredPlayers.sort((a, b) => b.autoDraftScore - a.autoDraftScore);
+      // Si encontramos candidatos, seleccionar el mejor por ranking (PPJ)
+      if (candidatePlayers.length > 0) {
+        // Ordenar por puntos (PPJ) descendente
+        candidatePlayers.sort((a, b) => (b.points || 0) - (a.points || 0));
+        selectedPlayer = candidatePlayers[0];
+        selectedSlot = getAvailableSlot(selectedPlayer, currentRoster);
+        break;
+      }
+    }
 
-    // Seleccionar el mejor jugador
-    const selectedPlayer = scoredPlayers[0];
+    // Si no encontramos jugador para posiciones prioritarias,
+    // buscar el mejor jugador disponible que pueda ser drafteado
+    if (!selectedPlayer || !selectedSlot) {
+      const allDraftablePlayers = availablePlayers.filter(player => {
+        if (!player.available) return false;
+        const slot = getAvailableSlot(player, currentRoster);
+        return slot !== null;
+      });
+
+      if (allDraftablePlayers.length === 0) {
+        return {
+          success: false,
+          error: "No hay jugadores disponibles para auto-draft",
+        };
+      }
+
+      // Ordenar por puntos (PPJ) y tomar el mejor
+      allDraftablePlayers.sort((a, b) => (b.points || 0) - (a.points || 0));
+      selectedPlayer = allDraftablePlayers[0];
+      selectedSlot = getAvailableSlot(selectedPlayer, currentRoster)!;
+    }
 
     // Ejecutar el draft
     await draftPlayer({
@@ -159,8 +230,10 @@ export const executeAutoDraft = async ({
       fantasyTeamId,
       playerId: Number(selectedPlayer.id),
       week: currentWeek,
-      slot: selectedPlayer.slot,
+      slot: selectedSlot,
     });
+
+    console.log(`Auto-draft: ${selectedPlayer.name} (${selectedPlayer.position}) en slot ${selectedSlot}`);
 
     return {
       success: true,

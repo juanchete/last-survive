@@ -602,7 +602,7 @@ export default function Draft() {
                         <SelectValue placeholder="Points (Highest to Lowest)" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="points">Points (Highest to Lowest)</SelectItem>
+                        <SelectItem value="points">PPJ (Highest to Lowest)</SelectItem>
                         <SelectItem value="name">Name (A-Z)</SelectItem>
                         <SelectItem value="position">Position</SelectItem>
                       </SelectContent>
@@ -752,7 +752,7 @@ export default function Draft() {
                       <span>My Team</span>
                     </div>
                     <Badge variant="secondary">
-                      {myRoster.length}/13
+                      {myRoster.length}/9
                     </Badge>
                   </CardTitle>
                 </CardHeader>

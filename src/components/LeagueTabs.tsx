@@ -1,4 +1,4 @@
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { 
   LayoutGrid, 
@@ -19,12 +19,13 @@ interface LeagueTabsProps {
 
 export function LeagueTabs({ leagueId, activeTab }: LeagueTabsProps) {
   const location = useLocation();
+  const navigate = useNavigate();
 
   const tabs = [
     { id: "overview", label: "Overview", icon: LayoutGrid, path: `/league-dashboard?league=${leagueId}` },
     { id: "standings", label: "Standings", icon: Trophy, path: `/standings?league=${leagueId}` },
     { id: "team", label: "Team", icon: Users, path: `/team?league=${leagueId}` },
-    { id: "draft", label: "Draft", icon: UserPlus, path: `/draft?league=${leagueId}` },
+    { id: "draft", label: "Draft", icon: UserPlus, path: `/league/${leagueId}/draft` },
     { id: "team-battle", label: "Team Battle", icon: Swords, path: `/team-battle?league=${leagueId}` },
     { id: "trades", label: "Trades", icon: ArrowLeftRight, path: `/trades?league=${leagueId}` },
     { id: "waivers", label: "Waivers", icon: FileText, path: `/waivers?league=${leagueId}` },
@@ -43,7 +44,6 @@ export function LeagueTabs({ leagueId, activeTab }: LeagueTabsProps) {
                 <TabsTrigger
                   key={tab.id}
                   value={tab.id}
-                  asChild
                   className={`
                     data-[state=active]:bg-nfl-blue 
                     data-[state=active]:text-white 
@@ -54,12 +54,17 @@ export function LeagueTabs({ leagueId, activeTab }: LeagueTabsProps) {
                     px-4
                     py-3
                     transition-all
+                    cursor-pointer
                   `}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    navigate(tab.path);
+                  }}
                 >
-                  <Link to={tab.path} className="flex items-center gap-2">
+                  <div className="flex items-center gap-2">
                     <Icon className="w-4 h-4" />
                     <span className="font-medium">{tab.label}</span>
-                  </Link>
+                  </div>
                 </TabsTrigger>
               );
             })}

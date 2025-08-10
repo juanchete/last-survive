@@ -17,7 +17,8 @@ export interface Player {
   };
   available: boolean;
   eliminated: boolean;
-  points: number;
+  points: number; // PPJ - Puntos Por Jugar (projected/fantasy points)
+  actualPoints?: number; // PTS - Puntos acumulados reales
   photo?: string;
 }
 

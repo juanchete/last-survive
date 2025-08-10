@@ -9,6 +9,7 @@ import NotFound from "./pages/NotFound";
 import Home from "./pages/Home";
 import Dashboard from "./pages/Dashboard";
 import Draft from "./pages/Draft";
+import DraftRoom from "./pages/DraftRoom";
 import DraftTesting from "./pages/DraftTesting";
 import DraftDebug from "./pages/DraftDebug";
 import EliminationControl from "./pages/EliminationControl";
@@ -57,6 +58,7 @@ const App = () => (
             <Route path="/team-battle" element={<TeamBattle />} />
             <Route path="/team" element={<Team />} />
             <Route path="/draft" element={<Draft />} />
+            <Route path="/league/:leagueId/draft" element={<DraftRoom />} />
             <Route path="/draft-testing" element={<DraftTesting />} />
             <Route path="/draft-debug/:id" element={<DraftDebug />} />
             <Route path="/elimination-control/:id" element={<EliminationControl />} />
