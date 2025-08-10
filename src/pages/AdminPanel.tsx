@@ -12,7 +12,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { 
   Users, Shield, AlertTriangle, Ban, 
-  UserCheck, Edit, Database, Trophy, Eye, Trash2, RotateCcw, Target
+  UserCheck, Edit, Database, Trophy, Eye, Trash2, RotateCcw, Target, Settings
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useAdmin, type RosterPlayer } from "@/hooks/useAdmin";
@@ -438,12 +438,21 @@ export default function AdminPanel() {
   return (
     <Layout>
       <div className="container mx-auto px-4 py-8">
-        <div className="flex items-center gap-4 mb-8">
-          <Shield className="h-8 w-8 text-nfl-blue" />
-          <div>
-            <h1 className="text-3xl font-bold text-white">Panel de Administración</h1>
-            <p className="text-gray-400">Gestión completa del sistema Last Survive</p>
+        <div className="flex items-center justify-between mb-8">
+          <div className="flex items-center gap-4">
+            <Shield className="h-8 w-8 text-nfl-blue" />
+            <div>
+              <h1 className="text-3xl font-bold text-white">Panel de Administración</h1>
+              <p className="text-gray-400">Gestión completa del sistema Last Survive</p>
+            </div>
           </div>
+          <Button
+            variant="outline"
+            onClick={() => window.location.href = '/testing'}
+          >
+            <Settings className="h-4 w-4 mr-2" />
+            Testing Dashboard
+          </Button>
         </div>
 
         {/* Alerta sobre funcionalidades */}

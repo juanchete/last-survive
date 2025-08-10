@@ -4,6 +4,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { MotionConfig } from "framer-motion";
+import { ErrorBoundary, AsyncErrorBoundary } from "@/components/ErrorBoundary";
 import NotFound from "./pages/NotFound";
 import Home from "./pages/Home";
 import Dashboard from "./pages/Dashboard";
@@ -32,16 +33,19 @@ import LeagueManagerDashboard from "./pages/LeagueManagerDashboard";
 import LeagueDashboard from "./pages/LeagueDashboard";
 import TeamBattle from "./pages/TeamBattle";
 import Team from "./pages/Team";
+import TestingDashboard from "./pages/TestingDashboard";
 
 const queryClient = new QueryClient();
 
 const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <MotionConfig reducedMotion="user">
-      <TooltipProvider>
-        <AuthProvider>
-        <BrowserRouter>
-          <Routes>
+  <ErrorBoundary>
+    <AsyncErrorBoundary>
+      <QueryClientProvider client={queryClient}>
+        <MotionConfig reducedMotion="user">
+          <TooltipProvider>
+            <AuthProvider>
+              <BrowserRouter>
+                <Routes>
             <Route path="/" element={<Home />} />
               <Route path="/how-it-works" element={<HowItWorks />} />
               <Route path="/login" element={<Login />} />
@@ -70,16 +74,19 @@ const App = () => (
               {/* Rutas de administración protegidas */}
               <Route element={<AdminRoute />}>
                 <Route path="/admin" element={<AdminPanel />} />
+                <Route path="/testing" element={<TestingDashboard />} />
               </Route>
             <Route path="*" element={<NotFound />} />
           </Routes>
-        </BrowserRouter>
-        <Toaster />
-        <Sonner />
-        </AuthProvider>
-      </TooltipProvider>
-    </MotionConfig>
-  </QueryClientProvider>
-);
+                </BrowserRouter>
+                <Toaster />
+                <Sonner />
+              </AuthProvider>
+            </TooltipProvider>
+          </MotionConfig>
+        </QueryClientProvider>
+      </AsyncErrorBoundary>
+    </ErrorBoundary>
+  );
 
 export default App;
