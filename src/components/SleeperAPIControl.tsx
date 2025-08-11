@@ -7,7 +7,13 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { AlertCircle, Download, RefreshCw, Users, BarChart3, Calendar, CheckCircle, XCircle, Trash2 } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { useSleeperNFLState, useSyncStatus, useSleeperAPIStats } from '@/hooks/useSleeperAPI';
+// Using new provider-based hooks instead of direct API hooks
+import { 
+  useNFLState, 
+  useSyncStatus, 
+  useProviderHealth,
+  useCacheStats 
+} from '@/hooks/useNFLDataAPI';
 import { useAdmin } from '@/hooks/useAdmin';
 import { toast } from 'sonner';
 import {
@@ -20,9 +26,10 @@ import {
 } from '@/components/ui/dialog';
 
 export function SleeperAPIControl() {
-  const { data: nflState } = useSleeperNFLState();
+  const { data: nflState } = useNFLState();
   const { data: syncStatus } = useSyncStatus();
-  const { data: apiStats } = useSleeperAPIStats();
+  const { data: providerHealth } = useProviderHealth();
+  const { data: cacheStats } = useCacheStats();
   const { 
     syncPlayersFromSleeper, 
     syncWeeklyStatsFromSleeper, 
@@ -184,25 +191,39 @@ export function SleeperAPIControl() {
             </div>
             
             <div className="space-y-2">
-              <Label className="text-sm font-medium">Solicitudes API</Label>
-              <div className="text-lg font-semibold">{apiStats?.requestCount || 0}</div>
+              <Label className="text-sm font-medium">Estado del Proveedor</Label>
+              <div className="flex items-center gap-2">
+                {providerHealth?.healthy ? (
+                  <CheckCircle className="h-4 w-4 text-green-500" />
+                ) : (
+                  <XCircle className="h-4 w-4 text-red-500" />
+                )}
+                <span className="text-sm">
+                  {providerHealth?.healthy ? 'Saludable' : 'Con problemas'}
+                </span>
+              </div>
               <div className="text-sm text-muted-foreground">
-                Límite: 1000/minuto
+                Cache: {cacheStats?.healthy ? 'Activo' : 'Inactivo'}
               </div>
             </div>
             
             <div className="space-y-2">
               <Label className="text-sm font-medium">Estado de Datos</Label>
               <div className="flex items-center gap-2">
-                {nflState?.season_has_scores ? (
+                {syncStatus?.healthy ? (
                   <CheckCircle className="h-4 w-4 text-green-500" />
                 ) : (
                   <XCircle className="h-4 w-4 text-red-500" />
                 )}
                 <span className="text-sm">
-                  {nflState?.season_has_scores ? 'Datos disponibles' : 'Sin datos'}
+                  {syncStatus?.healthy ? 'Sincronizado' : 'Desactualizado'}
                 </span>
               </div>
+              {syncStatus?.lastSync && (
+                <div className="text-xs text-muted-foreground">
+                  Última sync: {new Date(syncStatus.lastSync).toLocaleString('es-MX')}
+                </div>
+              )}
             </div>
           </div>
 
@@ -228,28 +249,30 @@ export function SleeperAPIControl() {
         <CardContent>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <div className="text-center">
-              <div className="text-2xl font-bold">{syncStatus?.totalPlayers || 0}</div>
+              <div className="text-2xl font-bold">{syncStatus?.playerCount || 0}</div>
               <div className="text-sm text-muted-foreground">Jugadores</div>
             </div>
             <div className="text-center">
-              <div className="text-2xl font-bold">{syncStatus?.totalTeams || 0}</div>
+              <div className="text-2xl font-bold">{syncStatus?.teamCount || 0}</div>
               <div className="text-sm text-muted-foreground">Equipos NFL</div>
             </div>
             <div className="text-center">
-              <div className="text-2xl font-bold">{syncStatus?.playersWithStats || 0}</div>
-              <div className="text-sm text-muted-foreground">Con Estadísticas</div>
+              <div className="text-2xl font-bold">
+                {providerHealth?.details?.circuit_breakers ? Object.keys(providerHealth.details.circuit_breakers).length : 0}
+              </div>
+              <div className="text-sm text-muted-foreground">Endpoints Activos</div>
             </div>
             <div className="text-center">
               <div className="text-sm">
-                {syncStatus?.lastStatsWeek ? (
+                {providerHealth?.details?.metrics ? (
                   <>
                     <div className="font-bold">
-                      {syncStatus.lastStatsWeek.season} S{syncStatus.lastStatsWeek.week}
+                      {providerHealth.details.metrics.cache_hit_rate || '0%'}
                     </div>
-                    <div className="text-muted-foreground">Última Semana</div>
+                    <div className="text-muted-foreground">Cache Hit Rate</div>
                   </>
                 ) : (
-                  <div className="text-muted-foreground">Sin datos</div>
+                  <div className="text-muted-foreground">Sin métricas</div>
                 )}
               </div>
             </div>

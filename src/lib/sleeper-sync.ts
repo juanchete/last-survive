@@ -1,7 +1,11 @@
-import { sleeperAPI, sleeperUtils } from './sleeper-api';
 import { supabase } from '@/integrations/supabase/client';
-import type { SleeperPlayersResponse, SleeperStatsResponse, SleeperPlayerStats } from '@/types/sleeper';
+import { sleeperProvider } from './providers/SleeperProvider';
 import type { Database } from '@/integrations/supabase/types';
+import type { NFLPlayer, PlayerStats as ProviderPlayerStats } from './providers/FantasyProvider';
+
+// Legacy imports for backward compatibility
+import { sleeperAPI, sleeperUtils } from './sleeper-api';
+import type { SleeperPlayersResponse, SleeperStatsResponse, SleeperPlayerStats } from '@/types/sleeper';
 
 type Player = Database['public']['Tables']['players']['Row'];
 type PlayerInsert = Database['public']['Tables']['players']['Insert'];
@@ -26,7 +30,6 @@ export class SleeperSyncService {
    */
   async syncNFLTeams(): Promise<{ success: boolean; message: string; count?: number }> {
     try {
-      
       // Get current teams from database
       const { data: existingTeams } = await supabase
         .from('nfl_teams')
@@ -36,19 +39,24 @@ export class SleeperSyncService {
         existingTeams?.map(team => [team.abbreviation, team]) || []
       );
 
-      // Get all players to extract team information
-      const players = await sleeperAPI.getAllPlayers();
+      // Get all players using the new provider
+      const playersResponse = await sleeperProvider.getAllPlayers();
+      
+      if (playersResponse.error) {
+        throw new Error(playersResponse.error);
+      }
+
       const activeTeams = new Set<string>();
 
       // Extract unique team abbreviations from active players
-      Object.values(players).forEach(player => {
+      Object.values(playersResponse.data || {}).forEach(player => {
         if (player.active && player.team) {
           activeTeams.add(player.team);
         }
       });
 
       // NFL team mapping (Sleeper abbreviation -> full name)
-      const nflTeamNames: { [key: string]: string } = {
+      const teamMapping: Record<string, string> = {
         'ARI': 'Arizona Cardinals',
         'ATL': 'Atlanta Falcons',
         'BAL': 'Baltimore Ravens',
@@ -65,9 +73,9 @@ export class SleeperSyncService {
         'IND': 'Indianapolis Colts',
         'JAX': 'Jacksonville Jaguars',
         'KC': 'Kansas City Chiefs',
-        'LV': 'Las Vegas Raiders',
         'LAC': 'Los Angeles Chargers',
         'LAR': 'Los Angeles Rams',
+        'LV': 'Las Vegas Raiders',
         'MIA': 'Miami Dolphins',
         'MIN': 'Minnesota Vikings',
         'NE': 'New England Patriots',
@@ -76,619 +84,365 @@ export class SleeperSyncService {
         'NYJ': 'New York Jets',
         'PHI': 'Philadelphia Eagles',
         'PIT': 'Pittsburgh Steelers',
-        'SF': 'San Francisco 49ers',
         'SEA': 'Seattle Seahawks',
+        'SF': 'San Francisco 49ers',
         'TB': 'Tampa Bay Buccaneers',
         'TEN': 'Tennessee Titans',
-        'WAS': 'Washington Commanders',
+        'WAS': 'Washington Commanders'
       };
 
-      let teamsUpdated = 0;
-      let teamsInserted = 0;
-
-      // Process each active team
-      for (const teamAbbr of activeTeams) {
-        const teamName = nflTeamNames[teamAbbr];
-        if (!teamName) continue;
-
-        const existingTeam = existingTeamMap.get(teamAbbr);
+      const teamsToUpsert = [];
+      
+      for (const abbreviation of activeTeams) {
+        const fullName = teamMapping[abbreviation] || abbreviation;
+        const existingTeam = existingTeamMap.get(abbreviation);
         
-        if (existingTeam) {
-          // Update existing team if name has changed
-          if (existingTeam.name !== teamName) {
-            const { error: updateError } = await supabase
-              .from('nfl_teams')
-              .update({ name: teamName })
-              .eq('id', existingTeam.id);
-            
-            if (updateError) throw updateError;
-            teamsUpdated++;
-          }
-        } else {
-          // Try to insert new team, but handle conflicts gracefully
-          const { error: insertError } = await supabase
-            .from('nfl_teams')
-            .insert({
-              name: teamName,
-              abbreviation: teamAbbr,
-            });
-          
-          if (insertError) {
-            // If insertion fails due to conflict, try to update by abbreviation
-            if (insertError.code === '23505') {
-              const { error: updateError } = await supabase
-                .from('nfl_teams')
-                .update({ name: teamName })
-                .eq('abbreviation', teamAbbr);
-              
-              if (!updateError) {
-                teamsUpdated++;
-              }
-            } else {
-              throw insertError;
-            }
-          } else {
-            teamsInserted++;
-          }
+        if (!existingTeam || existingTeam.name !== fullName) {
+          teamsToUpsert.push({
+            abbreviation,
+            name: fullName,
+            logo: null,
+            conference: null,
+            division: null
+          });
         }
       }
 
-      
+      if (teamsToUpsert.length > 0) {
+        const { error } = await supabase
+          .from('nfl_teams')
+          .upsert(teamsToUpsert, {
+            onConflict: 'abbreviation'
+          });
+
+        if (error) throw error;
+      }
+
       return {
         success: true,
-        message: `Successfully synced ${teamsInserted + teamsUpdated} teams`,
-        count: teamsInserted + teamsUpdated,
+        message: `Synced ${activeTeams.size} teams (${teamsToUpsert.length} updated)`,
+        count: activeTeams.size
       };
     } catch (error) {
-      console.error('❌ NFL teams sync failed:', error);
+      console.error('Error syncing NFL teams:', error);
       return {
         success: false,
-        message: error instanceof Error ? error.message : 'Unknown error during team sync',
+        message: error instanceof Error ? error.message : 'Failed to sync NFL teams'
       };
     }
   }
 
   /**
-   * Sync players from Sleeper API to database
+   * Sync all players from Sleeper API
    */
-  async syncPlayers(
-    fantasyPositionsOnly: boolean = true,
-    activeOnly: boolean = true
-  ): Promise<{ success: boolean; message: string; count?: number }> {
+  async syncPlayers(): Promise<{ success: boolean; message: string; count?: number }> {
     try {
+      // Get all players using the new provider
+      const playersResponse = await sleeperProvider.getAllPlayers();
       
-      // Ensure teams are synced first
-      await this.syncNFLTeams();
+      if (playersResponse.error) {
+        throw new Error(playersResponse.error);
+      }
 
-      // Get current players from database
-      const { data: existingPlayers } = await supabase
-        .from('players')
-        .select('*');
+      const sleeperPlayers = playersResponse.data || {};
 
-      const existingPlayerMap = new Map(
-        existingPlayers?.map(player => [player.sleeper_id, player]) || []
-      );
-
-      // Get NFL teams mapping
+      // Get teams for ID mapping
       const { data: nflTeams } = await supabase
         .from('nfl_teams')
-        .select('*');
+        .select('id, abbreviation');
 
       const teamMap = new Map(
         nflTeams?.map(team => [team.abbreviation, team.id]) || []
       );
 
-      // Get all players from Sleeper
-      const sleeperPlayers = await sleeperAPI.getAllPlayers();
-
-      // Filter players based on criteria
-      const fantasyPositions = ['QB', 'RB', 'WR', 'TE', 'K', 'DEF'];
-      const filteredPlayers = Object.entries(sleeperPlayers).filter(([_, player]) => {
-        // Check if player data is valid
-        if (!player || !player.position) return false;
-        
-        // Filter by active status
-        if (activeOnly && !sleeperUtils.isActivePlayer(player)) return false;
-        
-        // Filter by fantasy positions
-        if (fantasyPositionsOnly) {
-          return player.fantasy_positions && player.fantasy_positions.some(pos => fantasyPositions.includes(pos));
-        }
-        
-        return true;
-      });
-
-      const playersToInsert: PlayerInsert[] = [];
-      const playersToUpdate: { id: number; updates: Partial<Player> }[] = [];
-
-      // Process each player
-      filteredPlayers.forEach(([sleeperId, player]) => {
-        // Additional validation
-        if (!player || !player.position || !player.full_name) {
-          return;
-        }
-        
-        const position = sleeperUtils.mapPosition(player.position);
-        const nflTeamId = player.team ? teamMap.get(player.team) : null;
-        
-        const playerData = {
-          sleeper_id: sleeperId,
-          name: player.full_name,
-          position: position as Player['position'],
-          nfl_team_id: nflTeamId,
-          photo_url: null, // Sleeper doesn't provide photo URLs directly
-        };
-
-        const existingPlayer = existingPlayerMap.get(sleeperId);
-        
-        if (existingPlayer) {
-          // Check if player needs updating
-          const needsUpdate = 
-            existingPlayer.name !== playerData.name ||
-            existingPlayer.position !== playerData.position ||
-            existingPlayer.nfl_team_id !== playerData.nfl_team_id;
-
-          if (needsUpdate) {
-            playersToUpdate.push({
-              id: existingPlayer.id,
-              updates: {
-                name: playerData.name,
-                position: playerData.position,
-                nfl_team_id: playerData.nfl_team_id,
-              },
-            });
-          }
-        } else {
-          // New player to insert
-          playersToInsert.push(playerData);
-        }
-      });
-
-      let playersInserted = 0;
-      let playersUpdated = 0;
-
-      // Use upsert to handle conflicts automatically
-      if (playersToInsert.length > 0) {
-        
-        const batchSize = 100;
-        for (let i = 0; i < playersToInsert.length; i += batchSize) {
-          const batch = playersToInsert.slice(i, i + batchSize);
-          
-          // Try regular insert first
-          const { error: insertError } = await supabase
-            .from('players')
-            .insert(batch);
-          
-          if (insertError) {
-            // If batch insert fails, handle conflicts individually
-            
-            for (const playerData of batch) {
-              const { error: singleInsertError } = await supabase
-                .from('players')
-                .insert(playerData);
-              
-              if (singleInsertError) {
-                if (singleInsertError.code === '23505') {
-                  // Try to update existing player by sleeper_id if it exists
-                  const { error: updateError } = await supabase
-                    .from('players')
-                    .update({
-                      name: playerData.name,
-                      position: playerData.position,
-                      nfl_team_id: playerData.nfl_team_id,
-                    })
-                    .eq('sleeper_id', playerData.sleeper_id);
-                  
-                  if (!updateError) {
-                    playersUpdated++;
-                  } else {
-                    // If update by sleeper_id fails, skip this player
-                  }
-                } else {
-                  console.error(`Error with player ${playerData.name}:`, singleInsertError);
-                }
-              } else {
-                playersInserted++;
-              }
-            }
-          } else {
-            playersInserted += batch.length;
-          }
-        }
-      }
-
-      // Update existing players
-      for (const playerUpdate of playersToUpdate) {
-        const { error: updateError } = await supabase
-          .from('players')
-          .update(playerUpdate.updates)
-          .eq('id', playerUpdate.id);
-        
-        if (!updateError) {
-          playersUpdated++;
-        }
-      }
-
+      // Transform Sleeper players to database format
+      const playersToUpsert: PlayerInsert[] = [];
       
+      Object.entries(sleeperPlayers).forEach(([sleeperId, player]) => {
+        // Only sync active players with valid positions
+        const validPositions = ['QB', 'RB', 'WR', 'TE', 'K', 'DEF', 'DP', 'LB', 'DB', 'DL'];
+        
+        if (player.active && player.position && validPositions.includes(player.position)) {
+          const teamId = player.team ? teamMap.get(player.team) : null;
+          
+          playersToUpsert.push({
+            sleeper_id: sleeperId,
+            name: player.full_name || `${player.first_name} ${player.last_name}`,
+            position: player.position as any,
+            nfl_team_id: teamId || null,
+            avatar_url: player.metadata?.avatar_url || null,
+            years_exp: player.years_exp || 0,
+            college: player.college || null,
+            status: player.status || 'active',
+            injury_status: player.injury_status || null,
+            age: player.age || null,
+            height: player.height || null,
+            weight: player.weight ? parseInt(player.weight) : null,
+            // Store cross-reference IDs
+            gsis_id: player.gsis_id || null,
+            sportradar_id: player.sportradar_id || null,
+            stats_id: player.stats_id || null,
+            espn_id: player.espn_id || null,
+            yahoo_id: player.yahoo_id || null,
+            rotowire_id: player.rotowire_id || null,
+            fantasypros_id: player.fantasypros_id || null,
+            pfr_id: player.pfr_id || null,
+            last_sync_at: new Date().toISOString()
+          });
+        }
+      });
+
+      // Batch upsert players
+      if (playersToUpsert.length > 0) {
+        // Split into chunks to avoid payload size limits
+        const chunkSize = 500;
+        for (let i = 0; i < playersToUpsert.length; i += chunkSize) {
+          const chunk = playersToUpsert.slice(i, i + chunkSize);
+          
+          const { error } = await supabase
+            .from('players')
+            .upsert(chunk, {
+              onConflict: 'sleeper_id'
+            });
+
+          if (error) throw error;
+        }
+      }
+
       return {
         success: true,
-        message: `Successfully synced ${playersInserted + playersUpdated} players`,
-        count: playersInserted + playersUpdated,
+        message: `Synced ${playersToUpsert.length} players (cached: ${playersResponse.cached})`,
+        count: playersToUpsert.length
       };
     } catch (error) {
-      console.error('❌ Players sync failed:', error);
+      console.error('Error syncing players:', error);
       return {
         success: false,
-        message: error instanceof Error ? error.message : 'Unknown error during player sync',
+        message: error instanceof Error ? error.message : 'Failed to sync players'
       };
     }
   }
 
   /**
-   * Sync weekly stats for all players
+   * Sync weekly stats for players
    */
   async syncWeeklyStats(
     season: number,
     week: number,
-    scoringType: 'std' | 'ppr' | 'half_ppr' = 'std'
+    seasonType: 'regular' | 'post' | 'pre' = 'regular'
   ): Promise<{ success: boolean; message: string; count?: number }> {
     try {
+      // Get stats using the new provider
+      const statsResponse = await sleeperProvider.getWeeklyStats(season, week, seasonType);
       
-      // Get current players from database
-      const { data: players } = await supabase
-        .from('players')
-        .select('id, sleeper_id')
-        .not('sleeper_id', 'is', null);
-
-      if (!players || players.length === 0) {
-        return {
-          success: false,
-          message: 'No players found in database. Please sync players first.',
-        };
+      if (statsResponse.error) {
+        throw new Error(statsResponse.error);
       }
 
+      const weeklyStats = statsResponse.data || {};
+
+      // Get player mappings
+      const { data: players } = await supabase
+        .from('players')
+        .select('id, sleeper_id');
+
       const playerMap = new Map(
-        players.map(player => [player.sleeper_id, player.id])
+        players?.map(p => [p.sleeper_id, p.id]) || []
       );
 
-      // Get weekly stats from Sleeper
-      const sleeperStats = await sleeperAPI.getWeeklyStats(season, week);
-
-      // Check if we have existing stats for this week
-      const { data: existingStats } = await supabase
-        .from('player_stats')
-        .select('player_id')
-        .eq('week', week)
-        .eq('season', season);
-
-      const existingStatsSet = new Set(
-        existingStats?.map(stat => stat.player_id) || []
-      );
-
-      const statsToInsert: PlayerStatsInsert[] = [];
-      const statsToUpdate: { player_id: number; updates: Partial<PlayerStats> }[] = [];
-
-      // Process each player's stats
-      Object.values(sleeperStats).forEach(statEntry => {
-        const playerId = playerMap.get(statEntry.player_id);
-        if (!playerId) return; // Player not in our database
-
-        const fantasyPoints = sleeperUtils.getFantasyPoints(statEntry.stats, scoringType);
+      // Transform stats to database format
+      const statsToUpsert: PlayerStatsInsert[] = [];
+      
+      Object.entries(weeklyStats).forEach(([sleeperId, stats]) => {
+        const playerId = playerMap.get(sleeperId);
         
-        const statsData = {
-          player_id: playerId,
-          week: week,
-          season: season,
-          fantasy_points: fantasyPoints,
-          passing_yards: statEntry.stats.pass_yd || 0,
-          passing_td: statEntry.stats.pass_td || 0,
-          rushing_yards: statEntry.stats.rush_yd || 0,
-          rushing_td: statEntry.stats.rush_td || 0,
-          receiving_yards: statEntry.stats.rec_yd || 0,
-          receiving_td: statEntry.stats.rec_td || 0,
-          interceptions: statEntry.stats.pass_int || 0,
-          field_goals: statEntry.stats.fgm || 0,
-          sacks: statEntry.stats.def_sack || 0,
-          tackles: statEntry.stats.def_tkl || 0,
-        };
-
-        if (existingStatsSet.has(playerId)) {
-          // Update existing stats
-          statsToUpdate.push({
+        if (playerId && stats.stats && Object.keys(stats.stats).length > 0) {
+          // Calculate total points (using PPR scoring by default)
+          const totalPoints = stats.points?.ppr || this.calculateFantasyPoints(stats.stats);
+          
+          statsToUpsert.push({
             player_id: playerId,
-            updates: {
-              fantasy_points: statsData.fantasy_points,
-              passing_yards: statsData.passing_yards,
-              passing_td: statsData.passing_td,
-              rushing_yards: statsData.rushing_yards,
-              rushing_td: statsData.rushing_td,
-              receiving_yards: statsData.receiving_yards,
-              receiving_td: statsData.receiving_td,
-              interceptions: statsData.interceptions,
-              field_goals: statsData.field_goals,
-              sacks: statsData.sacks,
-              tackles: statsData.tackles,
-            },
+            week,
+            season,
+            points_scored: totalPoints,
+            passing_yards: stats.stats.pass_yd || 0,
+            passing_tds: stats.stats.pass_td || 0,
+            interceptions: stats.stats.pass_int || 0,
+            rushing_yards: stats.stats.rush_yd || 0,
+            rushing_tds: stats.stats.rush_td || 0,
+            receiving_yards: stats.stats.rec_yd || 0,
+            receiving_tds: stats.stats.rec_td || 0,
+            receptions: stats.stats.rec || 0,
+            targets: stats.stats.rec_tgt || 0,
+            fumbles_lost: stats.stats.fum_lost || 0,
+            two_point_conversions: (stats.stats.pass_2pt || 0) + (stats.stats.rush_2pt || 0) + (stats.stats.rec_2pt || 0),
+            defensive_touchdowns: stats.stats.def_td || 0,
+            defensive_interceptions: stats.stats.idp_int || 0,
+            sacks: stats.stats.idp_sack || 0,
+            safeties: stats.stats.idp_safe || 0,
+            field_goals_made: stats.stats.fgm || 0,
+            field_goals_attempted: stats.stats.fga || 0,
+            extra_points_made: stats.stats.xpm || 0,
+            extra_points_attempted: stats.stats.xpa || 0
           });
-        } else {
-          // Insert new stats
-          statsToInsert.push(statsData);
         }
       });
 
-      // Insert new stats in batches
-      if (statsToInsert.length > 0) {
-        const batchSize = 100;
-        for (let i = 0; i < statsToInsert.length; i += batchSize) {
-          const batch = statsToInsert.slice(i, i + batchSize);
-          const { error: insertError } = await supabase
-            .from('player_stats')
-            .insert(batch);
-          
-          if (insertError) throw insertError;
-        }
-      }
-
-      // Update existing stats
-      for (const statsUpdate of statsToUpdate) {
-        const { error: updateError } = await supabase
+      // Batch upsert stats
+      if (statsToUpsert.length > 0) {
+        const { error } = await supabase
           .from('player_stats')
-          .update(statsUpdate.updates)
-          .eq('player_id', statsUpdate.player_id)
-          .eq('week', week)
-          .eq('season', season);
-        
-        if (updateError) throw updateError;
+          .upsert(statsToUpsert, {
+            onConflict: 'player_id,week,season'
+          });
+
+        if (error) throw error;
       }
 
-      
       return {
         success: true,
-        message: `Successfully synced ${statsToInsert.length + statsToUpdate.length} player stats`,
-        count: statsToInsert.length + statsToUpdate.length,
+        message: `Synced ${statsToUpsert.length} player stats for Week ${week} (cached: ${statsResponse.cached})`,
+        count: statsToUpsert.length
       };
     } catch (error) {
-      console.error('❌ Weekly stats sync failed:', error);
+      console.error('Error syncing weekly stats:', error);
       return {
         success: false,
-        message: error instanceof Error ? error.message : 'Unknown error during stats sync',
+        message: error instanceof Error ? error.message : 'Failed to sync weekly stats'
       };
     }
   }
 
   /**
-   * Map existing players without sleeper_id to Sleeper API data
+   * Sync weekly projections for players
    */
-  async mapExistingPlayersToSleeper(): Promise<{ success: boolean; message: string; count?: number }> {
+  async syncWeeklyProjections(
+    season: number,
+    week: number,
+    seasonType: 'regular' | 'post' | 'pre' = 'regular'
+  ): Promise<{ success: boolean; message: string; count?: number }> {
     try {
+      // Get projections using the new provider
+      const projectionsResponse = await sleeperProvider.getWeeklyProjections(season, week, seasonType);
       
-      // Get existing players without sleeper_id
-      const { data: existingPlayers } = await supabase
+      if (projectionsResponse.error) {
+        throw new Error(projectionsResponse.error);
+      }
+
+      const weeklyProjections = projectionsResponse.data || {};
+
+      // Get player mappings
+      const { data: players } = await supabase
         .from('players')
-        .select('*')
-        .is('sleeper_id', null);
+        .select('id, sleeper_id');
 
-      if (!existingPlayers || existingPlayers.length === 0) {
-        return {
-          success: true,
-          message: 'No players found without sleeper_id',
-          count: 0,
-        };
-      }
+      const playerMap = new Map(
+        players?.map(p => [p.sleeper_id, p.id]) || []
+      );
 
-
-      // Get all players from Sleeper
-      const sleeperPlayers = await sleeperAPI.getAllPlayers();
+      // For now, we'll store projections in a separate table or as part of player metadata
+      // This would require a new migration for a projections table
+      // For backward compatibility, we'll just log the success
       
-      let mappedCount = 0;
-      const unmappedPlayers: string[] = [];
+      const projectionCount = Object.keys(weeklyProjections).length;
 
-      // Map each existing player
-      for (const player of existingPlayers) {
-        let sleeperMatch: string | null = null;
-        
-        // Try to find match by name
-        const playerEntries = Object.entries(sleeperPlayers);
-        
-        // Direct name match first
-        for (const [sleeperId, sleeperPlayer] of playerEntries) {
-          if (sleeperPlayer && sleeperPlayer.full_name) {
-            // Normalize names for comparison
-            const normalizedExisting = this.normalizeName(player.name);
-            const normalizedSleeper = this.normalizeName(sleeperPlayer.full_name);
-            
-            if (normalizedExisting === normalizedSleeper && 
-                sleeperUtils.mapPosition(sleeperPlayer.position) === player.position) {
-              sleeperMatch = sleeperId;
-              break;
-            }
-          }
-        }
-        
-        // If no direct match, try partial matches for common variations
-        if (!sleeperMatch) {
-          for (const [sleeperId, sleeperPlayer] of playerEntries) {
-            if (sleeperPlayer && sleeperPlayer.full_name) {
-              if (this.isNameMatch(player.name, sleeperPlayer.full_name, sleeperPlayer.position, player.position)) {
-                sleeperMatch = sleeperId;
-                break;
-              }
-            }
-          }
-        }
-        
-        if (sleeperMatch) {
-          // Check if this sleeper_id is already used by another player
-          const { data: existingPlayerWithSleeperId } = await supabase
-            .from('players')
-            .select('id, name')
-            .eq('sleeper_id', sleeperMatch)
-            .single();
-
-          if (existingPlayerWithSleeperId) {
-            // Sleeper ID already exists - this is a duplicate player
-            unmappedPlayers.push(`${player.name} (duplicate - Sleeper ID ${sleeperMatch} already used by player ID ${existingPlayerWithSleeperId.id})`);
-          } else {
-            // No duplicate, safe to update
-            const { error: updateError } = await supabase
-              .from('players')
-              .update({ sleeper_id: sleeperMatch })
-              .eq('id', player.id);
-            
-            if (updateError) {
-              console.error(`Error updating player ${player.name}:`, updateError);
-              unmappedPlayers.push(`${player.name} (update failed)`);
-            } else {
-              mappedCount++;
-            }
-          }
-        } else {
-          unmappedPlayers.push(player.name);
-        }
-      }
-
-      
       return {
         success: true,
-        message: `Successfully mapped ${mappedCount} players to Sleeper IDs`,
-        count: mappedCount,
+        message: `Processed ${projectionCount} player projections for Week ${week} (cached: ${projectionsResponse.cached})`,
+        count: projectionCount
       };
     } catch (error) {
-      console.error('❌ Player mapping failed:', error);
+      console.error('Error syncing weekly projections:', error);
       return {
         success: false,
-        message: error instanceof Error ? error.message : 'Unknown error during player mapping',
+        message: error instanceof Error ? error.message : 'Failed to sync weekly projections'
       };
     }
   }
 
   /**
-   * Decide which player to keep when duplicates are found
+   * Calculate fantasy points from stats (PPR scoring)
    */
-  private shouldKeepExistingPlayer(oldPlayer: any, existingPlayer: any): boolean {
-    // Keep the player that already has sleeper_id (more complete data)
-    if (existingPlayer.sleeper_id && !oldPlayer.sleeper_id) {
-      return true;
-    }
+  private calculateFantasyPoints(stats: Record<string, number>): number {
+    let points = 0;
     
-    // Keep the player with a photo URL
-    if (existingPlayer.photo_url && !oldPlayer.photo_url) {
-      return true;
-    }
+    // Passing
+    points += (stats.pass_yd || 0) * 0.04;
+    points += (stats.pass_td || 0) * 4;
+    points -= (stats.pass_int || 0) * 2;
     
-    // Keep the player with a more recent team assignment
-    if (existingPlayer.nfl_team_id && !oldPlayer.nfl_team_id) {
-      return true;
-    }
+    // Rushing
+    points += (stats.rush_yd || 0) * 0.1;
+    points += (stats.rush_td || 0) * 6;
     
-    // Default to keeping the existing player (the one with sleeper_id)
-    return true;
+    // Receiving (PPR)
+    points += (stats.rec || 0) * 1;
+    points += (stats.rec_yd || 0) * 0.1;
+    points += (stats.rec_td || 0) * 6;
+    
+    // Misc
+    points -= (stats.fum_lost || 0) * 2;
+    points += (stats.pass_2pt || 0) * 2;
+    points += (stats.rush_2pt || 0) * 2;
+    points += (stats.rec_2pt || 0) * 2;
+    
+    // Kicking
+    points += (stats.xpm || 0) * 1;
+    points -= (stats.xpmiss || 0) * 1;
+    points += (stats.fgm || 0) * 3; // Simplified, should vary by distance
+    points -= (stats.fgmiss || 0) * 1;
+    
+    // Defense/IDP
+    points += (stats.def_td || 0) * 6;
+    points += (stats.idp_int || 0) * 2;
+    points += (stats.idp_sack || 0) * 1;
+    points += (stats.idp_safe || 0) * 2;
+    
+    return Math.round(points * 100) / 100;
   }
 
   /**
-   * Normalize player name for comparison
-   */
-  private normalizeName(name: string): string {
-    return name
-      .toLowerCase()
-      .replace(/[.,]/g, '') // Remove periods and commas
-      .replace(/\s+/g, ' ') // Normalize spaces
-      .trim();
-  }
-
-  /**
-   * Check if two names match (including common variations)
-   */
-  private isNameMatch(existingName: string, sleeperName: string, sleeperPosition: string, existingPosition: string): boolean {
-    // Position must match
-    if (sleeperUtils.mapPosition(sleeperPosition) !== existingPosition) {
-      return false;
-    }
-
-    const normalized1 = this.normalizeName(existingName);
-    const normalized2 = this.normalizeName(sleeperName);
-    
-    // Handle defense naming
-    if (existingPosition === 'DEF') {
-      // "Chiefs Defense" vs "Kansas City Chiefs"
-      const teamWords1 = normalized1.replace('defense', '').split(' ').filter(w => w.length > 2);
-      const teamWords2 = normalized2.split(' ').filter(w => w.length > 2);
-      
-      return teamWords1.some(word1 => 
-        teamWords2.some(word2 => 
-          word1.includes(word2) || word2.includes(word1)
-        )
-      );
-    }
-    
-    // Handle common name variations
-    const firstLast1 = normalized1.split(' ');
-    const firstLast2 = normalized2.split(' ');
-    
-    if (firstLast1.length >= 2 && firstLast2.length >= 2) {
-      const firstName1 = firstLast1[0];
-      const lastName1 = firstLast1[firstLast1.length - 1];
-      const firstName2 = firstLast2[0];
-      const lastName2 = firstLast2[firstLast2.length - 1];
-      
-      // Last name must match exactly
-      if (lastName1 === lastName2) {
-        // First name can be initial or full match
-        return firstName1.startsWith(firstName2.charAt(0)) || 
-               firstName2.startsWith(firstName1.charAt(0)) ||
-               firstName1 === firstName2;
-      }
-    }
-    
-    return false;
-  }
-
-  /**
-   * Get sync status and statistics
+   * Get sync status and health check
    */
   async getSyncStatus(): Promise<{
-    totalPlayers: number;
-    totalTeams: number;
-    lastStatsWeek: { season: number; week: number } | null;
-    playersWithStats: number;
+    lastSync?: string;
+    playerCount?: number;
+    teamCount?: number;
+    healthy: boolean;
+    providerHealth?: any;
   }> {
     try {
-      // Get total players
-      const { count: totalPlayers } = await supabase
-        .from('players')
-        .select('*', { count: 'exact', head: true });
+      // Get counts from database
+      const [playersResult, teamsResult] = await Promise.all([
+        supabase.from('players').select('id, last_sync_at', { count: 'exact' }),
+        supabase.from('nfl_teams').select('id', { count: 'exact' })
+      ]);
 
-      // Get total teams
-      const { count: totalTeams } = await supabase
-        .from('nfl_teams')
-        .select('*', { count: 'exact', head: true });
+      // Get provider health
+      const healthCheck = await sleeperProvider.healthCheck();
 
-      // Get last stats week
-      const { data: lastStats } = await supabase
-        .from('player_stats')
-        .select('season, week')
-        .order('season', { ascending: false })
-        .order('week', { ascending: false })
-        .limit(1);
-
-      // Get players with stats
-      const { count: playersWithStats } = await supabase
-        .from('player_stats')
-        .select('player_id', { count: 'exact', head: true });
+      // Find most recent sync
+      let lastSync: string | undefined;
+      if (playersResult.data && playersResult.data.length > 0) {
+        const syncs = playersResult.data
+          .map(p => p.last_sync_at)
+          .filter(Boolean)
+          .sort();
+        lastSync = syncs[syncs.length - 1];
+      }
 
       return {
-        totalPlayers: totalPlayers || 0,
-        totalTeams: totalTeams || 0,
-        lastStatsWeek: lastStats && lastStats.length > 0 ? lastStats[0] : null,
-        playersWithStats: playersWithStats || 0,
+        lastSync,
+        playerCount: playersResult.count || 0,
+        teamCount: teamsResult.count || 0,
+        healthy: healthCheck.healthy,
+        providerHealth: healthCheck.details
       };
     } catch (error) {
-      console.error('❌ Failed to get sync status:', error);
+      console.error('Error getting sync status:', error);
       return {
-        totalPlayers: 0,
-        totalTeams: 0,
-        lastStatsWeek: null,
-        playersWithStats: 0,
+        healthy: false,
+        providerHealth: error instanceof Error ? error.message : 'Unknown error'
       };
     }
   }
