@@ -20,8 +20,11 @@ export class SleeperProvider extends BaseFantasyProvider {
 
   constructor(config: ProviderConfig = {}) {
     super(config)
-    // Get the Edge Functions URL from Supabase client
-    this.functionsUrl = `${supabase.supabaseUrl}/functions/v1`
+    // Get the Edge Functions URL from environment or use default
+    const supabaseUrl = (supabase as any).supabaseUrl || 
+                       import.meta.env.VITE_SUPABASE_URL || 
+                       'https://tvzktsamnoiyjbayimvh.supabase.co'
+    this.functionsUrl = `${supabaseUrl}/functions/v1`
   }
 
   /**
@@ -158,10 +161,13 @@ export class SleeperProvider extends BaseFantasyProvider {
       })
     }
     
+    // Get the session token
+    const { data: { session } } = await supabase.auth.getSession()
+    
     const response = await this.fetchWithRetry(url.toString(), {
       method: 'GET',
       headers: {
-        'Authorization': `Bearer ${supabase.auth.session()?.access_token}`,
+        'Authorization': `Bearer ${session?.access_token}`,
         'Content-Type': 'application/json'
       }
     })
