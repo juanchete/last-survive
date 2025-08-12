@@ -160,7 +160,7 @@ CREATE POLICY "Authenticated admins can read metrics" ON api_metrics
     EXISTS (
       SELECT 1 FROM users 
       WHERE users.id = auth.uid() 
-      AND users.is_admin = true
+      AND (users.role = 'admin' OR users.role = 'super_admin')
     )
   );
 
@@ -284,8 +284,7 @@ GRANT EXECUTE ON FUNCTION create_monthly_partition() TO service_role;
 
 -- Composite index for cache key lookups with expiry check
 CREATE INDEX idx_api_cache_key_expires 
-  ON api_cache(key, expires_at) 
-  WHERE expires_at > NOW();
+  ON api_cache(key, expires_at);
 
 -- Index for metrics aggregation queries
 CREATE INDEX idx_api_metrics_endpoint_ts 

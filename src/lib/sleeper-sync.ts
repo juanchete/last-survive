@@ -224,6 +224,73 @@ export class SleeperSyncService {
   }
 
   /**
+   * Sync team defenses from Sleeper
+   */
+  async syncTeamDefenses(): Promise<{ success: boolean; message: string; count?: number }> {
+    try {
+      // Get NFL teams from database
+      const { data: nflTeams } = await supabase
+        .from('nfl_teams')
+        .select('id, abbreviation, name');
+
+      if (!nflTeams || nflTeams.length === 0) {
+        throw new Error('No NFL teams found. Please sync NFL teams first.');
+      }
+
+      const defensesToUpsert = [];
+
+      // Create defense entries for each team
+      for (const team of nflTeams) {
+        // Check if defense already exists
+        const { data: existingDefense } = await supabase
+          .from('players')
+          .select('id')
+          .eq('position', 'DEF')
+          .eq('nfl_team_id', team.id)
+          .eq('is_team_defense', true)
+          .single();
+
+        if (!existingDefense) {
+          defensesToUpsert.push({
+            name: `${team.name} Defense`,
+            position: 'DEF' as any,
+            nfl_team_id: team.id,
+            sleeper_id: team.abbreviation, // Sleeper uses team abbreviation for defenses
+            is_team_defense: true,
+            status: 'active',
+            avatar_url: null,
+            photo_url: null,
+            last_sync_at: new Date().toISOString()
+          });
+        }
+      }
+
+      // Batch upsert defenses
+      if (defensesToUpsert.length > 0) {
+        const { error } = await supabase
+          .from('players')
+          .upsert(defensesToUpsert, {
+            onConflict: 'sleeper_id'
+          });
+
+        if (error) throw error;
+      }
+
+      return {
+        success: true,
+        message: `Synced ${defensesToUpsert.length} team defenses`,
+        count: defensesToUpsert.length
+      };
+    } catch (error) {
+      console.error('Error syncing team defenses:', error);
+      return {
+        success: false,
+        message: error instanceof Error ? error.message : 'Failed to sync team defenses'
+      };
+    }
+  }
+
+  /**
    * Sync weekly stats for players
    */
   async syncWeeklyStats(

@@ -594,6 +594,24 @@ export const useAdmin = () => {
     }
   };
 
+  const syncTeamDefensesFromSleeper = async (): Promise<{ success: boolean; message: string; count?: number }> => {
+    if (!isAdmin || !user) {
+      return { success: false, message: "Sin permisos de administrador" };
+    }
+
+    try {
+      // Import the sync service dynamically to avoid circular dependencies
+      const { sleeperSync } = await import('@/lib/sleeper-sync');
+      return await sleeperSync.syncTeamDefenses();
+    } catch (error) {
+      console.error("Error syncing team defenses from Sleeper:", error);
+      return { 
+        success: false, 
+        message: error instanceof Error ? error.message : "Error desconocido al sincronizar defensas"
+      };
+    }
+  };
+
   const getSleeperSyncStatus = async () => {
     if (!isAdmin) return null;
 
@@ -680,6 +698,7 @@ export const useAdmin = () => {
     syncPlayersFromSleeper,
     syncWeeklyStatsFromSleeper,
     syncNFLTeamsFromSleeper,
+    syncTeamDefensesFromSleeper,
     getSleeperSyncStatus,
     mapExistingPlayersToSleeper,
     cleanDuplicatePlayers,

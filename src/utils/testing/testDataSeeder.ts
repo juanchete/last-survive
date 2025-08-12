@@ -109,7 +109,7 @@ export class TestDataSeeder {
         entry_fee: 0,
         prize_distribution: { "1st": 100 },
         rules: {
-          roster_size: 9,
+          roster_size: 10,
           positions: {
             QB: 1,
             RB: 2,
@@ -117,7 +117,8 @@ export class TestDataSeeder {
             TE: 1,
             FLEX: 1,
             K: 1,
-            DEF: 1
+            DEF: 1,
+            DP: 1
           },
           scoring: "standard",
           waiver_type: "priority",
@@ -219,13 +220,14 @@ export class TestDataSeeder {
       TE: 1,
       K: 1,
       DEF: 1,
-      FLEX: 1 // Can be RB, WR, or TE
+      FLEX: 1, // Can be RB or WR only
+      DP: 1 // Defensive Player
     };
     
     // Track drafted players and team rosters
     const draftedPlayerIds = new Set<number>();
     const teamRosters = new Map(this.testTeamIds.map(id => [id, {
-      QB: 0, RB: 0, WR: 0, TE: 0, K: 0, DEF: 0
+      QB: 0, RB: 0, WR: 0, TE: 0, K: 0, DEF: 0, DP: 0
     }]));
     
     // Execute draft
@@ -240,9 +242,10 @@ export class TestDataSeeder {
       else if (roster.TE < rosterNeeds.TE) position = "TE";
       else if (roster.K < rosterNeeds.K) position = "K";
       else if (roster.DEF < rosterNeeds.DEF) position = "DEF";
+      else if (roster.DP < rosterNeeds.DP) position = "DP";
       else if (roster.RB < 3) position = "RB"; // FLEX preference
       else if (roster.WR < 3) position = "WR";
-      else position = "TE";
+      else position = "RB"; // Fallback to RB for bench
       
       // Find best available player at position
       const availablePlayers = playersByPosition[position]?.filter(
@@ -317,9 +320,10 @@ export class TestDataSeeder {
       QB: { current: 0, slots: ["QB"] },
       RB: { current: 0, slots: ["RB1", "RB2", "FLEX", "BENCH"] },
       WR: { current: 0, slots: ["WR1", "WR2", "FLEX", "BENCH"] },
-      TE: { current: 0, slots: ["TE", "FLEX", "BENCH"] },
+      TE: { current: 0, slots: ["TE", "BENCH"] }, // TE cannot be FLEX
       K: { current: 0, slots: ["K"] },
-      DEF: { current: 0, slots: ["DEF"] }
+      DEF: { current: 0, slots: ["DEF"] },
+      DP: { current: 0, slots: ["DP"] }
     };
     
     const posConfig = slotCounts[position as keyof typeof slotCounts];

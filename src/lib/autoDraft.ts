@@ -95,7 +95,8 @@ const getAvailableSlot = (
   if (player.position === "TE" && canDraftInSlot("TE")) return "TE";
   if (player.position === "K" && canDraftInSlot("K")) return "K";
   if (player.position === "DEF" && canDraftInSlot("DEF")) return "DEF";
-  if (player.position === "DP" && canDraftInSlot("DP")) return "DP";
+  // DP slot can be filled by DP, LB, DB, or DL positions
+  if (["DP", "LB", "DB", "DL"].includes(player.position) && canDraftInSlot("DP")) return "DP";
   
   // FLEX solo para RB/WR (no TE)
   if (["RB", "WR"].includes(player.position) && canDraftInSlot("FLEX")) {
@@ -181,6 +182,14 @@ export const executeAutoDraft = async ({
           if (!["RB", "WR"].includes(player.position)) return false;
           const slot = getAvailableSlot(player, currentRoster);
           return slot === "FLEX";
+        });
+      } else if (neededPosition === "DP") {
+        // Para DP, buscar cualquier defensive player (DP, LB, DB, DL)
+        candidatePlayers = availablePlayers.filter(player => {
+          if (!player.available) return false;
+          if (!["DP", "LB", "DB", "DL"].includes(player.position)) return false;
+          const slot = getAvailableSlot(player, currentRoster);
+          return slot === "DP";
         });
       } else {
         // Para otras posiciones, buscar jugadores de esa posición específica

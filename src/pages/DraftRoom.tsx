@@ -125,7 +125,8 @@ export default function DraftRoom() {
     if (["RB", "WR"].includes(player.position) && canDraftInSlot("FLEX")) return "FLEX";
     if (player.position === "K" && canDraftInSlot("K")) return "K";
     if (player.position === "DEF" && canDraftInSlot("DEF")) return "DEF";
-    if (player.position === "DP" && canDraftInSlot("DP")) return "DP";
+    // DP slot can be filled by DP, LB, DB, or DL positions
+    if (["DP", "LB", "DB", "DL"].includes(player.position) && canDraftInSlot("DP")) return "DP";
     return null;
   };
 
@@ -137,8 +138,9 @@ export default function DraftRoom() {
     if (player.position === "TE" && !canDraftInSlot("TE")) return "You already have the maximum of starting TEs.";
     if (player.position === "K" && !canDraftInSlot("K")) return "You already have the maximum of Kickers.";
     if (player.position === "DEF" && !canDraftInSlot("DEF")) return "You already have the maximum of Defenses.";
-    if (player.position === "DP" && !canDraftInSlot("DP")) return "You already have the maximum of Defensive Players.";
-    return "Your roster is full (9 players max).";
+    // Check for all defensive player positions
+    if (["DP", "LB", "DB", "DL"].includes(player.position) && !canDraftInSlot("DP")) return "You already have the maximum of Defensive Players.";
+    return "Your roster is full (10 players max).";
   };
 
   // Filtrar y ordenar jugadores

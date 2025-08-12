@@ -12,8 +12,9 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { 
   Users, Shield, AlertTriangle, Ban, 
-  UserCheck, Edit, Database, Trophy, Eye, Trash2, RotateCcw, Target, Settings
+  UserCheck, Edit, Database, Trophy, Eye, Trash2, RotateCcw, Target, Settings, Zap
 } from "lucide-react";
+import { SleeperAPIControl } from "@/components/SleeperAPIControl";
 import { useAuth } from "@/hooks/useAuth";
 import { useAdmin, type RosterPlayer } from "@/hooks/useAdmin";
 import { supabase } from "@/integrations/supabase/client";
@@ -78,7 +79,7 @@ export default function AdminPanel() {
   const [showRosterDialog, setShowRosterDialog] = useState(false);
   const [teamRoster, setTeamRoster] = useState<RosterPlayer[]>([]);
   const [currentWeek, setCurrentWeek] = useState(1);
-  const [activeTab, setActiveTab] = useState("users");
+  const [activeTab, setActiveTab] = useState("sleeper");
   const [banReason, setBanReason] = useState("");
   const [showBanDialog, setShowBanDialog] = useState(false);
   const [userFilter, setUserFilter] = useState<'all' | 'banned' | 'verified' | 'admins'>('all');
@@ -540,12 +541,28 @@ export default function AdminPanel() {
 
         {/* Panel de pestañas */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid w-full grid-cols-4 bg-nfl-gray">
+          <TabsList className="grid w-full grid-cols-5 bg-nfl-gray">
+            <TabsTrigger value="sleeper" className="text-white">Sleeper API</TabsTrigger>
             <TabsTrigger value="users" className="text-white">Gestión de Usuarios</TabsTrigger>
             <TabsTrigger value="leagues" className="text-white">Supervisión de Ligas</TabsTrigger>
             <TabsTrigger value="players" className="text-white">Edición de Jugadores</TabsTrigger>
             <TabsTrigger value="teams" className="text-white">Gestión de Equipos</TabsTrigger>
           </TabsList>
+
+          {/* Sleeper API Control */}
+          <TabsContent value="sleeper" className="space-y-6">
+            <Card className="bg-nfl-gray border-nfl-light-gray/20">
+              <CardHeader>
+                <CardTitle className="text-white flex items-center gap-2">
+                  <Zap className="h-5 w-5" />
+                  Control de Sleeper API
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <SleeperAPIControl />
+              </CardContent>
+            </Card>
+          </TabsContent>
 
           {/* Gestión de Usuarios */}
           <TabsContent value="users" className="space-y-6">

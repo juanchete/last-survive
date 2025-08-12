@@ -32,15 +32,11 @@ export class SleeperProvider extends BaseFantasyProvider {
    */
   async getNFLState(): Promise<ProviderResponse<NFLState>> {
     try {
-      const { data, error } = await supabase.functions.invoke('sleeper-proxy/state')
-      
-      if (error) {
-        return { error: error.message }
-      }
+      const result = await this.fetchFromEdgeFunction('/state')
       
       return {
-        data: data as NFLState,
-        cached: data?.cached || false,
+        data: result as NFLState,
+        cached: result?.cached || false,
         timestamp: new Date().toISOString()
       }
     } catch (error) {
@@ -55,18 +51,14 @@ export class SleeperProvider extends BaseFantasyProvider {
    */
   async getAllPlayers(): Promise<ProviderResponse<PlayersMap>> {
     try {
-      const { data, error } = await supabase.functions.invoke('sleeper-proxy/players')
-      
-      if (error) {
-        return { error: error.message }
-      }
+      const result = await this.fetchFromEdgeFunction('/players')
       
       // Transform Sleeper player data to our format
-      const players = this.transformSleeperPlayers(data)
+      const players = this.transformSleeperPlayers(result)
       
       return {
         data: players,
-        cached: data?.cached || false,
+        cached: result?.cached || false,
         timestamp: new Date().toISOString()
       }
     } catch (error) {
@@ -85,24 +77,19 @@ export class SleeperProvider extends BaseFantasyProvider {
     seasonType: 'pre' | 'regular' | 'post' = 'regular'
   ): Promise<ProviderResponse<StatsMap>> {
     try {
-      const { data, error } = await supabase.functions.invoke('sleeper-proxy/stats', {
-        body: {
-          season: season.toString(),
-          week: week.toString(),
-          season_type: seasonType
-        }
-      })
-      
-      if (error) {
-        return { error: error.message }
+      const params = {
+        season: season.toString(),
+        week: week.toString(),
+        season_type: seasonType
       }
+      const result = await this.fetchFromEdgeFunction('/stats', params)
       
       // Transform Sleeper stats to our format
-      const stats = this.transformSleeperStats(data)
+      const stats = this.transformSleeperStats(result)
       
       return {
         data: stats,
-        cached: data?.cached || false,
+        cached: result?.cached || false,
         timestamp: new Date().toISOString()
       }
     } catch (error) {
@@ -121,24 +108,19 @@ export class SleeperProvider extends BaseFantasyProvider {
     seasonType: 'pre' | 'regular' | 'post' = 'regular'
   ): Promise<ProviderResponse<ProjectionsMap>> {
     try {
-      const { data, error } = await supabase.functions.invoke('sleeper-proxy/projections', {
-        body: {
-          season: season.toString(),
-          week: week.toString(),
-          season_type: seasonType
-        }
-      })
-      
-      if (error) {
-        return { error: error.message }
+      const params = {
+        season: season.toString(),
+        week: week.toString(),
+        season_type: seasonType
       }
+      const result = await this.fetchFromEdgeFunction('/projections', params)
       
       // Transform Sleeper projections to our format
-      const projections = this.transformSleeperProjections(data)
+      const projections = this.transformSleeperProjections(result)
       
       return {
         data: projections,
-        cached: data?.cached || false,
+        cached: result?.cached || false,
         timestamp: new Date().toISOString()
       }
     } catch (error) {
@@ -320,18 +302,11 @@ export class SleeperProvider extends BaseFantasyProvider {
    */
   async healthCheck(): Promise<{ healthy: boolean; details?: any }> {
     try {
-      const { data, error } = await supabase.functions.invoke('sleeper-proxy/health')
-      
-      if (error) {
-        return { 
-          healthy: false,
-          details: error.message
-        }
-      }
+      const result = await this.fetchFromEdgeFunction('/health')
       
       return {
-        healthy: data?.status === 'healthy',
-        details: data
+        healthy: result?.status === 'healthy',
+        details: result
       }
     } catch (error) {
       return {

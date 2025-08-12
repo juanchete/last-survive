@@ -129,7 +129,8 @@ export default function Draft() {
     if (["RB", "WR"].includes(player.position) && canDraftInSlot("FLEX")) return "FLEX"; // Only RB/WR for FLEX
     if (player.position === "K" && canDraftInSlot("K")) return "K";
     if (player.position === "DEF" && canDraftInSlot("DEF")) return "DEF";
-    if (player.position === "DP" && canDraftInSlot("DP")) return "DP";
+    // DP slot can be filled by DP, LB, DB, or DL positions
+    if (["DP", "LB", "DB", "DL"].includes(player.position) && canDraftInSlot("DP")) return "DP";
     if (canDraftInSlot("BENCH")) return "BENCH";
     return null;
   };
@@ -142,7 +143,8 @@ export default function Draft() {
     if (player.position === "TE" && !canDraftInSlot("TE")) return "You already have the maximum of starting TEs.";
     if (player.position === "K" && !canDraftInSlot("K")) return "You already have the maximum of Kickers.";
     if (player.position === "DEF" && !canDraftInSlot("DEF")) return "You already have the maximum of Defenses.";
-    if (player.position === "DP" && !canDraftInSlot("DP")) return "You already have the maximum of Defensive Players.";
+    // Check for all defensive player positions
+    if (["DP", "LB", "DB", "DL"].includes(player.position) && !canDraftInSlot("DP")) return "You already have the maximum of Defensive Players.";
     if (!canDraftInSlot("BENCH")) return "Your bench is full.";
     return null;
   };

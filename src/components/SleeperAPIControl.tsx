@@ -34,6 +34,7 @@ export function SleeperAPIControl() {
     syncPlayersFromSleeper, 
     syncWeeklyStatsFromSleeper, 
     syncNFLTeamsFromSleeper,
+    syncTeamDefensesFromSleeper,
     getSleeperSyncStatus,
     mapExistingPlayersToSleeper,
     cleanDuplicatePlayers 
@@ -43,12 +44,14 @@ export function SleeperAPIControl() {
     players: boolean;
     stats: boolean;
     teams: boolean;
+    defenses: boolean;
     mapping: boolean;
     cleaning: boolean;
   }>({
     players: false,
     stats: false,
     teams: false,
+    defenses: false,
     mapping: false,
     cleaning: false,
   });
@@ -111,6 +114,22 @@ export function SleeperAPIControl() {
       toast.error('Error al sincronizar equipos NFL');
     } finally {
       setLoading(prev => ({ ...prev, teams: false }));
+    }
+  };
+
+  const handleSyncDefenses = async () => {
+    setLoading(prev => ({ ...prev, defenses: true }));
+    try {
+      const result = await syncTeamDefensesFromSleeper();
+      if (result.success) {
+        toast.success(`${result.message} (${result.count} defensas)`);
+      } else {
+        toast.error(result.message);
+      }
+    } catch (error) {
+      toast.error('Error al sincronizar defensas de equipos');
+    } finally {
+      setLoading(prev => ({ ...prev, defenses: false }));
     }
   };
 
@@ -386,6 +405,37 @@ export function SleeperAPIControl() {
             
             <div className="text-xs text-muted-foreground mt-2">
               Actualiza nombres y abreviaciones de equipos
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Team Defenses Sync */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <BarChart3 className="h-4 w-4" />
+              Sincronizar Defensas
+            </CardTitle>
+            <CardDescription>
+              Crear entradas de defensa para cada equipo NFL
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button
+              onClick={handleSyncDefenses}
+              disabled={loading.defenses}
+              className="w-full"
+            >
+              {loading.defenses ? (
+                <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <Download className="h-4 w-4 mr-2" />
+              )}
+              Sincronizar Defensas de Equipos
+            </Button>
+            
+            <div className="text-xs text-muted-foreground mt-2">
+              Crea jugadores especiales DEF para cada equipo NFL
             </div>
           </CardContent>
         </Card>
