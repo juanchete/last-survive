@@ -5,10 +5,10 @@ export function useAvailablePlayers(leagueId: string, week: number) {
   return useQuery({
     queryKey: ["availablePlayers", leagueId, week],
     queryFn: async () => {
-      // 1. Obtener todos los jugadores y equipos NFL
+      // 1. Obtener todos los jugadores y equipos NFL con sus puntos de la temporada pasada
       const { data: players, error: playersError } = await supabase
         .from("players")
-        .select("id, name, position, nfl_team_id, photo_url");
+        .select("id, name, position, nfl_team_id, photo_url, last_season_points");
       if (playersError) throw playersError;
 
       const { data: nflTeams, error: teamsError } = await supabase
@@ -29,15 +29,8 @@ export function useAvailablePlayers(leagueId: string, week: number) {
           .map((r) => r.player_id)
       );
 
-      // 3. Obtener los puntos fantasy de la semana actual
-      const { data: stats, error: statsError } = await supabase
-        .from("player_stats")
-        .select("player_id, fantasy_points")
-        .eq("week", week);
-      if (statsError) throw statsError;
-      const pointsMap = new Map(
-        stats?.map((s) => [s.player_id, s.fantasy_points])
-      );
+      // 3. For now, we'll use last_season_points from the players table
+      // We could also fetch current week stats if needed for in-season drafts
 
       // 4. Armar el array de jugadores disponibles en formato Player
       return players
@@ -50,7 +43,7 @@ export function useAvailablePlayers(leagueId: string, week: number) {
             team: nflTeam?.abbreviation || "",
             available: !draftedIds.has(player.id),
             eliminated: nflTeam?.eliminated || false,
-            points: pointsMap.get(player.id) || 0,
+            points: player.last_season_points || 0, // Use last season points for draft
             photo: player.photo_url,
           };
         })

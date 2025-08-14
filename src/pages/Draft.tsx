@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { DraftPlayerCard } from "@/components/DraftPlayerCard";
+import { DraftRecommendations } from "@/components/DraftRecommendations";
 import { Search, Award, Settings, Play, Pause, RotateCcw, CheckCircle, Clock, Trophy, Users } from "lucide-react";
 import { useLocation } from "react-router-dom";
 import { useAvailablePlayers } from "@/hooks/useAvailablePlayers";
@@ -152,7 +153,7 @@ export default function Draft() {
   // Filtrar y ordenar jugadores - properly type the available players
   const typedAvailablePlayers: Player[] = availablePlayers.map(player => ({
     ...player,
-    position: player.position as "QB" | "RB" | "WR" | "TE" | "K" | "DEF" | "DP"
+    position: player.position as "QB" | "RB" | "WR" | "TE" | "K" | "DEF" | "DP" | "LB" | "DB" | "DL"
   }));
 
   const filteredPlayers = typedAvailablePlayers.filter(player => {
@@ -266,10 +267,25 @@ export default function Draft() {
   // Mostrar el orden de picks y el turno actual en una tabla
   const renderDraftOrderTable = () => {
     if (!draftState?.draft_order || teams.length === 0) return null;
+    
+    // Calculate current round and position in snake draft
+    const totalTeams = draftState.draft_order.length;
+    const currentPickNumber = (draftState.current_pick || 0) + 1; // Convert to 1-based
+    const currentRound = Math.ceil(currentPickNumber / totalTeams);
+    const positionInRound = ((currentPickNumber - 1) % totalTeams);
+    
+    // In snake draft, odd rounds go forward, even rounds go backward
+    const isReverseRound = currentRound % 2 === 0;
+    const currentTeamIndex = isReverseRound 
+      ? totalTeams - 1 - positionInRound 
+      : positionInRound;
+    
     return (
       <Card className="mb-4 bg-nfl-gray border-nfl-light-gray/20">
         <CardHeader className="pb-2">
-          <CardTitle className="text-base text-nfl-blue">Draft Order</CardTitle>
+          <CardTitle className="text-base text-nfl-blue">
+            Draft Order - Round {currentRound} {isReverseRound && "(Reversed)"}
+          </CardTitle>
         </CardHeader>
         <CardContent className="pt-0">
           <Table>
@@ -284,7 +300,7 @@ export default function Draft() {
             <TableBody>
               {draftState.draft_order.map((teamId: string, idx: number) => {
                 const team = teams.find((t) => t.id === teamId);
-                const isCurrent = idx === draftState.current_pick;
+                const isCurrent = idx === currentTeamIndex && draftState.draft_status === 'in_progress';
                 return (
                   <TableRow key={teamId} className={isCurrent ? "bg-nfl-blue/20" : ""}>
                     <TableCell className="font-bold">{idx + 1}</TableCell>
@@ -592,8 +608,8 @@ export default function Draft() {
                         <SelectItem value="WR">Wide Receiver (WR)</SelectItem>
                         <SelectItem value="TE">Tight End (TE)</SelectItem>
                         <SelectItem value="K">Kicker (K)</SelectItem>
-                        <SelectItem value="DEF">Defense (DEF)</SelectItem>
-                        <SelectItem value="DP">Defensive Player (DP)</SelectItem>
+                        <SelectItem value="DEF">Team Defense (DEF)</SelectItem>
+                        <SelectItem value="DP">Individual Defensive Players (IDP)</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -604,7 +620,7 @@ export default function Draft() {
                         <SelectValue placeholder="Points (Highest to Lowest)" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="points">PPJ (Highest to Lowest)</SelectItem>
+                        <SelectItem value="points">Points (Highest to Lowest)</SelectItem>
                         <SelectItem value="name">Name (A-Z)</SelectItem>
                         <SelectItem value="position">Position</SelectItem>
                       </SelectContent>
@@ -613,6 +629,22 @@ export default function Draft() {
                 </div>
               </CardContent>
             </Card>
+            
+            {/* Draft Recommendations - Show only when it's user's turn */}
+            {isMyTurn && draftState?.draft_status === 'in_progress' && (
+              <DraftRecommendations
+                availablePlayers={typedAvailablePlayers}
+                currentRoster={myRoster}
+                roundNumber={Math.ceil((draftState?.current_pick || 1) / (fantasyTeams?.length || 8))}
+                onDraftPlayer={async (player, slot) => {
+                  await handleDraft(Number(player.id), slot);
+                }}
+                isMyTurn={isMyTurn}
+                loadingPick={loadingPick}
+                draftStatus={draftState?.draft_status || 'pending'}
+              />
+            )}
+            
             {/* Jugadores disponibles */}
             <div className="mb-4">
               <div className="flex items-center justify-between mb-4">
@@ -692,57 +724,72 @@ export default function Draft() {
             />
             
             {/* Draft Order */}
-            {draftState?.draft_order && teams.length > 0 && (
-              <Card className="bg-nfl-gray border-nfl-light-gray/20">
-                <CardHeader className="bg-nfl-dark-gray border-b border-nfl-light-gray/20 pb-3">
-                  <CardTitle className="text-lg flex items-center gap-2">
-                    <Trophy className="w-5 h-5 text-nfl-blue" />
-                    <span>Draft Order</span>
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="p-0">
-                  <div className="max-h-60 overflow-y-auto">
-                    {draftState.draft_order.map((teamId: string, idx: number) => {
-                      const team = teams.find((t) => t.id === teamId);
-                      const isCurrent = idx === (draftState.current_pick || 0);
-                      const isMyTeam = team?.id === userTeam?.id;
+            {draftState?.draft_order && teams.length > 0 && (() => {
+              // Calculate current round and position in snake draft
+              const totalTeams = draftState.draft_order.length;
+              const currentPickNumber = (draftState.current_pick || 0) + 1; // Convert to 1-based
+              const currentRound = Math.ceil(currentPickNumber / totalTeams);
+              const positionInRound = ((currentPickNumber - 1) % totalTeams);
+              
+              // In snake draft, odd rounds go forward, even rounds go backward
+              const isReverseRound = currentRound % 2 === 0;
+              const currentTeamIndex = isReverseRound 
+                ? totalTeams - 1 - positionInRound 
+                : positionInRound;
+                
+              return (
+                <Card className="bg-nfl-gray border-nfl-light-gray/20">
+                  <CardHeader className="bg-nfl-dark-gray border-b border-nfl-light-gray/20 pb-3">
+                    <CardTitle className="text-lg flex items-center gap-2">
+                      <Trophy className="w-5 h-5 text-nfl-blue" />
+                      <span>Draft Order - Round {currentRound}</span>
+                      {isReverseRound && <span className="text-xs text-gray-400">(Reversed)</span>}
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="p-0">
+                    <div className="max-h-60 overflow-y-auto">
+                      {draftState.draft_order.map((teamId: string, idx: number) => {
+                        const team = teams.find((t) => t.id === teamId);
+                        const isCurrent = idx === currentTeamIndex && draftState.draft_status === 'in_progress';
+                        const isMyTeam = team?.id === userTeam?.id;
                       
-                      return (
-                        <div
-                          key={teamId}
-                          className={cn(
-                            "px-4 py-2 border-b border-nfl-light-gray/10 last:border-0 flex items-center justify-between",
-                            isCurrent && "bg-nfl-blue/20",
-                            isMyTeam && "bg-nfl-green/10"
-                          )}
-                        >
-                          <div className="flex items-center gap-3">
-                            <div className={cn(
-                              "w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold",
-                              isCurrent ? "bg-nfl-blue text-white" : "bg-nfl-dark-gray text-gray-400"
-                            )}>
-                              {idx + 1}
-                            </div>
-                            <div>
+                        return (
+                          <div
+                            key={teamId}
+                            className={cn(
+                              "px-4 py-2 border-b border-nfl-light-gray/10 last:border-0 flex items-center justify-between",
+                              isCurrent && "bg-nfl-blue/20",
+                              isMyTeam && "bg-nfl-green/10"
+                            )}
+                          >
+                            <div className="flex items-center gap-3">
                               <div className={cn(
-                                "font-medium",
-                                isMyTeam ? "text-nfl-green" : "text-white"
+                                "w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold",
+                                isCurrent ? "bg-nfl-blue text-white" : "bg-nfl-dark-gray text-gray-400"
                               )}>
-                                {team?.name || "Unknown"}
+                                {idx + 1}
                               </div>
-                              <div className="text-xs text-gray-400">{team?.owner || "-"}</div>
+                              <div>
+                                <div className={cn(
+                                  "font-medium",
+                                  isMyTeam ? "text-nfl-green" : "text-white"
+                                )}>
+                                  {team?.name || "Unknown"}
+                                </div>
+                                <div className="text-xs text-gray-400">{team?.owner || "-"}</div>
+                              </div>
                             </div>
+                            {isCurrent && (
+                              <Badge className="bg-nfl-blue text-white">Now</Badge>
+                            )}
                           </div>
-                          {isCurrent && (
-                            <Badge className="bg-nfl-blue text-white">Now</Badge>
-                          )}
-                        </div>
-                      );
+                        );
                     })}
                   </div>
                 </CardContent>
               </Card>
-            )}
+            );
+          })()}
 
             {/* My Team Roster */}
             {userTeam && (

@@ -19,7 +19,10 @@ export function PlayerCard({ player, onDraft, showDraftButton = false, buttonTex
     TE: "bg-nfl-accent",
     K: "bg-nfl-lightblue",
     DEF: "bg-nfl-red",
-    DP: "bg-purple-600"
+    DP: "bg-purple-600",
+    LB: "bg-purple-600",
+    DB: "bg-purple-600",
+    DL: "bg-purple-600"
   };
 
   return (
@@ -33,7 +36,7 @@ export function PlayerCard({ player, onDraft, showDraftButton = false, buttonTex
               </Badge>
               <span className="text-sm text-gray-400">{player.team}</span>
             </div>
-            <div className="text-nfl-blue font-bold">{player.points} PTS</div>
+            <div className="text-nfl-blue font-bold">{player.points.toFixed(2)} PTS</div>
           </div>
           
           <div className="p-4">

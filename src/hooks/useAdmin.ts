@@ -676,6 +676,27 @@ export const useAdmin = () => {
     }
   };
 
+  const updateLastSeasonPoints = async (season: number): Promise<{ 
+    success: boolean; 
+    message: string; 
+    count?: number 
+  }> => {
+    if (!isAdmin || !user) {
+      return { success: false, message: "Sin permisos de administrador" };
+    }
+
+    try {
+      const { sleeperSync } = await import('@/lib/sleeper-sync');
+      return await sleeperSync.updateLastSeasonPoints(season);
+    } catch (error) {
+      console.error("Error updating last season points:", error);
+      return { 
+        success: false, 
+        message: error instanceof Error ? error.message : "Error desconocido al actualizar puntos de la temporada pasada"
+      };
+    }
+  };
+
   return {
     isAdmin,
     loading,
@@ -702,5 +723,6 @@ export const useAdmin = () => {
     getSleeperSyncStatus,
     mapExistingPlayersToSleeper,
     cleanDuplicatePlayers,
+    updateLastSeasonPoints,
   };
 };

@@ -5,7 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { AlertCircle, Download, RefreshCw, Users, BarChart3, Calendar, CheckCircle, XCircle, Trash2 } from 'lucide-react';
+import { AlertCircle, Download, RefreshCw, Users, BarChart3, Calendar, CheckCircle, XCircle, Trash2, Shield } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 // Using new provider-based hooks instead of direct API hooks
 import { 
@@ -37,7 +37,8 @@ export function SleeperAPIControl() {
     syncTeamDefensesFromSleeper,
     getSleeperSyncStatus,
     mapExistingPlayersToSleeper,
-    cleanDuplicatePlayers 
+    cleanDuplicatePlayers,
+    updateLastSeasonPoints 
   } = useAdmin();
 
   const [loading, setLoading] = useState<{
@@ -47,6 +48,7 @@ export function SleeperAPIControl() {
     defenses: boolean;
     mapping: boolean;
     cleaning: boolean;
+    lastSeasonPoints: boolean;
   }>({
     players: false,
     stats: false,
@@ -54,6 +56,7 @@ export function SleeperAPIControl() {
     defenses: false,
     mapping: false,
     cleaning: false,
+    lastSeasonPoints: false,
   });
 
   const [showCleanDialog, setShowCleanDialog] = useState(false);
@@ -181,6 +184,23 @@ export function SleeperAPIControl() {
       toast.error('Error al limpiar duplicados');
     } finally {
       setLoading(prev => ({ ...prev, cleaning: false }));
+    }
+  };
+
+  const handleUpdateLastSeasonPoints = async () => {
+    setLoading(prev => ({ ...prev, lastSeasonPoints: true }));
+    try {
+      const season = parseInt(nflState?.previous_season || '2024');
+      const result = await updateLastSeasonPoints(season);
+      if (result.success) {
+        toast.success(`${result.message} (${result.count} jugadores actualizados)`);
+      } else {
+        toast.error(result.message);
+      }
+    } catch (error) {
+      toast.error('Error al actualizar puntos de la temporada pasada');
+    } finally {
+      setLoading(prev => ({ ...prev, lastSeasonPoints: false }));
     }
   };
 
@@ -340,6 +360,20 @@ export function SleeperAPIControl() {
                 )}
                 Sincronizar Todos los Jugadores
               </Button>
+              
+              <Button
+                onClick={() => handleSyncPlayers(true, true)}
+                disabled={loading.players}
+                variant="secondary"
+                className="w-full"
+              >
+                {loading.players ? (
+                  <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <Shield className="h-4 w-4 mr-2" />
+                )}
+                Sincronizar Jugadores Defensivos (IDP)
+              </Button>
 
               <Button
                 onClick={handleMapExistingPlayers}
@@ -436,6 +470,37 @@ export function SleeperAPIControl() {
             
             <div className="text-xs text-muted-foreground mt-2">
               Crea jugadores especiales DEF para cada equipo NFL
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Last Season Points Update */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <BarChart3 className="h-4 w-4" />
+              Actualizar Puntos Temporada Pasada
+            </CardTitle>
+            <CardDescription>
+              Calcular y actualizar los puntos totales de la temporada {nflState?.previous_season || '2024'}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button
+              onClick={handleUpdateLastSeasonPoints}
+              disabled={loading.lastSeasonPoints}
+              className="w-full"
+            >
+              {loading.lastSeasonPoints ? (
+                <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <Download className="h-4 w-4 mr-2" />
+              )}
+              Actualizar Puntos Temporada {nflState?.previous_season || '2024'}
+            </Button>
+            
+            <div className="text-xs text-muted-foreground mt-2">
+              Actualiza la columna last_season_points con los totales de la temporada anterior para usar en el draft
             </div>
           </CardContent>
         </Card>

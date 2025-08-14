@@ -134,8 +134,13 @@ export class SleeperSyncService {
 
   /**
    * Sync all players from Sleeper API
+   * @param fantasyPositionsOnly - If true, only sync players with fantasy positions
+   * @param activeOnly - If true, only sync active players
    */
-  async syncPlayers(): Promise<{ success: boolean; message: string; count?: number }> {
+  async syncPlayers(
+    fantasyPositionsOnly: boolean = false,
+    activeOnly: boolean = true
+  ): Promise<{ success: boolean; message: string; count?: number }> {
     try {
       // Get all players using the new provider
       const playersResponse = await sleeperProvider.getAllPlayers();
@@ -157,18 +162,61 @@ export class SleeperSyncService {
 
       // Transform Sleeper players to database format
       const playersToUpsert: PlayerInsert[] = [];
+      let skippedCount = 0;
+      let dpCount = 0;
+      let debugDPPlayers: string[] = [];
       
       Object.entries(sleeperPlayers).forEach(([sleeperId, player]) => {
+        // Apply activeOnly filter if specified
+        if (activeOnly && !player.active) {
+          skippedCount++;
+          return;
+        }
+        
         // Only sync active players with valid positions
         const validPositions = ['QB', 'RB', 'WR', 'TE', 'K', 'DEF', 'DP', 'LB', 'DB', 'DL'];
         
-        if (player.active && player.position && validPositions.includes(player.position)) {
+        // Check both position and fantasy_positions
+        // fantasy_positions is an array that contains the fantasy-relevant positions
+        // For defensive players, this is where LB, DB, DL are stored
+        let playerPosition = player.position;
+        let hasFantasyPosition = false;
+        
+        // If the player has fantasy_positions, check if any are valid for our league
+        if (player.fantasy_positions && Array.isArray(player.fantasy_positions)) {
+          const validFantasyPos = player.fantasy_positions.find((pos: string) => 
+            validPositions.includes(pos)
+          );
+          
+          // Use the fantasy position if found, otherwise keep the regular position
+          if (validFantasyPos) {
+            // For IDP positions (LB, DB, DL), store them as generic "DP"
+            // This makes it easier to filter and manage defensive players
+            if (['LB', 'DB', 'DL'].includes(validFantasyPos)) {
+              playerPosition = 'DP';
+              dpCount++;
+              debugDPPlayers.push(`${player.full_name || player.first_name + ' ' + player.last_name} (${validFantasyPos} -> DP)`);
+            } else {
+              playerPosition = validFantasyPos;
+            }
+            hasFantasyPosition = true;
+          }
+        }
+        
+        // Apply fantasyPositionsOnly filter if specified
+        if (fantasyPositionsOnly && !hasFantasyPosition) {
+          skippedCount++;
+          return;
+        }
+        
+        // Import player if they have a valid position
+        if (playerPosition && validPositions.includes(playerPosition)) {
           const teamId = player.team ? teamMap.get(player.team) : null;
           
           playersToUpsert.push({
             sleeper_id: sleeperId,
             name: player.full_name || `${player.first_name} ${player.last_name}`,
-            position: player.position as any,
+            position: playerPosition as any,
             nfl_team_id: teamId || null,
             avatar_url: player.metadata?.avatar_url || null,
             years_exp: player.years_exp || 0,
@@ -209,9 +257,22 @@ export class SleeperSyncService {
         }
       }
 
+      let message = `Synced ${playersToUpsert.length} players`;
+      if (dpCount > 0) {
+        message += ` including ${dpCount} defensive players`;
+        // Log first 5 defensive players for debugging
+        if (debugDPPlayers.length > 0) {
+          console.log('Sample defensive players synced:', debugDPPlayers.slice(0, 5));
+        }
+      }
+      if (skippedCount > 0) {
+        message += ` (${skippedCount} skipped due to filters)`;
+      }
+      message += ` (cached: ${playersResponse.cached})`;
+      
       return {
         success: true,
-        message: `Synced ${playersToUpsert.length} players (cached: ${playersResponse.cached})`,
+        message,
         count: playersToUpsert.length
       };
     } catch (error) {
@@ -238,6 +299,7 @@ export class SleeperSyncService {
       }
 
       const defensesToUpsert = [];
+      let existingCount = 0;
 
       // Create defense entries for each team
       for (const team of nflTeams) {
@@ -262,6 +324,8 @@ export class SleeperSyncService {
             photo_url: null,
             last_sync_at: new Date().toISOString()
           });
+        } else {
+          existingCount++;
         }
       }
 
@@ -276,9 +340,21 @@ export class SleeperSyncService {
         if (error) throw error;
       }
 
+      // Provide clear message about what happened
+      let message = '';
+      if (defensesToUpsert.length > 0) {
+        message = `Created ${defensesToUpsert.length} new team defenses`;
+      } else {
+        message = `All ${existingCount} team defenses already exist`;
+      }
+      
+      if (existingCount > 0 && defensesToUpsert.length > 0) {
+        message = `Created ${defensesToUpsert.length} new team defenses (${existingCount} already existed)`;
+      }
+
       return {
         success: true,
-        message: `Synced ${defensesToUpsert.length} team defenses`,
+        message,
         count: defensesToUpsert.length
       };
     } catch (error) {
@@ -376,6 +452,103 @@ export class SleeperSyncService {
       return {
         success: false,
         message: error instanceof Error ? error.message : 'Failed to sync weekly stats'
+      };
+    }
+  }
+
+  /**
+   * Update last season points for all players
+   */
+  async updateLastSeasonPoints(season: number): Promise<{ success: boolean; message: string; count?: number }> {
+    try {
+      // First, get all player stats for the specified season
+      const { data: seasonStats, error: statsError } = await supabase
+        .from('player_stats')
+        .select('player_id, fantasy_points')
+        .eq('season', season)
+        .not('fantasy_points', 'is', null);
+
+      if (statsError) throw statsError;
+
+      // Calculate total points per player
+      const playerTotals = new Map<number, number>();
+      
+      for (const stat of seasonStats || []) {
+        const current = playerTotals.get(stat.player_id) || 0;
+        playerTotals.set(stat.player_id, current + (stat.fantasy_points || 0));
+      }
+
+      // Update each player's last_season_points
+      let updateCount = 0;
+      const batchSize = 100;
+      const playerIds = Array.from(playerTotals.keys());
+      
+      for (let i = 0; i < playerIds.length; i += batchSize) {
+        const batch = playerIds.slice(i, i + batchSize);
+        
+        // Update each player in the batch
+        for (const playerId of batch) {
+          const totalPoints = playerTotals.get(playerId) || 0;
+          const { error: updateError } = await supabase
+            .from('players')
+            .update({ last_season_points: totalPoints })
+            .eq('id', playerId);
+          
+          if (!updateError) {
+            updateCount++;
+          }
+        }
+      }
+
+      // Also reset to 0 for players with no stats
+      if (playerIds.length > 0) {
+        const { data: playersToReset } = await supabase
+          .from('players')
+          .select('id')
+          .not('id', 'in', `(${playerIds.join(',')})`);
+
+        if (playersToReset && playersToReset.length > 0) {
+          for (const player of playersToReset) {
+            const { error: resetError } = await supabase
+              .from('players')
+              .update({ last_season_points: 0 })
+              .eq('id', player.id);
+            
+            if (!resetError) {
+              updateCount++;
+            }
+          }
+        }
+      } else {
+        // If no stats found, reset all players to 0
+        const { data: allPlayers } = await supabase
+          .from('players')
+          .select('id');
+        
+        if (allPlayers) {
+          for (const player of allPlayers) {
+            const { error: resetError } = await supabase
+              .from('players')
+              .update({ last_season_points: 0 })
+              .eq('id', player.id);
+            
+            if (!resetError) {
+              updateCount++;
+            }
+          }
+        }
+      }
+
+      return {
+        success: true,
+        message: `Updated ${updateCount} players with season ${season} points`,
+        count: updateCount
+      };
+    } catch (error) {
+      console.error('Error updating last season points:', error);
+      return {
+        success: false,
+        message: error instanceof Error ? error.message : 'Failed to update last season points'
       };
     }
   }

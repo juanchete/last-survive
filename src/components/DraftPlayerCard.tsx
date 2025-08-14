@@ -85,7 +85,7 @@ export function DraftPlayerCard({
               <span className="text-sm text-gray-400">{player.team}</span>
               {getStatusIcon()}
             </div>
-            <div className="text-nfl-blue font-bold">{player.points} PPJ</div>
+            <div className="text-nfl-blue font-bold">{player.points.toFixed(2)} PTS</div>
           </div>
           
           {/* Player info */}
