@@ -2,16 +2,18 @@ import { Layout } from "@/components/Layout";
 import { LeagueHeader } from "@/components/LeagueHeader";
 import { LeagueTabs } from "@/components/LeagueTabs";
 import { DraftTimer } from "@/components/DraftTimer";
-import { useState } from "react";
+import { DraftErrorBoundary } from "@/components/DraftErrorBoundary";
+import { useState, useEffect, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { DraftPlayerCard } from "@/components/DraftPlayerCard";
 import { DraftRecommendations } from "@/components/DraftRecommendations";
-import { Search, Award, Settings, Play, Pause, RotateCcw, CheckCircle, Clock, Trophy, Users } from "lucide-react";
-import { useLocation } from "react-router-dom";
+import { Search, Award, Settings, Play, Pause, RotateCcw, CheckCircle, Clock, Trophy, Users, Wifi, WifiOff, AlertCircle, Check, X } from "lucide-react";
+import { useLocation, useNavigate } from "react-router-dom";
 import { useAvailablePlayers } from "@/hooks/useAvailablePlayers";
 import { useUserFantasyTeam } from "@/hooks/useUserFantasyTeam";
 import { useDraftState } from "@/hooks/useDraftState";
@@ -33,16 +35,32 @@ import { cn } from "@/lib/utils";
 export default function Draft() {
   // Obtener leagueId desde la URL
   const location = useLocation();
+  const navigate = useNavigate();
   const searchParams = new URLSearchParams(location.search);
   const leagueId = searchParams.get("league") || "default";
   const queryClient = useQueryClient();
+  
+  // Use refs to maintain stable references
+  const queryClientRef = useRef(queryClient);
+  const navigateRef = useRef(navigate);
+  
+  useEffect(() => {
+    queryClientRef.current = queryClient;
+    navigateRef.current = navigate;
+  }, [queryClient, navigate]);
 
-  // Hooks de datos reales
+  // Realtime connection state - must be declared before using in hooks
+  const [isConnected, setIsConnected] = useState(false);
+  const [showCompletionModal, setShowCompletionModal] = useState(false);
+  const [lastUpdateTime, setLastUpdateTime] = useState<Date | null>(null);
+  const [connectionAttempts, setConnectionAttempts] = useState(0);
+
+  // Hooks de datos reales - enable fallback polling when disconnected
   const { data: userTeam, isLoading: loadingUserTeam } = useUserFantasyTeam(leagueId);
-  const { data: draftState, isLoading: loadingDraftState } = useDraftState(leagueId);
+  const { data: draftState, isLoading: loadingDraftState } = useDraftState(leagueId, !isConnected);
   const { data: isOwner = false } = useIsLeagueOwner(leagueId);
   const currentWeek = 1; // Puedes obtener la semana real con useCurrentWeek si lo necesitas
-  const { data: availablePlayers = [], isLoading: loadingPlayers, refetch: refetchPlayers } = useAvailablePlayers(leagueId, currentWeek);
+  const { data: availablePlayers = [], isLoading: loadingPlayers, refetch: refetchPlayers } = useAvailablePlayers(leagueId, currentWeek, !isConnected);
   // Llamar siempre el hook, aunque userTeam no esté listo
   const myTeamId = userTeam?.id || "";
   const isMyTurn = useIsMyDraftTurn(leagueId, myTeamId);
@@ -83,6 +101,13 @@ export default function Draft() {
   
   const myRoster = rosterData;
   const { data: teams = [], isLoading: loadingTeams } = useFantasyTeams(leagueId);
+  
+  // Debug log to check teams count
+  useEffect(() => {
+    if (!loadingTeams) {
+      console.log('Teams loaded:', teams.length, 'teams', teams);
+    }
+  }, [teams, loadingTeams]);
 
   // State para filtros y búsqueda
   const [searchTerm, setSearchTerm] = useState('');
@@ -96,8 +121,9 @@ export default function Draft() {
   // Nuevo estado para fecha programada
   const [scheduledDate, setScheduledDate] = useState<string>("");
   const [scheduling, setScheduling] = useState(false);
+  
 
-  // Límites de slots
+  // Límites de slots - 10 jugadores totales sin banca
   const SLOT_LIMITS = {
     QB: 1,
     RB: 2,
@@ -107,7 +133,6 @@ export default function Draft() {
     K: 1,
     DEF: 1,
     DP: 1,      // Defensive Player
-    BENCH: 4,   // Reduced to 4
   };
 
   // Cuenta los slots ocupados
@@ -132,8 +157,7 @@ export default function Draft() {
     if (player.position === "DEF" && canDraftInSlot("DEF")) return "DEF";
     // DP slot can be filled by DP, LB, DB, or DL positions
     if (["DP", "LB", "DB", "DL"].includes(player.position) && canDraftInSlot("DP")) return "DP";
-    if (canDraftInSlot("BENCH")) return "BENCH";
-    return null;
+    return null; // No hay banca, si no hay slot disponible, no se puede draftear
   };
 
   // Mensaje de feedback para slots llenos
@@ -146,7 +170,8 @@ export default function Draft() {
     if (player.position === "DEF" && !canDraftInSlot("DEF")) return "You already have the maximum of Defenses.";
     // Check for all defensive player positions
     if (["DP", "LB", "DB", "DL"].includes(player.position) && !canDraftInSlot("DP")) return "You already have the maximum of Defensive Players.";
-    if (!canDraftInSlot("BENCH")) return "Your bench is full.";
+    // Roster is full (10 players max)
+    if (myRoster.length >= 10) return "Your roster is full (10 players max).";
     return null;
   };
 
@@ -189,19 +214,19 @@ export default function Draft() {
   const handleDraft = async (playerId: number, slot: string) => {
     
     if (!userTeam) {
-      console.error('❌ No userTeam');
+      // No userTeam found
       toast.error('Error: No se encontró tu equipo');
       return;
     }
 
     if (!isMyTurn) {
-      console.error('❌ No es mi turno');
+      // Not my turn
       toast.error('No es tu turno para draftear');
       return;
     }
 
     if (draftState?.draft_status !== 'in_progress') {
-      console.error('❌ Draft no está activo');
+      // Draft is not active
       toast.error('El draft no está activo actualmente');
       return;
     }
@@ -223,7 +248,7 @@ export default function Draft() {
       await refreshDraftData();
       
     } catch (error: unknown) {
-      console.error('💥 Error en handleDraft:', error);
+      // Error in handleDraft
       const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
       toast.error(`Error al draftear: ${errorMessage}`);
     } finally {
@@ -252,7 +277,7 @@ export default function Draft() {
       }
     } catch (error) {
       toast.error('Error ejecutando auto-draft');
-      console.error('Error en auto-draft:', error);
+      // Error in auto-draft
     } finally {
       setLoadingPick(false);
     }
@@ -263,6 +288,123 @@ export default function Draft() {
     setAutoTimerEnabled(enabled);
     toast.info(enabled ? 'Auto-draft habilitado' : 'Auto-draft deshabilitado');
   };
+
+  // Setup Supabase Realtime subscriptions
+  useEffect(() => {
+    if (!leagueId) return;
+
+    console.log('[Realtime] Setting up draft subscriptions for league:', leagueId);
+
+    // Create a channel for this draft with all necessary subscriptions
+    const channel = supabase
+      .channel(`draft-${leagueId}`) // Use consistent channel name
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'leagues',
+          filter: `id=eq.${leagueId}`
+        },
+        async (payload) => {
+          console.log('[Realtime] League update received:', payload);
+          setLastUpdateTime(new Date());
+          
+          // Immediately invalidate draft state to update turn info
+          await queryClientRef.current.invalidateQueries({ queryKey: ["draftState", leagueId] });
+          
+          // Check for current_pick changes (turn changes)
+          if (payload.new && payload.old && payload.new.current_pick !== payload.old.current_pick) {
+            console.log('[Realtime] Turn changed from', payload.old.current_pick, 'to', payload.new.current_pick);
+            toast.info('Turn updated!');
+            
+            // Force refresh all draft-related data
+            await Promise.all([
+              queryClientRef.current.invalidateQueries({ queryKey: ["availablePlayers", leagueId, 1] }), // Use hardcoded week 1
+              queryClientRef.current.invalidateQueries({ queryKey: ["draftRoster"] }), // Invalidate all roster queries
+              queryClientRef.current.invalidateQueries({ queryKey: ["fantasyTeams", leagueId] })
+            ]);
+          }
+          
+          // Check if draft just completed
+          if (payload.new && payload.new.draft_status === 'completed' && payload.old?.draft_status !== 'completed') {
+            setShowCompletionModal(true);
+            toast.success('🎉 Draft completed!');
+            setTimeout(() => {
+              navigateRef.current(`/team?league=${leagueId}`);
+            }, 5000);
+          }
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'team_rosters'
+        },
+        async (payload) => {
+          console.log('[Realtime] New roster entry:', payload);
+          setLastUpdateTime(new Date());
+          
+          // Refresh all relevant data immediately
+          await Promise.all([
+            queryClientRef.current.invalidateQueries({ queryKey: ["availablePlayers", leagueId, 1] }), // Use hardcoded week 1
+            queryClientRef.current.invalidateQueries({ queryKey: ["draftRoster"] }), // Invalidate all roster queries
+            queryClientRef.current.invalidateQueries({ queryKey: ["draftState", leagueId] })
+          ]);
+          
+          // Notify about new pick
+          toast.info('A new player was drafted!');
+        }
+      )
+      .subscribe(async (status) => {
+        console.log('[Realtime] Subscription status:', status);
+        setIsConnected(status === 'SUBSCRIBED');
+        
+        if (status === 'SUBSCRIBED') {
+          console.log('[Realtime] Successfully connected to draft updates');
+          setConnectionAttempts(0);
+          setLastUpdateTime(new Date());
+          toast.success('Connected to live draft updates', { duration: 2000 });
+          
+          // Force refresh all data on reconnection
+          await refreshDraftData();
+        } else if (status === 'CLOSED') {
+          console.log('[Realtime] Disconnected from draft updates');
+          setConnectionAttempts(prev => prev + 1);
+          toast.error('Disconnected from live updates - attempting reconnection', { duration: 3000 });
+        } else if (status === 'CHANNEL_ERROR') {
+          console.error('[Realtime] Channel error - attempting to reconnect');
+          setConnectionAttempts(prev => prev + 1);
+          // Attempt to reconnect after error
+          if (connectionAttempts < 3) {
+            setTimeout(() => {
+              console.log('[Realtime] Attempting reconnection...');
+              window.location.reload();
+            }, 3000);
+          }
+        }
+      });
+
+    // Cleanup subscription on unmount
+    return () => {
+      console.log('[Realtime] Cleaning up draft subscriptions');
+      supabase.removeChannel(channel);
+    };
+  }, [leagueId]); // Only depend on leagueId to prevent reconnections
+
+  // Watch for draft completion
+  useEffect(() => {
+    if (draftState?.draft_status === 'completed' && !showCompletionModal) {
+      setShowCompletionModal(true);
+      toast.success('🎉 Draft has been completed!');
+      // Auto-redirect after 5 seconds
+      setTimeout(() => {
+        navigate(`/team?league=${leagueId}`);
+      }, 5000);
+    }
+  }, [draftState?.draft_status, leagueId]);
 
   // Mostrar el orden de picks y el turno actual en una tabla
   const renderDraftOrderTable = () => {
@@ -388,6 +530,24 @@ export default function Draft() {
         .eq("league_id", leagueId);
       if (teamsError) throw teamsError;
       if (!fantasyTeams || fantasyTeams.length === 0) throw new Error("No hay equipos en la liga");
+      
+      // Validate minimum and maximum teams
+      if (fantasyTeams.length < 4) {
+        toast.error("Minimum 4 teams required to start the draft");
+        setLoadingControl(false);
+        return;
+      }
+      if (fantasyTeams.length > 12) {
+        toast.error("Maximum 12 teams allowed in a draft");
+        setLoadingControl(false);
+        return;
+      }
+      
+      // Confirm with the owner
+      if (!confirm(`Start draft with ${fantasyTeams.length} teams? Once started, no more teams can join.`)) {
+        setLoadingControl(false);
+        return;
+      }
 
       // 2. Mezclar aleatoriamente los IDs de los equipos
       const shuffled = (fantasyTeams as { id: string }[])
@@ -397,9 +557,24 @@ export default function Draft() {
       // 3. Guardar el draft_order y poner el draft en progreso
       const { error } = await supabase
         .from("leagues")
-        .update({ draft_status: "in_progress", start_date: new Date().toISOString(), draft_order: shuffled, current_pick: 0 })
+        .update({ 
+          draft_status: "in_progress", 
+          start_date: new Date().toISOString(), 
+          draft_order: shuffled, 
+          current_pick: 0,
+          auto_draft_enabled: true,
+          timer_duration: 60
+        })
         .eq("id", leagueId);
       if (error) throw error;
+      
+      // 4. Start the timer for the first pick
+      const { error: timerError } = await supabase
+        .rpc('start_draft_turn', { p_league_id: leagueId });
+      if (timerError) {
+        console.error('Error starting draft timer:', timerError);
+      }
+      
       toast.success("Draft iniciado, inscripciones cerradas y orden generado");
       await refreshDraftData();
     } catch (error) {
@@ -412,6 +587,17 @@ export default function Draft() {
   // Función para programar el draft
   const handleScheduleDraft = async () => {
     if (!userTeam?.id || !leagueId || !scheduledDate) return;
+    
+    // Validate team count before scheduling
+    if (teams.length < 4) {
+      toast.error("Minimum 4 teams required to schedule the draft");
+      return;
+    }
+    if (teams.length > 12) {
+      toast.error("Maximum 12 teams allowed in a draft");
+      return;
+    }
+    
     setScheduling(true);
     try {
       // Guardar fecha programada y cerrar inscripciones
@@ -441,10 +627,11 @@ export default function Draft() {
   };
 
   return (
-    <Layout>
-      <div className="min-h-screen bg-nfl-dark-gray">
-        <LeagueHeader leagueId={leagueId} />
-        <LeagueTabs leagueId={leagueId} activeTab="draft" />
+    <DraftErrorBoundary>
+      <Layout>
+        <div className="min-h-screen bg-nfl-dark-gray">
+          <LeagueHeader leagueId={leagueId} />
+          <LeagueTabs leagueId={leagueId} activeTab="draft" />
         
         <div className="container mx-auto px-4 py-6">
           <div className="flex flex-col lg:flex-row justify-between items-start gap-8">
@@ -453,6 +640,36 @@ export default function Draft() {
             <div className="flex justify-between items-center mb-6">
               <div className="flex items-center gap-4">
                 <h1 className="text-2xl font-bold">Player Draft</h1>
+                {/* Enhanced Connection Status Indicator */}
+                <div className="flex items-center gap-2">
+                  {isConnected ? (
+                    <div className="flex items-center gap-1">
+                      <div className="flex items-center gap-1 text-green-500">
+                        <Wifi className="w-4 h-4 animate-pulse" />
+                        <span className="text-xs font-medium">Live</span>
+                      </div>
+                      {lastUpdateTime && (
+                        <span className="text-xs text-gray-400">
+                          Last update: {new Date().getTime() - lastUpdateTime.getTime() < 60000 
+                            ? 'just now' 
+                            : `${Math.floor((new Date().getTime() - lastUpdateTime.getTime()) / 60000)}m ago`}
+                        </span>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-1">
+                      <div className="flex items-center gap-1 text-yellow-500">
+                        <WifiOff className="w-4 h-4" />
+                        <span className="text-xs">Reconnecting...</span>
+                      </div>
+                      {connectionAttempts > 0 && (
+                        <span className="text-xs text-gray-400">
+                          (Attempt {connectionAttempts})
+                        </span>
+                      )}
+                    </div>
+                  )}
+                </div>
                 {/* Controles de Owner */}
                 {isOwner && (
                   <div className="flex items-center gap-2">
@@ -483,19 +700,91 @@ export default function Draft() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="pt-0">
+                  {/* Draft Readiness Checklist */}
+                  {draftState?.draft_status === 'pending' && (
+                    <div className="mb-4 p-3 bg-white/50 rounded-lg border border-blue-100">
+                      <h4 className="text-sm font-semibold mb-2 flex items-center gap-1">
+                        <AlertCircle className="w-4 h-4 text-blue-600" />
+                        Draft Readiness Checklist
+                      </h4>
+                      <div className="space-y-1 text-xs">
+                        <div className="flex items-center gap-2">
+                          {loadingTeams ? (
+                            <div className="w-3 h-3 rounded-full bg-gray-400 animate-pulse" />
+                          ) : teams.length >= 4 ? (
+                            <Check className="w-3 h-3 text-green-600" />
+                          ) : (
+                            <X className="w-3 h-3 text-red-600" />
+                          )}
+                          <span className={loadingTeams ? "text-gray-600" : teams.length >= 4 ? "text-green-700" : "text-red-700"}>
+                            {loadingTeams ? "Loading teams..." : `Minimum 4 teams (${teams.length}/4)`}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {teams.length <= 12 ? (
+                            <Check className="w-3 h-3 text-green-600" />
+                          ) : (
+                            <X className="w-3 h-3 text-red-600" />
+                          )}
+                          <span className={teams.length <= 12 ? "text-green-700" : "text-red-700"}>
+                            Maximum 12 teams ({teams.length}/12)
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {isConnected ? (
+                            <Check className="w-3 h-3 text-green-600" />
+                          ) : (
+                            <X className="w-3 h-3 text-red-600" />
+                          )}
+                          <span className={isConnected ? "text-green-700" : "text-red-700"}>
+                            Real-time connection {isConnected ? "active" : "inactive"}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Check className="w-3 h-3 text-green-600" />
+                          <span className="text-green-700">
+                            10 rounds configured (snake format)
+                          </span>
+                        </div>
+                      </div>
+                      {teams.length >= 4 && teams.length <= 12 && (
+                        <div className="mt-3 p-2 bg-green-50 rounded text-xs text-green-700 font-medium">
+                          ✓ Ready to start the draft!
+                        </div>
+                      )}
+                    </div>
+                  )}
                   <div className="flex gap-2 flex-wrap mb-4">
                     {/* Nuevo: Empezar Draft Ahora */}
                     {draftState?.draft_status === 'pending' && (
-                      <Button
-                        onClick={handleStartDraftNow}
-                        disabled={loadingControl}
-                        variant="default"
-                        size="sm"
-                        className="flex items-center gap-1"
-                      >
-                        <Play className="w-3 h-3" />
-                        Empezar Draft Ahora
-                      </Button>
+                      <div className="flex flex-col gap-2">
+                        <Button
+                          onClick={handleStartDraftNow}
+                          disabled={loadingControl || loadingTeams || teams.length < 4 || teams.length > 12}
+                          variant="default"
+                          size="sm"
+                          className="flex items-center gap-1"
+                        >
+                          <Play className="w-3 h-3" />
+                          Start Draft Now
+                        </Button>
+                        {loadingTeams ? (
+                          <p className="text-xs text-gray-600">Loading teams...</p>
+                        ) : (
+                          <>
+                            {teams.length < 4 && (
+                              <p className="text-xs text-yellow-600">
+                                Need at least {4 - teams.length} more team{4 - teams.length !== 1 ? 's' : ''} to start (current: {teams.length})
+                              </p>
+                            )}
+                            {teams.length >= 4 && teams.length <= 12 && (
+                              <p className="text-xs text-green-600">
+                                Ready to start with {teams.length} teams
+                              </p>
+                            )}
+                          </>
+                        )}
+                      </div>
                     )}
                     {/* Nuevo: Programar Draft */}
                     {draftState?.draft_status === 'pending' && (
@@ -508,13 +797,13 @@ export default function Draft() {
                         />
                         <Button
                           onClick={handleScheduleDraft}
-                          disabled={scheduling || !scheduledDate}
+                          disabled={scheduling || !scheduledDate || loadingTeams || teams.length < 4 || teams.length > 12}
                           variant="outline"
                           size="sm"
                           className="flex items-center gap-1"
                         >
                           <Clock className="w-3 h-3" />
-                          Programar Draft
+                          Schedule Draft
                         </Button>
                       </div>
                     )}
@@ -720,19 +1009,21 @@ export default function Draft() {
               isActive={draftState?.draft_status === 'in_progress'}
               onTimeExpired={handleTimeExpired}
               onToggleAutoTimed={handleToggleAutoTimed}
-              timerDuration={60}
+              timerDuration={draftState?.timer_duration || 60}
+              turnDeadline={draftState?.turn_deadline}
+              turnStartedAt={draftState?.turn_started_at}
             />
             
             {/* Draft Order */}
             {draftState?.draft_order && teams.length > 0 && (() => {
               // Calculate current round and position in snake draft
               const totalTeams = draftState.draft_order.length;
-              const currentPickNumber = (draftState.current_pick || 0) + 1; // Convert to 1-based
-              const currentRound = Math.ceil(currentPickNumber / totalTeams);
-              const positionInRound = ((currentPickNumber - 1) % totalTeams);
+              const currentPickNumber = draftState.current_pick; // Now this is the overall pick number (0-based)
+              const currentRound = Math.floor(currentPickNumber / totalTeams) + 1; // Display round (1-based)
+              const positionInRound = currentPickNumber % totalTeams;
               
-              // In snake draft, odd rounds go forward, even rounds go backward
-              const isReverseRound = currentRound % 2 === 0;
+              // In snake draft: rounds 1, 3, 5 go forward; rounds 2, 4, 6 go backward
+              const isReverseRound = (currentRound - 1) % 2 === 1;
               const currentTeamIndex = isReverseRound 
                 ? totalTeams - 1 - positionInRound 
                 : positionInRound;
@@ -801,7 +1092,7 @@ export default function Draft() {
                       <span>My Team</span>
                     </div>
                     <Badge variant="secondary">
-                      {myRoster.length}/9
+                      {myRoster.length}/10
                     </Badge>
                   </CardTitle>
                 </CardHeader>
@@ -886,8 +1177,35 @@ export default function Draft() {
             </Card>
           </div>
         </div>
+        
+        {/* Draft Completion Modal */}
+        <Dialog open={showCompletionModal} onOpenChange={setShowCompletionModal}>
+          <DialogContent className="bg-nfl-gray border-nfl-light-gray/30">
+            <DialogHeader>
+              <DialogTitle className="text-2xl text-center">
+                🎉 Draft Complete! 🎉
+              </DialogTitle>
+              <DialogDescription className="text-center text-lg mt-4">
+                All teams have completed their rosters.
+                The draft is now finished!
+              </DialogDescription>
+            </DialogHeader>
+            <div className="text-center py-4">
+              <p className="text-sm text-gray-400 mb-4">
+                You will be automatically redirected to your team page in 5 seconds...
+              </p>
+              <Button 
+                onClick={() => navigate(`/team?league=${leagueId}`)}
+                className="bg-nfl-blue hover:bg-nfl-blue/80"
+              >
+                Go to My Team Now
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
-      </div>
+    </div>
     </Layout>
+    </DraftErrorBoundary>
   );
 }

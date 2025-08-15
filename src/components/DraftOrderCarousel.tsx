@@ -64,7 +64,7 @@ export function DraftOrderCarousel({
 
   // Generate full draft order for multiple rounds (snake draft)
   const fullDraftOrder = [];
-  const maxRounds = 9; // Total roster spots (sin banca)
+  const maxRounds = 10; // Total roster spots (10 players per team)
   
   for (let round = 0; round < maxRounds; round++) {
     const isEvenRound = round % 2 === 0;

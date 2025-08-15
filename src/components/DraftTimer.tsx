@@ -11,6 +11,8 @@ interface DraftTimerProps {
   onTimeExpired: () => void;
   onToggleAutoTimed?: (enabled: boolean) => void;
   timerDuration?: number; // en segundos, default 60
+  turnDeadline?: string | null; // Server timestamp for turn deadline
+  turnStartedAt?: string | null; // Server timestamp for turn start
 }
 
 export const DraftTimer: React.FC<DraftTimerProps> = ({
@@ -19,21 +21,61 @@ export const DraftTimer: React.FC<DraftTimerProps> = ({
   onTimeExpired,
   onToggleAutoTimed,
   timerDuration = 60,
+  turnDeadline,
+  turnStartedAt,
 }) => {
-  const [timeLeft, setTimeLeft] = useState(timerDuration);
+  // Calculate initial time from server deadline if available
+  const getInitialTime = () => {
+    if (turnDeadline) {
+      const deadline = new Date(turnDeadline);
+      const now = new Date();
+      const diff = Math.max(0, Math.floor((deadline.getTime() - now.getTime()) / 1000));
+      return diff;
+    }
+    return timerDuration;
+  };
+  
+  const [timeLeft, setTimeLeft] = useState(getInitialTime());
   const [isRunning, setIsRunning] = useState(false);
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [autoTimedEnabled, setAutoTimedEnabled] = useState(true);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const warningPlayedRef = useRef(false);
+  const hasExpiredRef = useRef(false);
 
+  // Sync timer with server timestamps
+  useEffect(() => {
+    if (turnDeadline) {
+      const syncTimer = () => {
+        const deadline = new Date(turnDeadline);
+        const now = new Date();
+        const diff = Math.max(0, Math.floor((deadline.getTime() - now.getTime()) / 1000));
+        setTimeLeft(diff);
+        
+        if (diff === 0 && !hasExpiredRef.current && isMyTurn) {
+          hasExpiredRef.current = true;
+          if (autoTimedEnabled) {
+            onTimeExpired();
+          }
+        }
+      };
+      
+      syncTimer();
+      const syncInterval = setInterval(syncTimer, 500); // Sync every 500ms for accuracy
+      
+      return () => clearInterval(syncInterval);
+    }
+  }, [turnDeadline, isMyTurn, autoTimedEnabled, onTimeExpired]);
+  
   // Reiniciar timer cuando cambia el turno
   useEffect(() => {
     if (isMyTurn && isActive) {
-      setTimeLeft(timerDuration);
+      const initialTime = getInitialTime();
+      setTimeLeft(initialTime);
       setIsRunning(true);
       warningPlayedRef.current = false;
+      hasExpiredRef.current = false;
       
       if (soundEnabled) {
         playTurnSound();
@@ -50,7 +92,7 @@ export const DraftTimer: React.FC<DraftTimerProps> = ({
         intervalRef.current = null;
       }
     }
-  }, [isMyTurn, isActive, timerDuration, soundEnabled]);
+  }, [isMyTurn, isActive, timerDuration, soundEnabled, turnDeadline]);
 
   // Timer countdown
   useEffect(() => {
@@ -69,9 +111,10 @@ export const DraftTimer: React.FC<DraftTimerProps> = ({
             });
           }
           
-          // Tiempo agotado
-          if (newTime <= 0) {
+          // Tiempo agotado (only if not using server deadline)
+          if (newTime <= 0 && !turnDeadline && !hasExpiredRef.current) {
             setIsRunning(false);
+            hasExpiredRef.current = true;
             if (autoTimedEnabled) {
               toast.error('¡Tiempo agotado! Selección automática...', {
                 duration: 3000,

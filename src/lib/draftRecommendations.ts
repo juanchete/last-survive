@@ -44,7 +44,7 @@ interface RosterAnalysis {
   needs: string[];
   filled: string[];
   flexNeeds: boolean;
-  benchSpace: number;
+  rosterSpace: number;
 }
 
 interface PlayerRecommendation {
@@ -106,15 +106,15 @@ export function analyzeRosterNeeds(currentRoster: Array<{ slot: string; position
                    filled.includes('RB') && 
                    filled.includes('WR');
   
-  // Calculate bench space (assuming max roster of 14)
+  // Calculate remaining roster space (max roster of 10)
   const totalRoster = currentRoster.length;
-  const benchSpace = Math.max(0, 14 - totalRoster);
+  const rosterSpace = Math.max(0, 10 - totalRoster);
   
   return {
     needs,
     filled,
     flexNeeds,
-    benchSpace
+    rosterSpace
   };
 }
 
@@ -140,27 +140,23 @@ function calculateRecommendationScore(
     // Check if can fill FLEX
     if (rosterAnalysis.flexNeeds) {
       needMultiplier = 1.5;
-    } else if (rosterAnalysis.benchSpace > 0) {
-      needMultiplier = 0.7; // Lower priority for bench
+    } else if (rosterAnalysis.rosterSpace > 0) {
+      needMultiplier = 0.5; // Lower priority if not needed
     } else {
-      needMultiplier = 0.3; // Very low if position is full and no bench space
+      needMultiplier = 0.1; // Very low if roster is full
     }
   } else if (['DP', 'LB', 'DB', 'DL'].includes(player.position)) {
     // Check if can fill DP slot
     if (rosterAnalysis.needs.includes('DP')) {
       needMultiplier = 1.8;
-    } else if (rosterAnalysis.benchSpace > 0) {
-      needMultiplier = 0.5;
+    } else if (rosterAnalysis.rosterSpace > 0) {
+      needMultiplier = 0.3;
     } else {
-      needMultiplier = 0.2;
+      needMultiplier = 0.1;
     }
   } else if (rosterAnalysis.filled.includes(player.position)) {
     // Position is already filled
-    if (rosterAnalysis.benchSpace > 0) {
-      needMultiplier = 0.5; // Can draft for bench
-    } else {
-      needMultiplier = 0.1; // Very low priority
-    }
+    needMultiplier = 0.1; // Very low priority if position is filled
   }
   
   score *= needMultiplier;
@@ -209,9 +205,9 @@ export function getDraftRecommendations(
       } else if (['DP', 'LB', 'DB', 'DL'].includes(player.position) && rosterAnalysis.needs.includes('DP')) {
         reason = `Can fill DP slot`;
         priority = 'high';
-      } else if (rosterAnalysis.benchSpace > 0) {
-        reason = `Good value for bench`;
-        priority = 'low';
+      } else if (rosterAnalysis.rosterSpace > 0) {
+        reason = `Best available player`;
+        priority = 'medium';
       } else {
         reason = `Best available player`;
         priority = 'medium';
@@ -251,29 +247,25 @@ export function canDraftPlayer(
   
   // Check specific position limits
   if (player.position === 'QB' && (slotCounts.QB || 0) >= ROSTER_REQUIREMENTS.QB) {
-    if ((slotCounts.BENCH || 0) >= 4) {
-      return { canDraft: false, reason: 'Roster is full' };
-    }
+    return { canDraft: false, reason: 'Already have enough QBs' };
   }
   
   if (player.position === 'K' && (slotCounts.K || 0) >= ROSTER_REQUIREMENTS.K) {
-    return { canDraft: false, reason: 'Already have maximum kickers' };
+    return { canDraft: false, reason: 'Already have a kicker' };
   }
   
   if (player.position === 'DEF' && (slotCounts.DEF || 0) >= ROSTER_REQUIREMENTS.DEF) {
-    return { canDraft: false, reason: 'Already have maximum defenses' };
+    return { canDraft: false, reason: 'Already have a defense' };
   }
   
   if (player.position === 'TE' && (slotCounts.TE || 0) >= ROSTER_REQUIREMENTS.TE) {
-    if ((slotCounts.BENCH || 0) >= 4) {
-      return { canDraft: false, reason: 'Roster is full' };
-    }
+    return { canDraft: false, reason: 'Already have enough TEs' };
   }
   
-  // Check if roster is completely full (14 players max)
+  // Check if roster is completely full (10 players max)
   const totalPlayers = Object.values(slotCounts).reduce((sum, count) => sum + count, 0);
-  if (totalPlayers >= 14) {
-    return { canDraft: false, reason: 'Roster is full (14 players max)' };
+  if (totalPlayers >= 10) {
+    return { canDraft: false, reason: 'Roster is full (10 players max)' };
   }
   
   return { canDraft: true };

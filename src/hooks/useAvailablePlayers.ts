@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 
-export function useAvailablePlayers(leagueId: string, week: number) {
+export function useAvailablePlayers(leagueId: string, week: number, enableFallbackPolling = false) {
   return useQuery({
     queryKey: ["availablePlayers", leagueId, week],
     queryFn: async () => {
@@ -44,12 +44,15 @@ export function useAvailablePlayers(leagueId: string, week: number) {
             available: !draftedIds.has(player.id),
             eliminated: nflTeam?.eliminated || false,
             points: player.last_season_points || 0, // Use last season points for draft
-            photo: player.photo_url,
+            photo: player.photo_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(player.name)}&background=1a1a1a&color=fff`,
           };
         })
         .filter((p) => p.available);
     },
     enabled: !!leagueId && !!week,
-    refetchInterval: 2000,
+    // More aggressive polling for draft (3 seconds when enabled)
+    refetchInterval: enableFallbackPolling ? 3000 : false,
+    // Always refetch on window focus for data consistency
+    refetchOnWindowFocus: true,
   });
 }

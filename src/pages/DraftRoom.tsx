@@ -4,7 +4,7 @@ import { LeagueTabs } from "@/components/LeagueTabs";
 import { DraftOrderCarousel } from "@/components/DraftOrderCarousel";
 import { DraftBoard } from "@/components/DraftBoard";
 import { TeamRosterSidebar } from "@/components/TeamRosterSidebar";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useAvailablePlayers } from "@/hooks/useAvailablePlayers";
 import { useUserFantasyTeam } from "@/hooks/useUserFantasyTeam";
@@ -12,7 +12,7 @@ import { useDraftState } from "@/hooks/useDraftState";
 import { useIsMyDraftTurn } from "@/hooks/useIsMyDraftTurn";
 import { useIsLeagueOwner } from "@/hooks/useIsLeagueOwner";
 import { draftPlayer } from "@/lib/draft";
-import { pauseDraft, resumeDraft, completeDraft } from "@/lib/draftControl";
+import { pauseDraft, resumeDraft, completeDraft, resetDraft } from "@/lib/draftControl";
 import { executeAutoDraft } from "@/lib/autoDraft";
 import { toast } from 'sonner';
 import { useQueryClient, useQuery } from "@tanstack/react-query";
@@ -21,31 +21,54 @@ import { supabase } from "@/integrations/supabase/client";
 import { useFantasyTeams } from "@/hooks/useFantasyTeams";
 import { useAuth } from "@/hooks/useAuth";
 import { Badge } from "@/components/ui/badge";
-import { Settings } from "lucide-react";
+import { Settings, Wifi, WifiOff, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { useDraftRealtimeSimple } from "@/hooks/useDraftRealtimeSimple";
 
 export default function DraftRoom() {
   const { leagueId } = useParams<{ leagueId: string }>();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  
+  // Use refs to maintain stable references
+  const queryClientRef = useRef(queryClient);
+  const navigateRef = useRef(navigate);
+  
+  useEffect(() => {
+    queryClientRef.current = queryClient;
+    navigateRef.current = navigate;
+  }, [queryClient, navigate]);
 
   if (!leagueId) {
     navigate('/hub');
     return null;
   }
 
-  // Hooks de datos reales
-  const { data: userTeam, isLoading: loadingUserTeam } = useUserFantasyTeam(leagueId);
-  const { data: draftState, isLoading: loadingDraftState } = useDraftState(leagueId);
-  const { data: isOwner = false } = useIsLeagueOwner(leagueId);
+  // Use the simplified draft realtime hook
+  const {
+    isConnected: realtimeConnected,
+    status: connectionStatus,
+    messages,
+    broadcastPick,
+    broadcastDraftStatus
+  } = useDraftRealtimeSimple(leagueId);
+
+  // Local state
+  const [showCompletionModal, setShowCompletionModal] = useState(false);
+
+  // Hooks de datos reales - Enable polling as backup
+  const { data: userTeam, isLoading: loadingUserTeam, error: userTeamError } = useUserFantasyTeam(leagueId);
+  const { data: draftState, isLoading: loadingDraftState, error: draftStateError } = useDraftState(leagueId, true); // Poll every 3 seconds as backup
+  const { data: isOwner = false, error: ownerError } = useIsLeagueOwner(leagueId);
   const currentWeek = 1;
-  const { data: availablePlayers = [], isLoading: loadingPlayers, refetch: refetchPlayers } = useAvailablePlayers(leagueId, currentWeek);
+  const { data: availablePlayers = [], isLoading: loadingPlayers, refetch: refetchPlayers } = useAvailablePlayers(leagueId, currentWeek, true); // Poll every 3 seconds as backup
   
   const myTeamId = userTeam?.id || "";
   const isMyTurn = useIsMyDraftTurn(leagueId, myTeamId);
   
-  // Get roster with player details
+  // Get roster with player details - with polling
   const { data: rosterData = [] } = useQuery({
     queryKey: ["draftRoster", userTeam?.id, currentWeek],
     queryFn: async () => {
@@ -78,6 +101,8 @@ export default function DraftRoom() {
       })) || [];
     },
     enabled: !!userTeam?.id && !!currentWeek,
+    refetchInterval: 3000, // Poll every 3 seconds during draft
+    refetchOnWindowFocus: true,
   });
   
   const myRoster = rosterData;
@@ -91,7 +116,7 @@ export default function DraftRoom() {
   const [loadingPick, setLoadingPick] = useState(false);
   const [loadingControl, setLoadingControl] = useState(false);
   const [autoTimerEnabled, setAutoTimerEnabled] = useState(true);
-  const [showAdminControls, setShowAdminControls] = useState(false);
+  const [showAdminControls, setShowAdminControls] = useState(true); // Start with controls visible for easier access
 
   // Límites de slots (sin banca - 9 jugadores totales)
   const SLOT_LIMITS = {
@@ -169,11 +194,11 @@ export default function DraftRoom() {
   // Función para refrescar todos los datos relacionados con el draft
   const refreshDraftData = async () => {
     await Promise.all([
-      queryClient.invalidateQueries({ queryKey: ["availablePlayers", leagueId, currentWeek] }),
-      queryClient.invalidateQueries({ queryKey: ["draftState", leagueId] }),
-      queryClient.invalidateQueries({ queryKey: ["userFantasyTeam", leagueId] }),
-      queryClient.invalidateQueries({ queryKey: ["draftRoster", userTeam?.id, currentWeek] }),
-      queryClient.invalidateQueries({ queryKey: ["isLeagueOwner", leagueId] }),
+      queryClientRef.current.invalidateQueries({ queryKey: ["availablePlayers", leagueId, currentWeek] }),
+      queryClientRef.current.invalidateQueries({ queryKey: ["draftState", leagueId] }),
+      queryClientRef.current.invalidateQueries({ queryKey: ["userFantasyTeam", leagueId] }),
+      queryClientRef.current.invalidateQueries({ queryKey: ["draftRoster", userTeam?.id, currentWeek] }),
+      queryClientRef.current.invalidateQueries({ queryKey: ["isLeagueOwner", leagueId] }),
     ]);
   };
 
@@ -205,6 +230,13 @@ export default function DraftRoom() {
       });
 
       toast.success('¡Jugador drafteado exitosamente!');
+      
+      // Broadcast the pick to other users
+      const player = sortedPlayers.find(p => p.id === String(playerId));
+      if (player) {
+        await broadcastPick(String(playerId), player.name);
+      }
+      
       await refreshDraftData();
       
     } catch (error: unknown) {
@@ -264,11 +296,16 @@ export default function DraftRoom() {
           draft_status: "in_progress", 
           start_date: new Date().toISOString(), 
           draft_order: shuffled, 
-          current_pick: 0 
+          current_pick: 0
         })
         .eq("id", leagueId);
       if (error) throw error;
+      
       toast.success("Draft iniciado");
+      
+      // Broadcast draft started event
+      await broadcastDraftStatus('draft_started');
+      
       await refreshDraftData();
     } catch (error) {
       toast.error("Error al iniciar el draft: " + (error instanceof Error ? error.message : ""));
@@ -284,6 +321,7 @@ export default function DraftRoom() {
       const result = await pauseDraft(user.id, leagueId);
       if (result.success) {
         toast.success(result.message);
+        await broadcastDraftStatus('draft_paused');
         await refreshDraftData();
       } else {
         toast.error(result.message || "Error al pausar draft");
@@ -313,6 +351,20 @@ export default function DraftRoom() {
     }
   };
 
+  // No longer need the old realtime subscription code since we're using the new hook
+
+  // Watch for draft completion
+  useEffect(() => {
+    if (draftState?.draft_status === 'completed' && !showCompletionModal) {
+      setShowCompletionModal(true);
+      toast.success('🎉 Draft has been completed!');
+      // Auto-redirect after 5 seconds
+      setTimeout(() => {
+        navigate(`/team?league=${leagueId}`);
+      }, 5000);
+    }
+  }, [draftState?.draft_status, leagueId]);
+
   const handleCompleteDraft = async () => {
     if (!user?.id || !leagueId) return;
     if (!confirm('¿Estás seguro de que quieres finalizar el draft?')) {
@@ -334,11 +386,53 @@ export default function DraftRoom() {
     }
   };
 
+  const handleResetDraft = async () => {
+    if (!user?.id || !leagueId) return;
+    if (!confirm('¿Estás seguro de que quieres reiniciar el draft? Esto eliminará todos los picks actuales.')) {
+      return;
+    }
+    setLoadingControl(true);
+    try {
+      const result = await resetDraft(user.id, leagueId);
+      if (result.success) {
+        toast.success(result.message);
+        await refreshDraftData();
+      } else {
+        toast.error(result.message || "Error al resetear draft");
+      }
+    } catch (error) {
+      toast.error('Error reseteando draft');
+    } finally {
+      setLoadingControl(false);
+    }
+  };
+
   // Calculate current round and pick
   const currentPick = draftState?.current_pick || 0;
   const totalTeams = draftState?.draft_order?.length || 0;
   const currentRound = totalTeams > 0 ? Math.floor(currentPick / totalTeams) + 1 : 1;
   const pickInRound = totalTeams > 0 ? (currentPick % totalTeams) + 1 : 1;
+
+  // Debug log to see draft state
+  useEffect(() => {
+    console.log('Draft State Debug:', {
+      isOwner,
+      draftStatus: draftState?.draft_status,
+      draftOrder: draftState?.draft_order,
+      draftOrderLength: draftState?.draft_order?.length,
+      currentPick: draftState?.current_pick,
+      showAdminControls,
+      shouldShowStartButton: draftState?.draft_status === 'pending' && (!draftState?.draft_order || draftState.draft_order.length === 0),
+      shouldShowResumeButton: draftState?.draft_status === 'pending' && draftState?.draft_order && draftState.draft_order.length > 0,
+      loadingDraftState,
+      draftStateError,
+      draftState,
+      leagueId
+    });
+    if (draftStateError) {
+      console.error('Error loading draft state:', draftStateError);
+    }
+  }, [isOwner, draftState, showAdminControls, loadingDraftState, draftStateError, leagueId]);
 
   return (
     <Layout>
@@ -354,6 +448,32 @@ export default function DraftRoom() {
                 <Badge className="bg-nfl-blue text-white">
                   {draftState?.draft_status === 'in_progress' ? 'LIVE DRAFT' : 'MOCK DRAFT'}
                 </Badge>
+                
+                {/* Connection Status */}
+                <div className="flex items-center gap-2">
+                  {realtimeConnected ? (
+                    <div className="flex items-center gap-1">
+                      <div className="flex items-center gap-1 text-green-500">
+                        <Wifi className="w-4 h-4 animate-pulse" />
+                        <span className="text-xs font-medium">Connected</span>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-1">
+                      <div className="flex items-center gap-1 text-yellow-500">
+                        <WifiOff className="w-4 h-4" />
+                        <span className="text-xs">
+                          {connectionStatus || 'Connecting...'}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                  
+                  {/* Message count for debugging */}
+                  <div className="flex items-center gap-1 text-gray-400">
+                    <span className="text-xs">Messages: {messages?.length || 0}</span>
+                  </div>
+                </div>
                 {isMyTurn && draftState?.draft_status === 'in_progress' && (
                   <div className="text-nfl-blue font-bold text-lg animate-pulse">
                     YOU ARE ON THE CLOCK!
@@ -371,49 +491,71 @@ export default function DraftRoom() {
                     variant="ghost"
                     size="sm"
                     onClick={() => setShowAdminControls(!showAdminControls)}
+                    className="bg-nfl-gray hover:bg-nfl-light-gray/20"
                   >
                     <Settings className="w-4 h-4 mr-1" />
-                    Admin
+                    Admin Controls
                   </Button>
                   {showAdminControls && (
-                    <div className="flex gap-2">
-                      {draftState?.draft_status === 'pending' && (
+                    <div className="flex gap-2 bg-nfl-dark-gray/90 p-2 rounded-lg">
+                      {/* Start Draft - visible when pending and no draft order or empty draft order */}
+                      {draftState?.draft_status === 'pending' && (!draftState?.draft_order || draftState.draft_order.length === 0) && (
                         <Button
                           onClick={handleStartDraftNow}
                           disabled={loadingControl}
                           size="sm"
-                          variant="default"
+                          className="bg-green-600 hover:bg-green-700"
                         >
                           Start Draft
                         </Button>
                       )}
+                      
+                      {/* Resume Draft - visible when pending but has draft order (was paused) */}
+                      {draftState?.draft_status === 'pending' && draftState?.draft_order && draftState.draft_order.length > 0 && (
+                        <Button
+                          onClick={handleResumeDraft}
+                          disabled={loadingControl}
+                          size="sm"
+                          className="bg-blue-600 hover:bg-blue-700"
+                        >
+                          Resume Draft
+                        </Button>
+                      )}
+                      
+                      {/* Pause Draft - visible when in progress */}
                       {draftState?.draft_status === 'in_progress' && (
                         <Button
                           onClick={handlePauseDraft}
                           disabled={loadingControl}
                           size="sm"
                           variant="outline"
+                          className="border-yellow-600 text-yellow-600 hover:bg-yellow-600 hover:text-white"
                         >
-                          Pause
+                          Pause Draft
                         </Button>
                       )}
-                      {draftState?.draft_status === 'pending' && draftState?.draft_order && (
+                      
+                      {/* Complete Draft - visible when in progress or paused */}
+                      {(draftState?.draft_status === 'in_progress' || 
+                        (draftState?.draft_status === 'pending' && draftState?.draft_order && draftState.draft_order.length > 0)) && (
                         <Button
-                          onClick={handleResumeDraft}
+                          onClick={handleCompleteDraft}
                           disabled={loadingControl}
                           size="sm"
-                          variant="outline"
+                          className="bg-orange-600 hover:bg-orange-700"
                         >
-                          Resume
+                          End Draft
                         </Button>
                       )}
+                      
+                      {/* Reset Draft - always visible */}
                       <Button
-                        onClick={handleCompleteDraft}
+                        onClick={handleResetDraft}
                         disabled={loadingControl}
                         size="sm"
                         variant="destructive"
                       >
-                        End Draft
+                        Reset Draft
                       </Button>
                     </div>
                   )}
@@ -466,10 +608,38 @@ export default function DraftRoom() {
                 onTimeExpired={handleTimeExpired}
                 onToggleAutoTimed={setAutoTimerEnabled}
                 timerDuration={60}
+                turnDeadline={null}
+                turnStartedAt={null}
               />
             </div>
           </div>
         </div>
+        
+        {/* Draft Completion Modal */}
+        <Dialog open={showCompletionModal} onOpenChange={setShowCompletionModal}>
+          <DialogContent className="bg-nfl-gray border-nfl-light-gray/30">
+            <DialogHeader>
+              <DialogTitle className="text-2xl text-center">
+                🎉 Draft Complete! 🎉
+              </DialogTitle>
+              <DialogDescription className="text-center text-lg mt-4">
+                All teams have completed their rosters.
+                The draft is now finished!
+              </DialogDescription>
+            </DialogHeader>
+            <div className="text-center py-4">
+              <p className="text-sm text-gray-400 mb-4">
+                You will be automatically redirected to your team page in 5 seconds...
+              </p>
+              <Button 
+                onClick={() => navigate(`/team?league=${leagueId}`)}
+                className="bg-nfl-blue hover:bg-nfl-blue/80"
+              >
+                Go to My Team Now
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
     </Layout>
   );

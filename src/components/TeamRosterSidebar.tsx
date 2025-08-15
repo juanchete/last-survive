@@ -23,6 +23,8 @@ interface TeamRosterSidebarProps {
   onTimeExpired: () => void;
   onToggleAutoTimed?: (enabled: boolean) => void;
   timerDuration?: number;
+  turnDeadline?: string | null;
+  turnStartedAt?: string | null;
 }
 
 export function TeamRosterSidebar({
@@ -34,7 +36,9 @@ export function TeamRosterSidebar({
   isActive,
   onTimeExpired,
   onToggleAutoTimed,
-  timerDuration = 60
+  timerDuration = 60,
+  turnDeadline,
+  turnStartedAt
 }: TeamRosterSidebarProps) {
   const positionColors = {
     QB: "bg-nfl-blue",
@@ -57,6 +61,8 @@ export function TeamRosterSidebar({
         onTimeExpired={onTimeExpired}
         onToggleAutoTimed={onToggleAutoTimed}
         timerDuration={timerDuration}
+        turnDeadline={turnDeadline}
+        turnStartedAt={turnStartedAt}
       />
 
       {/* Team Info Card */}

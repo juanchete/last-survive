@@ -113,7 +113,7 @@ async function getSimulationData(leagueId: string, currentWeek: number) {
 export async function simulateCompleteDraft(
   userId: string,
   leagueId: string,
-  maxRounds: number = 15
+  maxRounds: number = 10
 ): Promise<SimulateDraftResult> {
   try {
     // Verificar permisos
@@ -428,6 +428,7 @@ export async function resetDraft(
       .update({
         current_pick: 0,
         draft_status: "pending",
+        draft_order: null
       })
       .eq("id", leagueId);
 

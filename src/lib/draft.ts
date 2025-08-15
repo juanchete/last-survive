@@ -1,5 +1,7 @@
 import { supabase } from "@/integrations/supabase/client";
 
+const isDev = process.env.NODE_ENV === 'development';
+
 export async function draftPlayer({
   leagueId,
   fantasyTeamId,
@@ -29,7 +31,7 @@ export async function draftPlayer({
       .select();
 
     if (rosterError) {
-      console.error("❌ Error en team_rosters:", rosterError);
+      if (isDev) console.error("❌ Error en team_rosters:", rosterError);
       throw new Error(`Error adding to roster: ${rosterError.message}`);
     }
 
@@ -47,7 +49,7 @@ export async function draftPlayer({
       .select();
 
     if (moveError) {
-      console.error("❌ Error en roster_moves:", moveError);
+      if (isDev) console.error("❌ Error en roster_moves:", moveError);
       throw new Error(`Error recording move: ${moveError.message}`);
     }
 
@@ -60,33 +62,45 @@ export async function draftPlayer({
       .single();
 
     if (leagueError) {
-      console.error("❌ Error obteniendo estado del draft:", leagueError);
+      if (isDev) console.error("❌ Error obteniendo estado del draft:", leagueError);
       // No lanzar error aquí, el draft ya se completó
     } else if (leagueData && leagueData.draft_order) {
-      const nextPick = (leagueData.current_pick || 0) + 1;
+      const currentPickNumber = (leagueData.current_pick || 0) + 1; // Overall pick number (1-based)
       const totalTeams = leagueData.draft_order.length;
+      const totalPicks = totalTeams * 10; // 10 rounds total
 
-      // Si llegamos al final, el draft podría completarse o continuar en snake
-      const newPick = nextPick % totalTeams;
+      // Check if draft is complete
+      if (currentPickNumber >= totalPicks) {
+        const { error: updateError } = await supabase
+          .from("leagues")
+          .update({
+            current_pick: currentPickNumber,
+            draft_status: "completed"
+          })
+          .eq("id", leagueId);
+        
+        if (updateError) {
+          if (isDev) console.error("❌ Error completando draft:", updateError);
+        }
+      } else {
+        // Continue with next pick
+        const { error: updateError } = await supabase
+          .from("leagues")
+          .update({
+            current_pick: currentPickNumber,
+            draft_status: "in_progress"
+          })
+          .eq("id", leagueId);
 
-      const { error: updateError } = await supabase
-        .from("leagues")
-        .update({
-          current_pick: newPick,
-          // Si completamos todas las rondas necesarias, cambiar status
-          draft_status:
-            nextPick >= totalTeams * 15 ? "completed" : "in_progress", // 15 rondas por equipo
-        })
-        .eq("id", leagueId);
-
-      if (updateError) {
-        console.error("❌ Error actualizando turno:", updateError);
+        if (updateError) {
+          if (isDev) console.error("❌ Error actualizando turno:", updateError);
+        }
       }
     }
 
     return { success: true, data: { roster: rosterData, move: moveData } };
   } catch (error) {
-    console.error("💥 Error en draftPlayer:", error);
+    if (isDev) console.error("💥 Error en draftPlayer:", error);
     throw error;
   }
 }

@@ -35,6 +35,7 @@ import LeagueDashboard from "./pages/LeagueDashboard";
 import TeamBattle from "./pages/TeamBattle";
 import Team from "./pages/Team";
 import TestingDashboard from "./pages/TestingDashboard";
+import TestRealtime from "./pages/TestRealtime";
 
 const queryClient = new QueryClient();
 
@@ -78,6 +79,8 @@ const App = () => (
                 <Route path="/admin" element={<AdminPanel />} />
                 <Route path="/testing" element={<TestingDashboard />} />
               </Route>
+              {/* Temporary test route */}
+              <Route path="/test-realtime" element={<TestRealtime />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
                 </BrowserRouter>

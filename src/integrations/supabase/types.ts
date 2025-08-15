@@ -247,6 +247,10 @@ export type Database = {
           image_url: string | null
           is_private: boolean
           max_members: number | null
+          turn_started_at: string | null
+          turn_deadline: string | null
+          auto_draft_enabled: boolean | null
+          timer_duration: number | null
           name: string
           owner_id: string | null
           owner_plays: boolean | null
