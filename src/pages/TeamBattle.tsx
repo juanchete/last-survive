@@ -48,8 +48,8 @@ function TeamRosterDisplay({
 
   const ppg = getTeamPPG(team);
 
-  // Convert roster data to PlayerStats format
-  const players: PlayerStats[] = roster.slice(0, 4).map((player) => ({
+  // Convert roster data to PlayerStats format - show ALL players
+  const players: PlayerStats[] = roster.map((player) => ({
     player_id: parseInt(player.id),
     player_name: player.name || "Unknown Player",
     position: player.position || "POS",
@@ -111,7 +111,7 @@ function TeamRosterDisplay({
       <div className="p-2 space-y-2">
         {isLoading ? (
           // Loading skeleton for players
-          Array(4).fill(0).map((_, i) => (
+          Array(10).fill(0).map((_, i) => (
             <div key={i} className="p-3 rounded-lg bg-nfl-dark-gray/50 animate-pulse">
               <div className="h-4 bg-gray-700 rounded mb-2"></div>
               <div className="h-3 bg-gray-700 rounded w-3/4"></div>
@@ -193,8 +193,8 @@ export default function TeamBattle() {
     enabled: !!leagueId,
   });
 
-  // Sort teams by ranking and get top 5 (or all if less than 5)
-  const sortedTeams = [...teams].sort((a, b) => a.rank - b.rank).slice(0, 5);
+  // Sort teams by ranking - show ALL teams
+  const sortedTeams = [...teams].sort((a, b) => a.rank - b.rank);
 
   return (
     <Layout>
@@ -232,12 +232,12 @@ export default function TeamBattle() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
             {loadingTeams ? (
               // Loading skeleton
-              Array(5).fill(0).map((_, idx) => (
+              Array(10).fill(0).map((_, idx) => (
                 <div key={idx} className="bg-nfl-gray border border-nfl-light-gray/20 rounded-lg p-4 animate-pulse">
                   <div className="h-6 bg-gray-700 rounded mb-2"></div>
                   <div className="h-4 bg-gray-700 rounded w-3/4 mb-4"></div>
                   <div className="space-y-2">
-                    {Array(4).fill(0).map((_, i) => (
+                    {Array(10).fill(0).map((_, i) => (
                       <div key={i} className="h-12 bg-gray-700 rounded"></div>
                     ))}
                   </div>
