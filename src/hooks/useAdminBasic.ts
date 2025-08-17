@@ -6,16 +6,16 @@ export function useIsAdmin() {
   const { user } = useAuth();
 
   // Get admin emails from environment variable
-  const adminEmails = import.meta.env.VITE_ADMIN_EMAILS?.split(',').map((email: string) => email.trim()) || [];
-  
+  const adminEmails =
+    ["juanlopezlmg@gmail.com"].map((email: string) => email.trim()) || [];
+
   // Add default admin check for development
   const defaultAdminChecks = user?.email?.includes("admin");
 
   // Verificación temporal basada en email
   // Esto se reemplazará con la función SQL is_admin() después de la migración
   const isAdmin =
-    user &&
-    (defaultAdminChecks || adminEmails.includes(user.email || ''));
+    user && (defaultAdminChecks || adminEmails.includes(user.email || ""));
 
   return {
     data: !!isAdmin,

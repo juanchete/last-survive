@@ -2,21 +2,22 @@
 
 export const productionConfig = {
   // Environment
-  environment: 'production',
+  environment: "production",
   isDevelopment: false,
   isProduction: true,
 
   // App Info
   app: {
-    name: import.meta.env.VITE_APP_NAME || 'Last Survive',
-    url: import.meta.env.VITE_APP_URL || 'https://lastsurvive.com',
-    version: import.meta.env.VITE_APP_VERSION || '1.0.0',
+    name: import.meta.env.VITE_APP_NAME || "Last Survive",
+    url: import.meta.env.VITE_APP_URL || "https://lastsurvive.com",
+    version: import.meta.env.VITE_APP_VERSION || "1.0.0",
   },
 
   // Supabase
   supabase: {
-    url: import.meta.env.VITE_SUPABASE_URL,
-    anonKey: import.meta.env.VITE_SUPABASE_ANON_KEY,
+    url: "https://tvzktsamnoiyjbayimvh.supabase.co",
+    anonKey:
+      "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR2emt0c2Ftbm9peWpiYXlpbXZoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDY3NTc2MzYsImV4cCI6MjA2MjMzMzYzNn0.Gcf1g2hLfUIFwO80mSxi34gbmCyZpu5L6qpH9ZCmqq0",
     // Add connection pooling for production
     options: {
       auth: {
@@ -26,7 +27,7 @@ export const productionConfig = {
       },
       global: {
         headers: {
-          'x-app-version': import.meta.env.VITE_APP_VERSION || '1.0.0',
+          "x-app-version": import.meta.env.VITE_APP_VERSION || "1.0.0",
         },
       },
     },
@@ -36,37 +37,43 @@ export const productionConfig = {
   security: {
     // Content Security Policy
     csp: {
-      'default-src': ["'self'"],
-      'script-src': ["'self'", "'unsafe-inline'", 'https://cdn.jsdelivr.net'],
-      'style-src': ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
-      'font-src': ["'self'", 'https://fonts.gstatic.com'],
-      'img-src': ["'self'", 'data:', 'https:', 'blob:'],
-      'connect-src': ["'self'", 'https://*.supabase.co', 'wss://*.supabase.co'],
+      "default-src": ["'self'"],
+      "script-src": ["'self'", "'unsafe-inline'", "https://cdn.jsdelivr.net"],
+      "style-src": [
+        "'self'",
+        "'unsafe-inline'",
+        "https://fonts.googleapis.com",
+      ],
+      "font-src": ["'self'", "https://fonts.gstatic.com"],
+      "img-src": ["'self'", "data:", "https:", "blob:"],
+      "connect-src": ["'self'", "https://*.supabase.co", "wss://*.supabase.co"],
     },
     // Rate limiting
     rateLimit: {
-      enabled: import.meta.env.VITE_RATE_LIMIT_ENABLED === 'true',
-      maxRequests: parseInt(import.meta.env.VITE_RATE_LIMIT_MAX_REQUESTS || '100'),
-      windowMs: parseInt(import.meta.env.VITE_RATE_LIMIT_WINDOW_MS || '900000'), // 15 minutes
+      enabled: import.meta.env.VITE_RATE_LIMIT_ENABLED === "true",
+      maxRequests: parseInt(
+        import.meta.env.VITE_RATE_LIMIT_MAX_REQUESTS || "100"
+      ),
+      windowMs: parseInt(import.meta.env.VITE_RATE_LIMIT_WINDOW_MS || "900000"), // 15 minutes
     },
     // Admin emails
-    adminEmails: import.meta.env.VITE_ADMIN_EMAILS?.split(',') || [],
+    adminEmails: ["juanlopezlmg@gmail.com"],
   },
 
   // Performance
   performance: {
     // Image optimization
     images: {
-      formats: ['webp', 'avif'],
+      formats: ["webp", "avif"],
       sizes: [320, 640, 768, 1024, 1280, 1920],
       quality: 85,
       lazy: true,
     },
     // Code splitting
     chunks: {
-      vendor: ['react', 'react-dom', 'react-router-dom'],
-      supabase: ['@supabase/supabase-js'],
-      ui: ['@radix-ui', 'framer-motion'],
+      vendor: ["react", "react-dom", "react-router-dom"],
+      supabase: ["@supabase/supabase-js"],
+      ui: ["@radix-ui", "framer-motion"],
     },
     // Caching
     caching: {
@@ -80,26 +87,26 @@ export const productionConfig = {
   monitoring: {
     // Error tracking
     sentry: {
-      enabled: import.meta.env.VITE_ENABLE_ERROR_TRACKING === 'true',
+      enabled: import.meta.env.VITE_ENABLE_ERROR_TRACKING === "true",
       dsn: import.meta.env.VITE_SENTRY_DSN,
-      environment: 'production',
+      environment: "production",
       tracesSampleRate: 0.1,
       replaysSessionSampleRate: 0.1,
       replaysOnErrorSampleRate: 1.0,
     },
     // Analytics
     analytics: {
-      enabled: import.meta.env.VITE_ENABLE_ANALYTICS === 'true',
+      enabled: import.meta.env.VITE_ENABLE_ANALYTICS === "true",
       trackingId: import.meta.env.VITE_GA_TRACKING_ID,
     },
     // Performance monitoring
     performance: {
-      enabled: import.meta.env.VITE_ENABLE_PERFORMANCE_MONITORING === 'true',
+      enabled: import.meta.env.VITE_ENABLE_PERFORMANCE_MONITORING === "true",
       reportWebVitals: true,
       thresholds: {
         lcp: 2500, // Largest Contentful Paint
-        fid: 100,  // First Input Delay
-        cls: 0.1,  // Cumulative Layout Shift
+        fid: 100, // First Input Delay
+        cls: 0.1, // Cumulative Layout Shift
         fcp: 1800, // First Contentful Paint
         ttfb: 800, // Time to First Byte
       },
@@ -108,15 +115,11 @@ export const productionConfig = {
 
   // API Configuration
   api: {
-    timeout: parseInt(import.meta.env.VITE_API_TIMEOUT || '30000'),
-    retryAttempts: parseInt(import.meta.env.VITE_API_RETRY_ATTEMPTS || '3'),
+    timeout: parseInt(import.meta.env.VITE_API_TIMEOUT || "30000"),
+    retryAttempts: parseInt(import.meta.env.VITE_API_RETRY_ATTEMPTS || "3"),
     retryDelay: 1000,
     // API endpoints that should be cached
-    cachedEndpoints: [
-      '/api/players',
-      '/api/nfl-teams',
-      '/api/scoring-rules',
-    ],
+    cachedEndpoints: ["/api/players", "/api/nfl-teams", "/api/scoring-rules"],
   },
 
   // Feature Flags
@@ -141,8 +144,8 @@ export const productionConfig = {
 
   // Season Configuration
   season: {
-    current: parseInt(import.meta.env.VITE_CURRENT_SEASON || '2024'),
-    startDate: import.meta.env.VITE_SEASON_START_DATE || '2024-09-05',
+    current: parseInt(import.meta.env.VITE_CURRENT_SEASON || "2024"),
+    startDate: import.meta.env.VITE_SEASON_START_DATE || "2024-09-05",
     weeks: 18,
     playoffWeeks: [15, 16, 17, 18],
   },
@@ -153,9 +156,9 @@ export const productionConfig = {
     minTeams: 4,
     defaultSize: 8,
     entryFeeOptions: [0, 10, 25, 50, 100],
-    scoringTypes: ['standard', 'ppr', 'half-ppr'],
-    draftTypes: ['snake', 'auction'],
-    waiverTypes: ['priority', 'faab'],
+    scoringTypes: ["standard", "ppr", "half-ppr"],
+    draftTypes: ["snake", "auction"],
+    waiverTypes: ["priority", "faab"],
   },
 
   // Validation Rules
@@ -184,9 +187,9 @@ export const productionConfig = {
 
   // Logging
   logging: {
-    level: 'error', // 'debug' | 'info' | 'warn' | 'error'
+    level: "error", // 'debug' | 'info' | 'warn' | 'error'
     logToConsole: false,
     logToServer: true,
-    excludePaths: ['/api/health', '/api/status'],
+    excludePaths: ["/api/health", "/api/status"],
   },
 };

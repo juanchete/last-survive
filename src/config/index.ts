@@ -1,20 +1,21 @@
-import { productionConfig } from './production';
+import { productionConfig } from "./production";
 
 // Development configuration (simplified for local development)
 const developmentConfig = {
-  environment: 'development',
+  environment: "development",
   isDevelopment: true,
   isProduction: false,
 
   app: {
-    name: import.meta.env.VITE_APP_NAME || 'Last Survive Dev',
-    url: import.meta.env.VITE_APP_URL || 'http://localhost:5173',
-    version: '0.0.1-dev',
+    name: import.meta.env.VITE_APP_NAME || "Last Survive Dev",
+    url: import.meta.env.VITE_APP_URL || "http://localhost:5173",
+    version: "0.0.1-dev",
   },
 
   supabase: {
-    url: import.meta.env.VITE_SUPABASE_URL,
-    anonKey: import.meta.env.VITE_SUPABASE_ANON_KEY,
+    url: "https://tvzktsamnoiyjbayimvh.supabase.co",
+    anonKey:
+      "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR2emt0c2Ftbm9peWpiYXlpbXZoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDY3NTc2MzYsImV4cCI6MjA2MjMzMzYzNn0.Gcf1g2hLfUIFwO80mSxi34gbmCyZpu5L6qpH9ZCmqq0",
     options: {
       auth: {
         persistSession: true,
@@ -31,12 +32,12 @@ const developmentConfig = {
       maxRequests: 1000,
       windowMs: 60000,
     },
-    adminEmails: import.meta.env.VITE_ADMIN_EMAILS?.split(',') || ['admin@test.com'],
+    adminEmails: ["juanlopezlmg@gmail.com"],
   },
 
   performance: {
     images: {
-      formats: ['jpeg', 'png'],
+      formats: ["jpeg", "png"],
       sizes: [640, 1280],
       quality: 90,
       lazy: true,
@@ -91,7 +92,7 @@ const developmentConfig = {
 
   season: {
     current: new Date().getFullYear(),
-    startDate: '2024-09-05',
+    startDate: "2024-09-05",
     weeks: 18,
     playoffWeeks: [15, 16, 17, 18],
   },
@@ -100,7 +101,7 @@ const developmentConfig = {
   validation: productionConfig.validation,
 
   logging: {
-    level: 'debug',
+    level: "debug",
     logToConsole: true,
     logToServer: false,
     excludePaths: [],
@@ -108,9 +109,8 @@ const developmentConfig = {
 };
 
 // Configuration loader
-export const config = import.meta.env.MODE === 'production' 
-  ? productionConfig 
-  : developmentConfig;
+export const config =
+  import.meta.env.MODE === "production" ? productionConfig : developmentConfig;
 
 // Export specific configurations
 export const { app, supabase, security, features, season } = config;
@@ -134,8 +134,8 @@ export const getApiConfig = () => ({
   retryAttempts: config.api.retryAttempts,
   retryDelay: config.api.retryDelay,
   headers: {
-    'X-App-Version': config.app.version,
-    'X-Environment': config.environment,
+    "X-App-Version": config.app.version,
+    "X-Environment": config.environment,
   },
 });
 
