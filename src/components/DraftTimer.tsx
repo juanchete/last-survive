@@ -44,38 +44,55 @@ export const DraftTimer: React.FC<DraftTimerProps> = ({
   const warningPlayedRef = useRef(false);
   const hasExpiredRef = useRef(false);
 
-  // Sync timer with server timestamps
+  // Sync timer with server timestamps - TODOS VEN EL TIMER
   useEffect(() => {
-    if (turnDeadline) {
+    if (turnDeadline && isActive) { // Removido isMyTurn para que todos vean el timer
       const syncTimer = () => {
         const deadline = new Date(turnDeadline);
         const now = new Date();
         const diff = Math.max(0, Math.floor((deadline.getTime() - now.getTime()) / 1000));
         setTimeLeft(diff);
         
-        if (diff === 0 && !hasExpiredRef.current && isMyTurn) {
+        // Check if time has expired (solo ejecutar para el jugador actual)
+        if (diff === 0 && !hasExpiredRef.current && isMyTurn && isActive) {
           hasExpiredRef.current = true;
+          console.log('[DraftTimer] Time expired! Auto-draft enabled:', autoTimedEnabled);
+          
           if (autoTimedEnabled) {
+            toast.error('¡Tiempo agotado! Ejecutando selección automática...', {
+              duration: 3000,
+              icon: '⏱️',
+            });
             onTimeExpired();
+          } else {
+            toast.warning('¡Tiempo agotado! Auto-draft deshabilitado', {
+              duration: 3000,
+              icon: '⏱️',
+            });
           }
         }
       };
       
+      // Initial sync
       syncTimer();
+      
+      // Continue syncing
       const syncInterval = setInterval(syncTimer, 500); // Sync every 500ms for accuracy
       
       return () => clearInterval(syncInterval);
     }
-  }, [turnDeadline, isMyTurn, autoTimedEnabled, onTimeExpired]);
+  }, [turnDeadline, isMyTurn, isActive, autoTimedEnabled, onTimeExpired]);
   
   // Reiniciar timer cuando cambia el turno
   useEffect(() => {
     if (isMyTurn && isActive) {
       const initialTime = getInitialTime();
       setTimeLeft(initialTime);
-      setIsRunning(true);
+      setIsRunning(!turnDeadline); // Only run local timer if no server deadline
       warningPlayedRef.current = false;
       hasExpiredRef.current = false;
+      
+      console.log('[DraftTimer] Turn started. Initial time:', initialTime, 'Server deadline:', turnDeadline);
       
       if (soundEnabled) {
         playTurnSound();
@@ -87,6 +104,7 @@ export const DraftTimer: React.FC<DraftTimerProps> = ({
       });
     } else {
       setIsRunning(false);
+      hasExpiredRef.current = false; // Reset when it's not our turn
       if (intervalRef.current) {
         clearInterval(intervalRef.current);
         intervalRef.current = null;
@@ -94,14 +112,14 @@ export const DraftTimer: React.FC<DraftTimerProps> = ({
     }
   }, [isMyTurn, isActive, timerDuration, soundEnabled, turnDeadline]);
 
-  // Timer countdown
+  // Timer countdown (only used when no server deadline)
   useEffect(() => {
-    if (isRunning && timeLeft > 0) {
+    if (isRunning && timeLeft > 0 && !turnDeadline) {
       intervalRef.current = setInterval(() => {
         setTimeLeft((prev) => {
           const newTime = prev - 1;
           
-          // Sonido de advertencia a los 10 segundos
+          // Warning sound at 10 seconds
           if (newTime === 10 && soundEnabled && !warningPlayedRef.current) {
             playWarningSound();
             warningPlayedRef.current = true;
@@ -111,10 +129,12 @@ export const DraftTimer: React.FC<DraftTimerProps> = ({
             });
           }
           
-          // Tiempo agotado (only if not using server deadline)
-          if (newTime <= 0 && !turnDeadline && !hasExpiredRef.current) {
+          // Time expired (only if not using server deadline)
+          if (newTime <= 0 && !hasExpiredRef.current) {
             setIsRunning(false);
             hasExpiredRef.current = true;
+            console.log('[DraftTimer] Local timer expired! Auto-draft enabled:', autoTimedEnabled);
+            
             if (autoTimedEnabled) {
               toast.error('¡Tiempo agotado! Selección automática...', {
                 duration: 3000,
@@ -143,7 +163,7 @@ export const DraftTimer: React.FC<DraftTimerProps> = ({
         clearInterval(intervalRef.current);
       }
     };
-  }, [isRunning, timeLeft, soundEnabled, autoTimedEnabled, onTimeExpired]);
+  }, [isRunning, timeLeft, soundEnabled, autoTimedEnabled, onTimeExpired, turnDeadline]);
 
   // Funciones de sonido
   const playTurnSound = () => {
@@ -218,7 +238,8 @@ export const DraftTimer: React.FC<DraftTimerProps> = ({
   };
 
   const getProgressValue = () => {
-    return ((timerDuration - timeLeft) / timerDuration) * 100;
+    const maxTime = turnDeadline ? getInitialTime() : timerDuration;
+    return Math.min(100, Math.max(0, ((maxTime - timeLeft) / maxTime) * 100));
   };
 
   if (!isActive) {
@@ -280,8 +301,8 @@ export const DraftTimer: React.FC<DraftTimerProps> = ({
               <div className={`text-4xl font-mono font-bold ${getTimerColor()}`}>
                 {formatTime(timeLeft)}
               </div>
-              <div className="text-sm text-nfl-blue mt-2 font-semibold">
-                It's your turn!
+              <div className="text-sm mt-2 font-semibold">
+                <span className="text-nfl-blue animate-pulse">¡Es tu turno!</span>
               </div>
             </div>
             
@@ -298,14 +319,33 @@ export const DraftTimer: React.FC<DraftTimerProps> = ({
             )}
           </>
         ) : (
-          <div className="text-center py-4">
-            <div className="text-2xl font-mono text-gray-500">
-              --:--
+          /* Mostrar timer para todos los usuarios cuando NO es su turno */
+          turnDeadline ? (
+            <>
+              <div className="text-center">
+                <div className={`text-3xl font-mono font-bold ${timeLeft <= 10 ? 'text-red-500' : 'text-gray-400'}`}>
+                  {formatTime(timeLeft)}
+                </div>
+                <div className="text-sm text-gray-400 mt-2">
+                  Turno en progreso...
+                </div>
+              </div>
+              
+              <Progress 
+                value={getProgressValue()} 
+                className="h-2 bg-nfl-dark-gray opacity-50"
+              />
+            </>
+          ) : (
+            <div className="text-center py-4">
+              <div className="text-2xl font-mono text-gray-500">
+                --:--
+              </div>
+              <div className="text-sm text-gray-400 mt-2">
+                Esperando turno...
+              </div>
             </div>
-            <div className="text-sm text-gray-400 mt-2">
-              Waiting for turn...
-            </div>
-          </div>
+          )
         )}
       </CardContent>
     </Card>

@@ -4,6 +4,7 @@ import { LeagueTabs } from "@/components/LeagueTabs";
 import { DraftOrderCarousel } from "@/components/DraftOrderCarousel";
 import { DraftBoard } from "@/components/DraftBoard";
 import { TeamRosterSidebar } from "@/components/TeamRosterSidebar";
+import { DraftPicksHistory } from "@/components/DraftPicksHistory";
 import { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useAvailablePlayers } from "@/hooks/useAvailablePlayers";
@@ -46,20 +47,21 @@ export default function DraftRoom() {
     return null;
   }
 
-  // Use the simplified draft realtime hook
-  const {
-    isConnected: realtimeConnected,
-    status: connectionStatus,
-    messages,
-    broadcastPick,
-    broadcastDraftStatus
-  } = useDraftRealtimeSimple(leagueId);
-
   // Local state
   const [showCompletionModal, setShowCompletionModal] = useState(false);
 
   // Hooks de datos reales - Enable polling as backup
   const { data: userTeam, isLoading: loadingUserTeam, error: userTeamError } = useUserFantasyTeam(leagueId);
+  
+  // Use the simplified draft realtime hook with team ID (after userTeam is defined)
+  const {
+    isConnected: realtimeConnected,
+    status: connectionStatus,
+    messages,
+    connectedTeams,
+    broadcastPick,
+    broadcastDraftStatus
+  } = useDraftRealtimeSimple(leagueId, userTeam?.id);
   const { data: draftState, isLoading: loadingDraftState, error: draftStateError } = useDraftState(leagueId, true); // Poll every 3 seconds as backup
   const { data: isOwner = false, error: ownerError } = useIsLeagueOwner(leagueId);
   const currentWeek = 1;
@@ -249,9 +251,14 @@ export default function DraftRoom() {
 
   // Manejar cuando expira el tiempo del timer
   const handleTimeExpired = async () => {
-    if (!userTeam || !isMyTurn || loadingPick) return;
+    if (!userTeam || !isMyTurn || loadingPick) {
+      console.log('[DraftRoom] Skipping auto-draft:', { userTeam: !!userTeam, isMyTurn, loadingPick });
+      return;
+    }
 
+    console.log('[DraftRoom] Executing auto-draft for team:', userTeam.id);
     setLoadingPick(true);
+    
     try {
       const result = await executeAutoDraft({
         leagueId,
@@ -263,12 +270,19 @@ export default function DraftRoom() {
 
       if (result.success && result.player) {
         toast.success(`Auto-draft: ${result.player.name} (${result.player.position}) seleccionado automáticamente`);
+        
+        // Broadcast the auto-draft pick
+        await broadcastPick(String(result.player.id), result.player.name);
+        
+        // Refresh all draft data
+        await refreshDraftData();
       } else {
         toast.error(`Error en auto-draft: ${result.error}`);
+        console.error('[DraftRoom] Auto-draft failed:', result.error);
       }
     } catch (error) {
       toast.error('Error ejecutando auto-draft');
-      console.error('Error en auto-draft:', error);
+      console.error('[DraftRoom] Error en auto-draft:', error);
     } finally {
       setLoadingPick(false);
     }
@@ -565,18 +579,29 @@ export default function DraftRoom() {
           </div>
         </div>
 
-        {/* Draft Order Carousel */}
+        {/* Draft Order Carousel with Online Status */}
         <DraftOrderCarousel
           teams={teams}
           draftOrder={draftState?.draft_order || []}
           currentPick={draftState?.current_pick || 0}
           userTeamId={userTeam?.id}
           currentRound={currentRound}
+          connectedTeams={connectedTeams}
         />
 
         {/* Main Draft Area */}
         <div className="container mx-auto px-4 py-6">
           <div className="flex gap-6">
+            {/* Draft Picks History - Left Sidebar */}
+            <div className="w-80">
+              <DraftPicksHistory
+                leagueId={leagueId}
+                currentPick={draftState?.current_pick || 0}
+                teams={teams}
+                messages={messages}
+              />
+            </div>
+
             {/* Draft Board - Center */}
             <div className="flex-1">
               <DraftBoard
@@ -607,9 +632,9 @@ export default function DraftRoom() {
                 isActive={draftState?.draft_status === 'in_progress'}
                 onTimeExpired={handleTimeExpired}
                 onToggleAutoTimed={setAutoTimerEnabled}
-                timerDuration={60}
-                turnDeadline={null}
-                turnStartedAt={null}
+                timerDuration={draftState?.timer_duration || 60}
+                turnDeadline={draftState?.turn_deadline}
+                turnStartedAt={draftState?.turn_started_at}
               />
             </div>
           </div>

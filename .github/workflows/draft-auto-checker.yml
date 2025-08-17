@@ -1,0 +1,88 @@
+name: Draft Auto-Checker
+
+on:
+  schedule:
+    # Ejecutar cada 2 minutos (más frecuente que pg_cron si es necesario)
+    # GitHub Actions tiene un mínimo de 5 minutos, pero podemos usar un truco
+    - cron: '*/5 * * * *'
+  workflow_dispatch: # Permitir ejecución manual
+
+jobs:
+  check-autodraft:
+    runs-on: ubuntu-latest
+    
+    # Solo ejecutar si hay drafts activos (opcional: verificar primero)
+    steps:
+      - name: Check for active drafts and execute auto-draft
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET || secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          echo "🎯 Iniciando verificación de auto-draft..."
+          
+          # Llamar a la Edge Function
+          response=$(curl -X POST "$SUPABASE_URL/functions/v1/auto-draft-checker" \
+            -H "Authorization: Bearer $CRON_SECRET" \
+            -H "Content-Type: application/json" \
+            -d '{}' \
+            --fail-with-body \
+            --max-time 30 \
+            -w "\n\nHTTP_STATUS:%{http_code}\nTIME_TOTAL:%{time_total}s\n")
+          
+          # Extraer código HTTP
+          http_status=$(echo "$response" | grep "HTTP_STATUS:" | cut -d: -f2)
+          time_total=$(echo "$response" | grep "TIME_TOTAL:" | cut -d: -f2)
+          
+          # Mostrar resultado
+          echo "📊 Respuesta del servidor:"
+          echo "$response" | head -n -2
+          echo ""
+          echo "⏱️ Tiempo de respuesta: $time_total"
+          echo "📡 Código HTTP: $http_status"
+          
+          # Verificar éxito
+          if [ "$http_status" = "200" ]; then
+            echo "✅ Auto-draft verificado exitosamente"
+            
+            # Parsear respuesta JSON para métricas (opcional)
+            drafted_count=$(echo "$response" | head -n -2 | jq -r '.data.drafted_count // 0')
+            if [ "$drafted_count" -gt 0 ]; then
+              echo "🎉 Se procesaron $drafted_count picks automáticos"
+            fi
+          else
+            echo "❌ Error en auto-draft check"
+            exit 1
+          fi
+  
+  # Job adicional para ejecutar múltiples veces en una sola ejecución
+  # Esto simula una ejecución más frecuente que el mínimo de 5 minutos
+  multiple-checks:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch' # Solo en ejecución manual
+    
+    strategy:
+      matrix:
+        # Ejecutar 10 veces con 30 segundos de espera entre cada una
+        iteration: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+    
+    steps:
+      - name: Wait before check
+        if: matrix.iteration > 1
+        run: sleep 30
+        
+      - name: Execute auto-draft check (iteration ${{ matrix.iteration }})
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          echo "🔄 Iteración ${{ matrix.iteration }}/10"
+          
+          curl -X POST "$SUPABASE_URL/functions/v1/auto-draft-checker" \
+            -H "Authorization: Bearer $SUPABASE_SERVICE_KEY" \
+            -H "Content-Type: application/json" \
+            -d '{}' \
+            --fail-with-body \
+            --max-time 30 || true
+          
+          echo "✅ Iteración ${{ matrix.iteration }} completada"

@@ -1,6 +1,6 @@
 import { useRef, useEffect } from "react";
 import { cn } from "@/lib/utils";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, Wifi, WifiOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 interface Team {
@@ -15,6 +15,7 @@ interface DraftOrderCarouselProps {
   currentPick: number;
   userTeamId?: string;
   currentRound: number;
+  connectedTeams?: Set<string>; // New prop for tracking connected teams
 }
 
 export function DraftOrderCarousel({
@@ -22,7 +23,8 @@ export function DraftOrderCarousel({
   draftOrder,
   currentPick,
   userTeamId,
-  currentRound
+  currentRound,
+  connectedTeams = new Set()
 }: DraftOrderCarouselProps) {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const currentPickRef = useRef<HTMLDivElement>(null);
@@ -116,13 +118,14 @@ export function DraftOrderCarousel({
                 const isCurrent = index === currentPick;
                 const isPast = index < currentPick;
                 const isMyTeam = pick.teamId === userTeamId;
+                const isConnected = connectedTeams.has(pick.teamId);
                 
                 return (
                   <div
                     key={`${pick.teamId}-${index}`}
                     ref={isCurrent ? currentPickRef : null}
                     className={cn(
-                      "flex flex-col items-center gap-2 min-w-[80px] transition-all",
+                      "flex flex-col items-center gap-2 min-w-[80px] transition-all relative",
                       isCurrent && "scale-110"
                     )}
                   >
@@ -131,18 +134,34 @@ export function DraftOrderCarousel({
                       R{pick.round}.{pick.pickInRound}
                     </div>
                     
-                    {/* Team Avatar */}
-                    <div
-                      className={cn(
-                        "w-14 h-14 rounded-full flex items-center justify-center font-bold text-sm transition-all",
-                        isCurrent && "ring-4 ring-nfl-blue ring-offset-2 ring-offset-nfl-gray",
-                        isPast && "opacity-50",
-                        isMyTeam && !isCurrent && "ring-2 ring-nfl-green",
-                        !isCurrent && !isMyTeam && "bg-nfl-dark-gray border border-nfl-light-gray/20",
-                        isCurrent && "bg-nfl-blue text-white shadow-lg shadow-nfl-blue/30"
+                    {/* Team Avatar with Online Status */}
+                    <div className="relative">
+                      <div
+                        className={cn(
+                          "w-14 h-14 rounded-full flex items-center justify-center font-bold text-sm transition-all",
+                          isCurrent && "ring-4 ring-nfl-blue ring-offset-2 ring-offset-nfl-gray",
+                          isPast && "opacity-50",
+                          isMyTeam && !isCurrent && "ring-2 ring-nfl-green",
+                          !isCurrent && !isMyTeam && "bg-nfl-dark-gray border border-nfl-light-gray/20",
+                          isCurrent && "bg-nfl-blue text-white shadow-lg shadow-nfl-blue/30"
+                        )}
+                      >
+                        {team?.name?.substring(0, 2).toUpperCase() || "??"}
+                      </div>
+                      
+                      {/* Online Status Indicator */}
+                      {!isPast && (
+                        <div className={cn(
+                          "absolute -top-1 -right-1 w-5 h-5 rounded-full flex items-center justify-center",
+                          isConnected ? "bg-green-500" : "bg-gray-600"
+                        )}>
+                          {isConnected ? (
+                            <Wifi className="w-3 h-3 text-white" />
+                          ) : (
+                            <WifiOff className="w-3 h-3 text-white" />
+                          )}
+                        </div>
                       )}
-                    >
-                      {team?.name?.substring(0, 2).toUpperCase() || "??"}
                     </div>
                     
                     {/* Team Name */}
