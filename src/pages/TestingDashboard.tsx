@@ -13,7 +13,7 @@ import { Progress } from "@/components/ui/progress";
 import { 
   PlayCircle, Calendar, Users, Trophy, FastForward, 
   RotateCcw, AlertTriangle, CheckCircle, Clock,
-  Database, Zap, Settings, ChevronRight
+  Database, Zap, Settings, ChevronRight, Skull
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { seasonSimulator } from "@/utils/testing/seasonSimulator";
@@ -584,6 +584,150 @@ export default function TestingDashboard() {
                     </div>
                   </>
                 )}
+              </CardContent>
+            </Card>
+
+            {/* Weekly Elimination Control */}
+            <Card className="bg-nfl-gray border-nfl-light-gray/20">
+              <CardHeader>
+                <CardTitle className="text-white flex items-center gap-2">
+                  <Skull className="h-5 w-5 text-red-500" />
+                  Weekly Elimination Control
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <Alert>
+                  <AlertTriangle className="h-4 w-4" />
+                  <AlertDescription>
+                    <strong>Eliminación Semanal</strong><br/>
+                    El sistema elimina automáticamente al equipo con menor puntaje cada martes.
+                    Aquí puedes ejecutar manualmente la eliminación para pruebas.
+                  </AlertDescription>
+                </Alert>
+
+                <div className="space-y-4">
+                  <div>
+                    <Label className="text-white">Ejecutar Eliminación Manual</Label>
+                    <p className="text-sm text-gray-400 mb-4">
+                      Procesa la eliminación semanal para la liga seleccionada
+                    </p>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <Button
+                        onClick={async () => {
+                          if (!selectedLeagueId) {
+                            toast({
+                              title: "Error",
+                              description: "Por favor selecciona una liga primero",
+                              variant: "destructive"
+                            });
+                            return;
+                          }
+
+                          try {
+                            const { data, error } = await supabase.rpc('process_weekly_elimination', {
+                              league_id: selectedLeagueId,
+                              week_num: currentSimWeek,
+                              season_year: new Date().getFullYear()
+                            });
+
+                            if (error) throw error;
+
+                            toast({
+                              title: "Eliminación Procesada",
+                              description: data?.message || "El equipo con menor puntaje ha sido eliminado",
+                              variant: data?.success ? "default" : "destructive"
+                            });
+
+                            queryClient.invalidateQueries({ queryKey: ["seasonStatus"] });
+                          } catch (error: any) {
+                            toast({
+                              title: "Error",
+                              description: error.message || "Error al procesar eliminación",
+                              variant: "destructive"
+                            });
+                          }
+                        }}
+                        disabled={!selectedLeagueId}
+                        className="w-full"
+                      >
+                        <Skull className="h-4 w-4 mr-2" />
+                        Procesar Eliminación Ahora
+                      </Button>
+
+                      <Button
+                        onClick={async () => {
+                          try {
+                            const response = await fetch(
+                              `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/weekly-elimination-processor?force=true`,
+                              {
+                                method: 'GET',
+                                headers: {
+                                  'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+                                  'Content-Type': 'application/json',
+                                }
+                              }
+                            );
+
+                            const data = await response.json();
+
+                            if (!response.ok) {
+                              throw new Error(data.error || 'Error al ejecutar edge function');
+                            }
+
+                            toast({
+                              title: "Edge Function Ejecutada",
+                              description: data.message || "Procesamiento de eliminaciones completado",
+                            });
+
+                            queryClient.invalidateQueries({ queryKey: ["seasonStatus"] });
+                          } catch (error: any) {
+                            toast({
+                              title: "Error",
+                              description: error.message || "Error al ejecutar edge function",
+                              variant: "destructive"
+                            });
+                          }
+                        }}
+                        variant="outline"
+                        className="w-full"
+                      >
+                        <Zap className="h-4 w-4 mr-2" />
+                        Ejecutar Edge Function (Todas las Ligas)
+                      </Button>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <h4 className="text-sm font-medium text-gray-400">Información del Sistema</h4>
+                    <div className="text-sm space-y-1">
+                      <p className="text-gray-500">
+                        <strong className="text-gray-400">Ejecución Automática:</strong> Martes a las 10:00 AM (configurar en Supabase)
+                      </p>
+                      <p className="text-gray-500">
+                        <strong className="text-gray-400">Función SQL:</strong> process_weekly_elimination()
+                      </p>
+                      <p className="text-gray-500">
+                        <strong className="text-gray-400">Edge Function:</strong> weekly-elimination-processor
+                      </p>
+                      <p className="text-gray-500">
+                        <strong className="text-gray-400">Semana Actual:</strong> {currentSimWeek}
+                      </p>
+                    </div>
+                  </div>
+
+                  <Alert className="border-yellow-500/20 bg-yellow-500/10">
+                    <Clock className="h-4 w-4 text-yellow-500" />
+                    <AlertDescription className="text-yellow-200">
+                      <strong>Configurar Cron Job:</strong><br/>
+                      Para activar la eliminación automática todos los martes:<br/>
+                      1. Ve a Supabase Dashboard → Edge Functions<br/>
+                      2. Busca "weekly-elimination-processor"<br/>
+                      3. En Cron Jobs, agrega: <code className="bg-black/30 px-1 rounded">0 10 * * 2</code><br/>
+                      4. Guarda los cambios
+                    </AlertDescription>
+                  </Alert>
+                </div>
               </CardContent>
             </Card>
           </TabsContent>
