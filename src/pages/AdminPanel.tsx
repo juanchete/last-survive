@@ -45,6 +45,33 @@ interface League {
   entry_fee?: number;
   max_members?: number;
   owner?: { full_name: string; email: string };
+  draft_date?: string;
+  settings?: any;
+}
+
+interface LeagueMember {
+  id: string;
+  user_id: string;
+  league_id: string;
+  team_id: string;
+  role?: string;
+  joined_at?: string;
+  user?: { full_name: string; email: string };
+  fantasy_team?: { 
+    name: string; 
+    eliminated: boolean;
+    points?: number;
+  };
+}
+
+interface LeagueTeam {
+  id: string;
+  name: string;
+  user_id: string;
+  league_id: string;
+  eliminated: boolean;
+  points?: number;
+  user?: { full_name: string; email: string };
 }
 
 interface Player {
@@ -61,6 +88,8 @@ interface FantasyTeam {
   name: string;
   user_id: string;
   league_id: string;
+  eliminated?: boolean;
+  points?: number;
   user?: { full_name: string; email: string };
   league?: { name: string };
 }
@@ -76,13 +105,18 @@ export default function AdminPanel() {
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [selectedPlayer, setSelectedPlayer] = useState<Player | null>(null);
   const [selectedTeam, setSelectedTeam] = useState<FantasyTeam | null>(null);
+  const [selectedLeague, setSelectedLeague] = useState<League | null>(null);
   const [showRosterDialog, setShowRosterDialog] = useState(false);
+  const [showLeagueDetailsDialog, setShowLeagueDetailsDialog] = useState(false);
   const [teamRoster, setTeamRoster] = useState<RosterPlayer[]>([]);
   const [currentWeek, setCurrentWeek] = useState(1);
   const [activeTab, setActiveTab] = useState("sleeper");
   const [banReason, setBanReason] = useState("");
   const [showBanDialog, setShowBanDialog] = useState(false);
   const [userFilter, setUserFilter] = useState<'all' | 'banned' | 'verified' | 'admins'>('all');
+  const [selectedLeagueTab, setSelectedLeagueTab] = useState("info");
+  const [editingTeamPlayer, setEditingTeamPlayer] = useState<{teamId: string; playerId: number} | null>(null);
+  const [availablePlayers, setAvailablePlayers] = useState<Player[]>([]);
 
   // Obtener usuarios con búsqueda y filtros
   const { data: users, isLoading: loadingUsers } = useQuery({
@@ -306,6 +340,256 @@ export default function AdminPanel() {
         variant: "destructive",
       });
     }
+  };
+
+  // Obtener detalles de liga seleccionada
+  const { data: leagueDetails } = useQuery({
+    queryKey: ["adminLeagueDetails", selectedLeague?.id],
+    queryFn: async () => {
+      if (!selectedLeague?.id) return null;
+      
+      // Primero obtener la liga básica
+      const { data: leagueData, error: leagueError } = await supabase
+        .from("leagues")
+        .select(`
+          *,
+          owner:owner_id(full_name, email, id)
+        `)
+        .eq("id", selectedLeague.id)
+        .single();
+
+      if (leagueError) throw leagueError;
+
+      // Obtener los miembros de la liga
+      const { data: membersData, error: membersError } = await supabase
+        .from("league_members")
+        .select(`
+          id,
+          user_id,
+          team_id,
+          role,
+          joined_at
+        `)
+        .eq("league_id", selectedLeague.id);
+
+      if (membersError) throw membersError;
+
+      // Obtener los equipos de fantasy
+      const { data: teamsData, error: teamsError } = await supabase
+        .from("fantasy_teams")
+        .select(`
+          id,
+          name,
+          user_id,
+          eliminated,
+          points,
+          eliminated_week,
+          user:user_id(full_name, email)
+        `)
+        .eq("league_id", selectedLeague.id);
+
+      if (teamsError) throw teamsError;
+
+      return {
+        ...leagueData,
+        league_members: membersData,
+        fantasy_teams: teamsData
+      };
+    },
+    enabled: !!selectedLeague?.id,
+  });
+
+  // Obtener jugadores de un equipo específico
+  const { data: teamPlayers } = useQuery({
+    queryKey: ["adminTeamPlayers", editingTeamPlayer?.teamId],
+    queryFn: async () => {
+      if (!editingTeamPlayer?.teamId) return [];
+      
+      const { data, error } = await supabase
+        .from("team_rosters")
+        .select(`
+          id,
+          player_id,
+          slot,
+          acquired_week,
+          acquired_type,
+          is_active,
+          player:player_id(
+            id,
+            name,
+            position,
+            nfl_team_id,
+            nfl_team:nfl_team_id(name, abbreviation)
+          )
+        `)
+        .eq("fantasy_team_id", editingTeamPlayer.teamId)
+        .eq("is_active", true);
+
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!editingTeamPlayer?.teamId,
+  });
+
+  // Mutación para cambiar jugador de un equipo
+  const changeTeamPlayerMutation = useMutation({
+    mutationFn: async ({ teamId, oldPlayerId, newPlayerId }: { teamId: string; oldPlayerId: number; newPlayerId: number }) => {
+      // Primero desactivar el jugador actual
+      const { error: removeError } = await supabase
+        .from("team_rosters")
+        .update({ is_active: false, dropped_week: currentWeek })
+        .eq("fantasy_team_id", teamId)
+        .eq("player_id", oldPlayerId)
+        .eq("is_active", true);
+
+      if (removeError) throw removeError;
+
+      // Luego agregar el nuevo jugador
+      const { error: addError } = await supabase
+        .from("team_rosters")
+        .insert({
+          fantasy_team_id: teamId,
+          player_id: newPlayerId,
+          slot: "BENCH",
+          acquired_week: currentWeek,
+          acquired_type: "admin",
+          is_active: true
+        });
+
+      if (addError) throw addError;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["adminTeamPlayers"] });
+      queryClient.invalidateQueries({ queryKey: ["adminLeagueDetails"] });
+      toast({
+        title: "Éxito",
+        description: "Jugador cambiado exitosamente",
+      });
+      setEditingTeamPlayer(null);
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: "Error al cambiar jugador: " + error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Mutación para eliminar jugador de un equipo
+  const removeTeamPlayerMutation = useMutation({
+    mutationFn: async ({ teamId, playerId }: { teamId: string; playerId: number }) => {
+      const { error } = await supabase
+        .from("team_rosters")
+        .update({ is_active: false, dropped_week: currentWeek })
+        .eq("fantasy_team_id", teamId)
+        .eq("player_id", playerId)
+        .eq("is_active", true);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["adminTeamPlayers"] });
+      queryClient.invalidateQueries({ queryKey: ["adminLeagueDetails"] });
+      toast({
+        title: "Éxito",
+        description: "Jugador eliminado del equipo",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: "Error al eliminar jugador: " + error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Mutación para agregar jugador a un equipo
+  const addTeamPlayerMutation = useMutation({
+    mutationFn: async ({ teamId, playerId }: { teamId: string; playerId: number }) => {
+      const { error } = await supabase
+        .from("team_rosters")
+        .insert({
+          fantasy_team_id: teamId,
+          player_id: playerId,
+          slot: "BENCH",
+          acquired_week: currentWeek,
+          acquired_type: "admin",
+          is_active: true
+        });
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["adminTeamPlayers"] });
+      queryClient.invalidateQueries({ queryKey: ["adminLeagueDetails"] });
+      toast({
+        title: "Éxito",
+        description: "Jugador agregado al equipo",
+      });
+      setAvailablePlayers([]);
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: "Error al agregar jugador: " + error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Mutación para actualizar configuración de la liga
+  const updateLeagueMutation = useMutation({
+    mutationFn: async (leagueData: Partial<League>) => {
+      const { error } = await supabase
+        .from("leagues")
+        .update(leagueData)
+        .eq("id", selectedLeague?.id);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["adminLeagues"] });
+      queryClient.invalidateQueries({ queryKey: ["adminLeagueDetails"] });
+      toast({
+        title: "Éxito",
+        description: "Liga actualizada exitosamente",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: "Error al actualizar liga: " + error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Búsqueda de jugadores disponibles
+  const searchAvailablePlayers = async (search: string) => {
+    const { data, error } = await supabase
+      .from("players")
+      .select(`
+        id,
+        name,
+        position,
+        nfl_team_id,
+        nfl_team:nfl_team_id(name, abbreviation)
+      `)
+      .ilike("name", `%${search}%`)
+      .limit(20);
+
+    if (error) {
+      toast({
+        title: "Error",
+        description: "Error al buscar jugadores",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setAvailablePlayers(data || []);
   };
 
   // Función para editar puntajes de jugador
@@ -883,6 +1167,17 @@ export default function AdminPanel() {
                           <Button 
                             variant="outline" 
                             size="sm"
+                            onClick={() => {
+                              setSelectedLeague(league);
+                              setShowLeagueDetailsDialog(true);
+                            }}
+                          >
+                            <Settings className="h-4 w-4 mr-1" />
+                            Gestionar Liga
+                          </Button>
+                          <Button 
+                            variant="outline" 
+                            size="sm"
                             onClick={() => window.open(`/standings?league=${league.id}`, '_blank')}
                           >
                             <Eye className="h-4 w-4 mr-1" />
@@ -897,7 +1192,7 @@ export default function AdminPanel() {
                             </DialogTrigger>
                             <DialogContent className="bg-nfl-gray border-nfl-light-gray/20">
                               <DialogHeader>
-                                <DialogTitle className="text-white">Resolver Disputa - {league.name}</DialogTitle>
+                                <DialogTitle className="text-white">Eliminar Liga - {league.name}</DialogTitle>
                               </DialogHeader>
                               <Alert>
                                 <AlertTriangle className="h-4 w-4" />
@@ -1119,6 +1414,406 @@ export default function AdminPanel() {
             </Card>
           </TabsContent>
         </Tabs>
+
+        {/* Diálogo de Gestión Completa de Liga */}
+        <Dialog open={showLeagueDetailsDialog} onOpenChange={setShowLeagueDetailsDialog}>
+          <DialogContent className="bg-nfl-gray border-nfl-light-gray/20 max-w-6xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle className="text-white flex items-center gap-2">
+                <Trophy className="h-5 w-5" />
+                Gestión Completa de Liga - {selectedLeague?.name}
+              </DialogTitle>
+            </DialogHeader>
+
+            {leagueDetails && (
+              <Tabs value={selectedLeagueTab} onValueChange={setSelectedLeagueTab} className="mt-4">
+                <TabsList className="grid w-full grid-cols-4 bg-nfl-dark">
+                  <TabsTrigger value="info">Información</TabsTrigger>
+                  <TabsTrigger value="teams">Equipos</TabsTrigger>
+                  <TabsTrigger value="players">Jugadores</TabsTrigger>
+                  <TabsTrigger value="settings">Configuración</TabsTrigger>
+                </TabsList>
+
+                {/* Tab de Información General */}
+                <TabsContent value="info" className="space-y-4">
+                  <Card className="bg-nfl-dark border-nfl-light-gray/20">
+                    <CardHeader>
+                      <CardTitle className="text-white">Información General</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <Label className="text-gray-400">Nombre de la Liga</Label>
+                          <p className="text-white font-medium">{leagueDetails.name}</p>
+                        </div>
+                        <div>
+                          <Label className="text-gray-400">Estado</Label>
+                          <Badge variant={leagueDetails.status === 'active' ? 'default' : 'secondary'}>
+                            {leagueDetails.status}
+                          </Badge>
+                        </div>
+                        <div>
+                          <Label className="text-gray-400">Propietario</Label>
+                          <p className="text-white">{leagueDetails.owner?.full_name}</p>
+                          <p className="text-xs text-gray-400">{leagueDetails.owner?.email}</p>
+                        </div>
+                        <div>
+                          <Label className="text-gray-400">Fecha de Creación</Label>
+                          <p className="text-white">{new Date(leagueDetails.created_at).toLocaleString()}</p>
+                        </div>
+                        <div>
+                          <Label className="text-gray-400">Cuota de Entrada</Label>
+                          <p className="text-white">${leagueDetails.entry_fee || 0}</p>
+                        </div>
+                        <div>
+                          <Label className="text-gray-400">Miembros</Label>
+                          <p className="text-white">{leagueDetails.fantasy_teams?.length || 0} / {leagueDetails.max_members || 10}</p>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  <Card className="bg-nfl-dark border-nfl-light-gray/20">
+                    <CardHeader>
+                      <CardTitle className="text-white">Estadísticas de la Liga</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="grid grid-cols-3 gap-4">
+                        <div className="text-center">
+                          <p className="text-2xl font-bold text-white">{leagueDetails.fantasy_teams?.length || 0}</p>
+                          <p className="text-sm text-gray-400">Equipos Totales</p>
+                        </div>
+                        <div className="text-center">
+                          <p className="text-2xl font-bold text-green-400">
+                            {leagueDetails.fantasy_teams?.filter((t: any) => !t.eliminated).length || 0}
+                          </p>
+                          <p className="text-sm text-gray-400">Equipos Activos</p>
+                        </div>
+                        <div className="text-center">
+                          <p className="text-2xl font-bold text-red-400">
+                            {leagueDetails.fantasy_teams?.filter((t: any) => t.eliminated).length || 0}
+                          </p>
+                          <p className="text-sm text-gray-400">Equipos Eliminados</p>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </TabsContent>
+
+                {/* Tab de Equipos */}
+                <TabsContent value="teams" className="space-y-4">
+                  <Card className="bg-nfl-dark border-nfl-light-gray/20">
+                    <CardHeader>
+                      <CardTitle className="text-white">Equipos de la Liga</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-3">
+                        {leagueDetails.fantasy_teams?.map((team: any) => (
+                          <div key={team.id} className="flex items-center justify-between p-4 border border-nfl-light-gray/20 rounded-lg">
+                            <div className="flex items-center gap-4">
+                              <div className={`w-12 h-12 rounded-full flex items-center justify-center ${
+                                team.eliminated ? 'bg-red-600' : 'bg-green-600'
+                              }`}>
+                                <Target className="h-6 w-6 text-white" />
+                              </div>
+                              <div>
+                                <p className="font-medium text-white">{team.name}</p>
+                                <p className="text-sm text-gray-400">
+                                  Propietario: {team.user?.full_name} ({team.user?.email})
+                                </p>
+                                <div className="flex items-center gap-2 mt-1">
+                                  <Badge variant={team.eliminated ? 'destructive' : 'default'}>
+                                    {team.eliminated ? 'Eliminado' : 'Activo'}
+                                  </Badge>
+                                  <span className="text-xs text-gray-400">
+                                    Puntos totales: {team.points || 0}
+                                  </span>
+                                  {team.eliminated && team.eliminated_week && (
+                                    <span className="text-xs text-red-400">
+                                      Semana {team.eliminated_week}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                  setEditingTeamPlayer({ teamId: team.id, playerId: 0 });
+                                  setSelectedLeagueTab("players"); // Cambiar a la pestaña de jugadores
+                                }}
+                              >
+                                <Edit className="h-4 w-4 mr-1" />
+                                Editar Roster
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleViewRoster({ ...team, league_id: selectedLeague.id })}
+                              >
+                                <Eye className="h-4 w-4 mr-1" />
+                                Ver Detalles
+                              </Button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </CardContent>
+                  </Card>
+                </TabsContent>
+
+                {/* Tab de Jugadores */}
+                <TabsContent value="players" className="space-y-4">
+                  <Card className="bg-nfl-dark border-nfl-light-gray/20">
+                    <CardHeader>
+                      <CardTitle className="text-white">Todos los Jugadores de la Liga</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      {editingTeamPlayer ? (
+                        <div className="space-y-4">
+                          <div className="flex items-center justify-between mb-4">
+                            <div>
+                              <h3 className="text-lg font-semibold text-white">
+                                Editando Roster del Equipo
+                              </h3>
+                              <p className="text-sm text-gray-400">
+                                {leagueDetails.fantasy_teams?.find((t: any) => t.id === editingTeamPlayer.teamId)?.name || 'Equipo'}
+                              </p>
+                            </div>
+                            <div className="flex gap-2">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => setSelectedLeagueTab("teams")}
+                              >
+                                Ver Equipos
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => setEditingTeamPlayer(null)}
+                              >
+                                Cerrar Edición
+                              </Button>
+                            </div>
+                          </div>
+
+                          {/* Buscar y agregar jugador */}
+                          <div className="flex gap-2 mb-4">
+                            <Input
+                              placeholder="Buscar jugador para agregar..."
+                              onChange={(e) => {
+                                if (e.target.value.length > 2) {
+                                  searchAvailablePlayers(e.target.value);
+                                }
+                              }}
+                              className="bg-nfl-dark border-nfl-light-gray/20"
+                            />
+                          </div>
+
+                          {availablePlayers.length > 0 && (
+                            <div className="mb-4 p-4 border border-nfl-light-gray/20 rounded-lg">
+                              <p className="text-sm text-gray-400 mb-2">Jugadores disponibles:</p>
+                              <div className="space-y-2">
+                                {availablePlayers.map((player) => (
+                                  <div key={player.id} className="flex items-center justify-between">
+                                    <div>
+                                      <span className="text-white">{player.name}</span>
+                                      <span className="text-gray-400 ml-2">({player.position})</span>
+                                      {player.nfl_team && (
+                                        <span className="text-gray-500 ml-2">{player.nfl_team.abbreviation}</span>
+                                      )}
+                                    </div>
+                                    <Button
+                                      size="sm"
+                                      onClick={() => addTeamPlayerMutation.mutate({
+                                        teamId: editingTeamPlayer.teamId,
+                                        playerId: player.id
+                                      })}
+                                    >
+                                      Agregar
+                                    </Button>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Lista de jugadores actuales */}
+                          <div className="space-y-2">
+                            {teamPlayers?.map((roster: any) => (
+                              <div key={roster.id} className="flex items-center justify-between p-3 border border-nfl-light-gray/20 rounded-lg">
+                                <div className="flex items-center gap-3">
+                                  <div className="w-10 h-10 bg-nfl-blue rounded-full flex items-center justify-center">
+                                    <span className="text-white text-xs font-bold">{roster.player?.position}</span>
+                                  </div>
+                                  <div>
+                                    <p className="text-white font-medium">{roster.player?.name}</p>
+                                    <div className="flex items-center gap-2">
+                                      <Badge variant="outline" className="text-xs">
+                                        {roster.slot}
+                                      </Badge>
+                                      <span className="text-xs text-gray-400">
+                                        {roster.player?.nfl_team?.abbreviation}
+                                      </span>
+                                    </div>
+                                  </div>
+                                </div>
+                                <div className="flex gap-2">
+                                  <Dialog>
+                                    <DialogTrigger asChild>
+                                      <Button variant="outline" size="sm">
+                                        <Edit className="h-4 w-4" />
+                                      </Button>
+                                    </DialogTrigger>
+                                    <DialogContent className="bg-nfl-gray border-nfl-light-gray/20">
+                                      <DialogHeader>
+                                        <DialogTitle className="text-white">Cambiar Jugador</DialogTitle>
+                                      </DialogHeader>
+                                      <div className="space-y-4">
+                                        <p className="text-gray-400">
+                                          Reemplazar a <strong className="text-white">{roster.player?.name}</strong>
+                                        </p>
+                                        <Input
+                                          placeholder="Buscar nuevo jugador..."
+                                          onChange={(e) => {
+                                            if (e.target.value.length > 2) {
+                                              searchAvailablePlayers(e.target.value);
+                                            }
+                                          }}
+                                          className="bg-nfl-dark border-nfl-light-gray/20"
+                                        />
+                                        {availablePlayers.length > 0 && (
+                                          <div className="space-y-2 max-h-60 overflow-y-auto">
+                                            {availablePlayers.map((player) => (
+                                              <div key={player.id} className="flex items-center justify-between p-2 hover:bg-nfl-dark rounded">
+                                                <div>
+                                                  <span className="text-white">{player.name}</span>
+                                                  <span className="text-gray-400 ml-2">({player.position})</span>
+                                                </div>
+                                                <Button
+                                                  size="sm"
+                                                  onClick={() => changeTeamPlayerMutation.mutate({
+                                                    teamId: editingTeamPlayer.teamId,
+                                                    oldPlayerId: roster.player_id,
+                                                    newPlayerId: player.id
+                                                  })}
+                                                >
+                                                  Seleccionar
+                                                </Button>
+                                              </div>
+                                            ))}
+                                          </div>
+                                        )}
+                                      </div>
+                                    </DialogContent>
+                                  </Dialog>
+                                  <Button
+                                    variant="destructive"
+                                    size="sm"
+                                    onClick={() => removeTeamPlayerMutation.mutate({
+                                      teamId: editingTeamPlayer.teamId,
+                                      playerId: roster.player_id
+                                    })}
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="text-center py-8">
+                          <p className="text-gray-400">Selecciona un equipo para ver y editar sus jugadores</p>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                </TabsContent>
+
+                {/* Tab de Configuración */}
+                <TabsContent value="settings" className="space-y-4">
+                  <Card className="bg-nfl-dark border-nfl-light-gray/20">
+                    <CardHeader>
+                      <CardTitle className="text-white">Configuración de la Liga</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div>
+                        <Label className="text-gray-400">Nombre de la Liga</Label>
+                        <Input
+                          value={leagueDetails.name}
+                          onChange={(e) => {
+                            // Aquí podrías actualizar un estado local si quieres edición en tiempo real
+                          }}
+                          className="bg-nfl-dark border-nfl-light-gray/20"
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-gray-400">Estado de la Liga</Label>
+                        <Select value={leagueDetails.status} onValueChange={(value) => {
+                          updateLeagueMutation.mutate({ status: value });
+                        }}>
+                          <SelectTrigger className="bg-nfl-dark border-nfl-light-gray/20">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="draft">Draft</SelectItem>
+                            <SelectItem value="active">Activa</SelectItem>
+                            <SelectItem value="completed">Completada</SelectItem>
+                            <SelectItem value="cancelled">Cancelada</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div>
+                        <Label className="text-gray-400">Cuota de Entrada</Label>
+                        <Input
+                          type="number"
+                          value={leagueDetails.entry_fee || 0}
+                          onChange={(e) => {
+                            // Actualizar cuota
+                          }}
+                          className="bg-nfl-dark border-nfl-light-gray/20"
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-gray-400">Máximo de Miembros</Label>
+                        <Input
+                          type="number"
+                          value={leagueDetails.max_members || 10}
+                          onChange={(e) => {
+                            // Actualizar máximo
+                          }}
+                          className="bg-nfl-dark border-nfl-light-gray/20"
+                        />
+                      </div>
+                      
+                      <Alert>
+                        <AlertTriangle className="h-4 w-4" />
+                        <AlertDescription>
+                          Los cambios en la configuración de la liga afectarán inmediatamente a todos los participantes.
+                        </AlertDescription>
+                      </Alert>
+
+                      <Button
+                        onClick={() => {
+                          toast({
+                            title: "Función en desarrollo",
+                            description: "La actualización masiva de configuración estará disponible pronto",
+                          });
+                        }}
+                      >
+                        Guardar Configuración
+                      </Button>
+                    </CardContent>
+                  </Card>
+                </TabsContent>
+              </Tabs>
+            )}
+          </DialogContent>
+        </Dialog>
 
         {/* Diálogo de Gestión de Roster */}
         <Dialog open={showRosterDialog} onOpenChange={setShowRosterDialog}>

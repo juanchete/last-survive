@@ -39,12 +39,13 @@ export function Header() {
         {/* Logo Section */}
         <div className="flex items-center">
           <Link to={ user ? "/hub" : "/"} className="flex items-center">
-            <img 
+          Survive Week
+            {/* <img 
               src="/lovable-uploads/c98f0db9-c234-4e8c-be65-19438a4ac393.png"
               alt="Survive Week Logo"
               className="w-14 h-14 object-contain"
               style={{ minWidth: "56px" }}
-            />
+            /> */}
           </Link>
         </div>
 

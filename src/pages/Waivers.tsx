@@ -62,8 +62,8 @@ export default function Waivers() {
   const searchParams = new URLSearchParams(location.search);
   const leagueId = searchParams.get("league") || "";
   const { user } = useAuth();
-  const [selectedPlayer, setSelectedPlayer] = useState<string>("");
-  const [selectedDropPlayer, setSelectedDropPlayer] = useState<string>("");
+  const [selectedPlayers, setSelectedPlayers] = useState<string[]>([]);
+  const [selectedDropPlayers, setSelectedDropPlayers] = useState<string[]>([]);
   const [isClaimModalOpen, setIsClaimModalOpen] = useState(false);
   const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
   const [playerSearch, setPlayerSearch] = useState("");
@@ -111,8 +111,23 @@ export default function Waivers() {
   // Get available players on waivers
   const { data: waiverPlayers = [] } = useWaiverPlayers(leagueId, weekNumber);
 
-  // Get user's current roster
-  const { data: userRoster = [] } = useRosterWithPlayerDetails(userTeam?.id || "", weekNumber);
+  // Define the slot order for consistent display
+  const slotOrder = ['QB', 'RB', 'WR', 'TE', 'FLEX', 'K', 'DEF', 'DP'];
+  
+  // Get user's current roster with slot information
+  const { data: userRosterData = [] } = useRosterWithPlayerDetails(userTeam?.id || "", weekNumber);
+  
+  // Sort roster by slot order
+  const userRoster = [...userRosterData].sort((a, b) => {
+    const aSlot = a.slot || a.position;
+    const bSlot = b.slot || b.position;
+    const aIndex = slotOrder.indexOf(aSlot);
+    const bIndex = slotOrder.indexOf(bSlot);
+    if (aIndex !== -1 && bIndex !== -1) return aIndex - bIndex;
+    if (aIndex !== -1) return -1;
+    if (bIndex !== -1) return 1;
+    return aSlot.localeCompare(bSlot);
+  });
 
   // Get waiver history
   const { data: waiverHistory = [] } = useWaiverHistory(leagueId);
@@ -170,38 +185,138 @@ export default function Waivers() {
         });
 
   const handleClaim = async () => {
-    if (!selectedPlayer || !userTeam) {
+    if (selectedPlayers.length === 0 || !userTeam) {
       toast({
         title: "Error",
-        description: "Please select a player to claim",
+        description: "Please select at least one player to claim",
         variant: "destructive",
       });
       return;
     }
 
-    try {
-      // Submit waiver request
-      const { error } = await supabase
-        .from("waiver_requests")
-        .insert({
-          league_id: leagueId,
-          fantasy_team_id: userTeam.id,
-          player_id: selectedPlayer,
-          drop_player_id: selectedDropPlayer || null,
-          week: weekNumber,
-          status: "pending",
+    // Validate roster size
+    const currentRosterSize = userRoster.length;
+    const finalSize = currentRosterSize - selectedDropPlayers.length + selectedPlayers.length;
+    
+    if (finalSize > 10) {
+      toast({
+        title: "Error",
+        description: `Your roster would have ${finalSize} players (maximum is 10)`,
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Position validation: When both adding and dropping, positions must match
+    if (selectedPlayers.length > 0 && selectedDropPlayers.length > 0) {
+      // Helper function to check if positions are compatible
+      const arePositionsCompatible = (addPos: string, dropSlot: string) => {
+        // Direct match
+        if (addPos === dropSlot) return true;
+        
+        // FLEX can be filled by RB or WR
+        if (dropSlot === 'FLEX' && (addPos === 'RB' || addPos === 'WR')) return true;
+        
+        // RB or WR can replace a FLEX player
+        if ((dropSlot === 'RB' || dropSlot === 'WR') && addPos === dropSlot) return true;
+        
+        return false;
+      };
+
+      // Get positions/slots of players to add
+      const addPositions = selectedPlayers.map(playerId => {
+        const player = waiverPlayers.find(p => p.id === playerId);
+        return player?.position || '';
+      });
+
+      // Get slots of players to drop (use slot if available, otherwise position)
+      const dropSlots = selectedDropPlayers.map(playerId => {
+        const player = userRoster.find(p => p.id === playerId);
+        return player?.slot || player?.position || '';
+      });
+
+      // Check if we have same number of adds and drops
+      if (selectedPlayers.length !== selectedDropPlayers.length) {
+        toast({
+          title: "Position Mismatch",
+          description: `When trading players, you must add and drop the same number of players. Adding ${selectedPlayers.length}, Dropping ${selectedDropPlayers.length}`,
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // For single player swaps, check compatibility
+      if (selectedPlayers.length === 1 && selectedDropPlayers.length === 1) {
+        const addPos = addPositions[0];
+        const dropSlot = dropSlots[0];
+        
+        if (!arePositionsCompatible(addPos, dropSlot)) {
+          const addPlayer = waiverPlayers.find(p => p.id === selectedPlayers[0]);
+          const dropPlayer = userRoster.find(p => p.id === selectedDropPlayers[0]);
+          
+          // Provide specific message for FLEX
+          if (dropSlot === 'FLEX') {
+            toast({
+              title: "Position Mismatch",
+              description: `Cannot add ${addPlayer?.name} (${addPos}) to FLEX slot. FLEX can only be filled by RB or WR players.`,
+              variant: "destructive",
+            });
+          } else {
+            toast({
+              title: "Position Mismatch",
+              description: `Cannot trade ${addPlayer?.name} (${addPos}) for ${dropPlayer?.name} in ${dropSlot} slot.`,
+              variant: "destructive",
+            });
+          }
+          return;
+        }
+      } else {
+        // For multiple players, we need more complex matching
+        // Sort positions to check if they match
+        const sortedAddPositions = [...addPositions].sort();
+        const sortedDropSlots = [...dropSlots].sort();
+        
+        // Simple check: positions must match exactly (ignoring FLEX for now in multi-player)
+        const positionsMatch = sortedAddPositions.every((pos, index) => {
+          const dropSlot = sortedDropSlots[index];
+          return arePositionsCompatible(pos, dropSlot);
         });
 
+        if (!positionsMatch) {
+          toast({
+            title: "Position Mismatch",
+            description: `Position requirements don't match. Adding: ${sortedAddPositions.join(', ')}, Dropping from slots: ${sortedDropSlots.join(', ')}`,
+            variant: "destructive",
+          });
+          return;
+        }
+      }
+    }
+
+    try {
+      // Use the new multi-player function
+      const { data, error } = await supabase.rpc('create_waiver_request_multi', {
+        p_league_id: leagueId,
+        p_fantasy_team_id: userTeam.id,
+        p_week: weekNumber,
+        p_add_players: selectedPlayers.map(id => parseInt(id)),
+        p_drop_players: selectedDropPlayers.map(id => parseInt(id))
+      });
+
       if (error) throw error;
+      
+      if (!data.success) {
+        throw new Error(data.error || "Failed to create waiver request");
+      }
 
       toast({
         title: "Waiver Claim Submitted",
-        description: "Your waiver claim has been submitted and will be processed at the deadline.",
+        description: data.message || "Your waiver claim has been submitted and will be processed at the deadline.",
       });
 
       setIsClaimModalOpen(false);
-      setSelectedPlayer("");
-      setSelectedDropPlayer("");
+      setSelectedPlayers([]);
+      setSelectedDropPlayers([]);
 
       // Invalidate queries to refresh the waiver requests
       await queryClient.invalidateQueries({ 
@@ -277,6 +392,8 @@ export default function Waivers() {
                   if (!open) {
                     setPlayerSearch("");
                     setPositionFilter("ALL");
+                    setSelectedPlayers([]);
+                    setSelectedDropPlayers([]);
                   }
                 }}>
                   <DialogTrigger asChild>
@@ -289,13 +406,19 @@ export default function Waivers() {
                     <DialogHeader>
                       <DialogTitle className="text-white">Submit Waiver Claim</DialogTitle>
                       <DialogDescription className="text-gray-400">
-                        Select a player to claim from waivers. You may need to drop a player if your roster is full.
+                        Select players to claim from waivers. You can add and drop multiple players in one request.
+                        Current roster: {userRoster.length}/10 players
+                        {selectedPlayers.length > 0 && selectedDropPlayers.length > 0 && (
+                          <div className="mt-2 p-2 bg-yellow-500/10 border border-yellow-500/30 rounded text-yellow-300 text-sm">
+                            ⚠️ When trading players, you must drop players of the same positions as those you're adding (e.g., WR for WR, QB for QB)
+                          </div>
+                        )}
                       </DialogDescription>
                     </DialogHeader>
                     <div className="space-y-4 mt-4">
                       <div>
                         <label className="text-sm font-medium text-gray-300 mb-2 block">
-                          Player to Claim
+                          Players to Claim ({selectedPlayers.length} selected)
                         </label>
                         
                         {/* Search and Filters */}
@@ -336,8 +459,14 @@ export default function Waivers() {
                                 <WaiverPlayerCard
                                   key={player.id}
                                   player={player}
-                                  isSelected={selectedPlayer === player.id}
-                                  onSelect={setSelectedPlayer}
+                                  isSelected={selectedPlayers.includes(player.id)}
+                                  onSelect={(playerId) => {
+                                    setSelectedPlayers(prev => 
+                                      prev.includes(playerId) 
+                                        ? prev.filter(id => id !== playerId)
+                                        : [...prev, playerId]
+                                    );
+                                  }}
                                   matchup={`vs ${["KC", "BUF", "SF", "DAL", "GB"][Math.floor(Math.random() * 5)]}`}
                                   status={
                                     Math.random() > 0.8 ? "questionable" :
@@ -351,33 +480,125 @@ export default function Waivers() {
                         </ScrollArea>
                       </div>
 
-                      {userRoster.length >= 15 && (
-                        <div>
-                          <label className="text-sm font-medium text-gray-300 mb-2 block">
-                            Player to Drop (Optional)
-                          </label>
-                          <Select value={selectedDropPlayer} onValueChange={setSelectedDropPlayer}>
-                            <SelectTrigger className="bg-nfl-dark-gray border-nfl-light-gray/20 text-white">
-                              <SelectValue placeholder="Select a player to drop" />
-                            </SelectTrigger>
-                            <SelectContent className="bg-nfl-dark-gray border-nfl-light-gray/20">
-                              {userRoster.map((player) => (
-                                <SelectItem key={player.id} value={player.id} className="text-white hover:bg-nfl-light-gray/20">
-                                  <div className="flex items-center justify-between w-full">
-                                    <span>{player.name}</span>
-                                    <div className="flex items-center gap-2 ml-4">
-                                      <Badge variant="outline" className="text-xs">
-                                        {player.position}
-                                      </Badge>
-                                      <span className="text-gray-400 text-sm">{player.team}</span>
-                                    </div>
-                                  </div>
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+                      <div>
+                        <label className="text-sm font-medium text-gray-300 mb-2 block">
+                          Players to Drop ({selectedDropPlayers.length} selected)
+                          {userRoster.length - selectedDropPlayers.length + selectedPlayers.length > 10 && (
+                            <span className="text-red-400 ml-2">
+                              (Must drop {userRoster.length - selectedDropPlayers.length + selectedPlayers.length - 10} more)
+                            </span>
+                          )}
+                          {(() => {
+                            // Show position requirements if players are selected to add
+                            if (selectedPlayers.length > 0) {
+                              const addPositions = selectedPlayers.map(playerId => {
+                                const player = waiverPlayers.find(p => p.id === playerId);
+                                return player?.position || '';
+                              }).reduce((acc, pos) => {
+                                acc[pos] = (acc[pos] || 0) + 1;
+                                return acc;
+                              }, {} as Record<string, number>);
+                              
+                              const positionList = Object.entries(addPositions)
+                                .map(([pos, count]) => count > 1 ? `${count} ${pos}s` : `1 ${pos}`)
+                                .join(', ');
+                              
+                              return (
+                                <span className="text-yellow-300 ml-2">
+                                  (Must match positions: {positionList})
+                                </span>
+                              );
+                            }
+                            return null;
+                          })()}
+                        </label>
+                        <div className="space-y-2 max-h-60 overflow-y-auto border border-nfl-light-gray/20 rounded-lg p-2">
+                          {userRoster.map((player) => {
+                            // Check if this player's position matches what we need to drop
+                            const requiredPositions = selectedPlayers.map(playerId => {
+                              const p = waiverPlayers.find(wp => wp.id === playerId);
+                              return p?.position || '';
+                            });
+                            
+                            // Get the display slot (use slot if available, otherwise position)
+                            const displaySlot = player.slot || player.position;
+                            
+                            // Check if position is valid for replacement
+                            const isValidPosition = selectedPlayers.length === 0 || 
+                              requiredPositions.some(reqPos => {
+                                // Direct match
+                                if (reqPos === displaySlot) return true;
+                                // FLEX can be replaced by RB or WR
+                                if (displaySlot === 'FLEX' && (reqPos === 'RB' || reqPos === 'WR')) return true;
+                                // Regular position must match
+                                if (displaySlot === player.position && reqPos === player.position) return true;
+                                return false;
+                              });
+                            
+                            return (
+                              <div
+                                key={player.id}
+                                className={`flex items-center justify-between p-2 rounded cursor-pointer transition-colors ${
+                                  selectedDropPlayers.includes(player.id)
+                                    ? 'bg-red-900/30 border border-red-500/30'
+                                    : !isValidPosition && selectedPlayers.length > 0
+                                    ? 'opacity-50 hover:bg-nfl-light-gray/5'
+                                    : 'hover:bg-nfl-light-gray/10'
+                                }`}
+                                onClick={() => {
+                                  // Only allow selection if position is valid or no players selected to add
+                                  if (isValidPosition || selectedPlayers.length === 0) {
+                                    setSelectedDropPlayers(prev =>
+                                      prev.includes(player.id)
+                                        ? prev.filter(id => id !== player.id)
+                                        : [...prev, player.id]
+                                    );
+                                  } else {
+                                    toast({
+                                      title: "Position Mismatch",
+                                      description: displaySlot === 'FLEX' 
+                                        ? `FLEX slot can only be replaced by RB or WR players`
+                                        : `You need to drop a ${requiredPositions.join(' or ')} to match your selections`,
+                                      variant: "destructive",
+                                    });
+                                  }
+                                }}
+                              >
+                                <div className="flex items-center gap-2">
+                                  <input
+                                    type="checkbox"
+                                    checked={selectedDropPlayers.includes(player.id)}
+                                    onChange={() => {}}
+                                    className="rounded border-gray-600"
+                                    disabled={!isValidPosition && selectedPlayers.length > 0}
+                                  />
+                                  <span className="text-white">{player.name}</span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <Badge 
+                                    variant="outline" 
+                                    className={`text-xs ${
+                                      !isValidPosition && selectedPlayers.length > 0
+                                        ? 'border-gray-600 text-gray-500'
+                                        : selectedPlayers.length > 0 && isValidPosition
+                                        ? 'border-green-500/50 text-green-400'
+                                        : displaySlot === 'FLEX'
+                                        ? 'border-purple-500/50 text-purple-400'
+                                        : ''
+                                    }`}
+                                  >
+                                    {displaySlot}
+                                  </Badge>
+                                  {displaySlot === 'FLEX' && (
+                                    <span className="text-xs text-gray-500">({player.position})</span>
+                                  )}
+                                  <span className="text-gray-400 text-sm">{player.team}</span>
+                                </div>
+                              </div>
+                            );
+                          })}
                         </div>
-                      )}
+                      </div>
 
                       <div className="flex justify-end gap-2 mt-6">
                         <Button 
@@ -390,7 +611,50 @@ export default function Waivers() {
                         <Button 
                           onClick={handleClaim}
                           className="bg-nfl-accent hover:bg-nfl-accent/90 text-black"
-                          disabled={!selectedPlayer}
+                          disabled={(() => {
+                            // Disable if no players selected
+                            if (selectedPlayers.length === 0) return true;
+                            
+                            // Disable if roster size would exceed limit
+                            if (userRoster.length - selectedDropPlayers.length + selectedPlayers.length > 10) return true;
+                            
+                            // Check position matching when both adding and dropping
+                            if (selectedPlayers.length > 0 && selectedDropPlayers.length > 0) {
+                              // Must have same number of adds and drops
+                              if (selectedPlayers.length !== selectedDropPlayers.length) return true;
+                              
+                              // Helper to check compatibility
+                              const isCompatible = (addPos: string, dropSlot: string) => {
+                                if (addPos === dropSlot) return true;
+                                if (dropSlot === 'FLEX' && (addPos === 'RB' || addPos === 'WR')) return true;
+                                return false;
+                              };
+                              
+                              // Get positions to add and slots to drop
+                              const addPositions = selectedPlayers.map(playerId => {
+                                const player = waiverPlayers.find(p => p.id === playerId);
+                                return player?.position || '';
+                              });
+                              
+                              const dropSlots = selectedDropPlayers.map(playerId => {
+                                const player = userRoster.find(p => p.id === playerId);
+                                return player?.slot || player?.position || '';
+                              });
+                              
+                              // For single swaps, check compatibility
+                              if (addPositions.length === 1) {
+                                if (!isCompatible(addPositions[0], dropSlots[0])) return true;
+                              } else {
+                                // For multiple, need more complex matching
+                                const sortedAdd = [...addPositions].sort();
+                                const sortedDrop = [...dropSlots].sort();
+                                const match = sortedAdd.every((pos, i) => isCompatible(pos, sortedDrop[i]));
+                                if (!match) return true;
+                              }
+                            }
+                            
+                            return false;
+                          })()}
                         >
                           Submit Claim
                         </Button>
