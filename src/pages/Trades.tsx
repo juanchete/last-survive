@@ -21,6 +21,7 @@ interface RosterPlayer {
   player_id: number;
   player_name: string;
   position: string;
+  slot?: string;
   fantasy_points: number;
   team_abbreviation: string;
   overall_rating: number;
@@ -61,15 +62,28 @@ export default function Trades() {
     currentWeek?.number || 1
   );
   
+  // Define the slot order for consistent display
+  const slotOrder = ['QB', 'RB', 'WR', 'TE', 'FLEX', 'K', 'DEF', 'DP'];
+  
   // Transform the roster data to match the expected format
-  const myRoster: RosterPlayer[] = myRosterData.map((player) => ({
-    player_id: parseInt(player.id),
-    player_name: player.name || "Unknown Player",
-    position: player.position || "POS",
-    fantasy_points: player.stats?.fantasy_points || player.points || 0,
-    team_abbreviation: player.team || "FA",
-    overall_rating: Math.floor(Math.random() * 20) + 80, // Mock OVR
-  }));
+  const myRoster: RosterPlayer[] = myRosterData
+    .map((player) => ({
+      player_id: parseInt(player.id),
+      player_name: player.name || "Unknown Player",
+      position: player.position || "POS",
+      slot: player.slot || player.position,
+      fantasy_points: player.stats?.fantasy_points || player.points || 0,
+      team_abbreviation: player.team || "FA",
+      overall_rating: Math.floor(Math.random() * 20) + 80, // Mock OVR
+    }))
+    .sort((a, b) => {
+      const aIndex = slotOrder.indexOf(a.slot || a.position);
+      const bIndex = slotOrder.indexOf(b.slot || b.position);
+      if (aIndex !== -1 && bIndex !== -1) return aIndex - bIndex;
+      if (aIndex !== -1) return -1;
+      if (bIndex !== -1) return 1;
+      return (a.slot || a.position).localeCompare(b.slot || b.position);
+    });
 
   // Get selected team roster using the safe hook
   const { data: theirRosterData = [], isLoading: loadingTheirRoster } = useRosterWithPlayerDetails(
@@ -78,14 +92,24 @@ export default function Trades() {
   );
   
   // Transform the roster data to match the expected format
-  const theirRoster: RosterPlayer[] = theirRosterData.map((player) => ({
-    player_id: parseInt(player.id),
-    player_name: player.name || "Unknown Player",
-    position: player.position || "POS",
-    fantasy_points: player.stats?.fantasy_points || player.points || 0,
-    team_abbreviation: player.team || "FA",
-    overall_rating: Math.floor(Math.random() * 20) + 80, // Mock OVR
-  }));
+  const theirRoster: RosterPlayer[] = theirRosterData
+    .map((player) => ({
+      player_id: parseInt(player.id),
+      player_name: player.name || "Unknown Player",
+      position: player.position || "POS",
+      slot: player.slot || player.position,
+      fantasy_points: player.stats?.fantasy_points || player.points || 0,
+      team_abbreviation: player.team || "FA",
+      overall_rating: Math.floor(Math.random() * 20) + 80, // Mock OVR
+    }))
+    .sort((a, b) => {
+      const aIndex = slotOrder.indexOf(a.slot || a.position);
+      const bIndex = slotOrder.indexOf(b.slot || b.position);
+      if (aIndex !== -1 && bIndex !== -1) return aIndex - bIndex;
+      if (aIndex !== -1) return -1;
+      if (bIndex !== -1) return 1;
+      return (a.slot || a.position).localeCompare(b.slot || b.position);
+    });
 
   const togglePlayerSelection = (playerId: number, isMyTeam: boolean) => {
     if (isMyTeam) {
@@ -122,6 +146,99 @@ export default function Trades() {
         variant: "destructive",
       });
       return;
+    }
+
+    // Position validation: trades must be between compatible positions
+    // Helper function to check if positions are compatible
+    const arePositionsCompatible = (mySlot: string, theirSlot: string, myPos: string, theirPos: string) => {
+      // Direct position match
+      if (myPos === theirPos) return true;
+      
+      // FLEX can be traded for RB or WR
+      if (mySlot === 'FLEX' && (theirPos === 'RB' || theirPos === 'WR')) return true;
+      if (theirSlot === 'FLEX' && (myPos === 'RB' || myPos === 'WR')) return true;
+      
+      // Both FLEX positions can be traded
+      if (mySlot === 'FLEX' && theirSlot === 'FLEX') return true;
+      
+      return false;
+    };
+
+    // Get positions/slots of my players
+    const myPlayerInfo = selectedMyPlayers.map(playerId => {
+      const player = myRoster.find(p => p.player_id === playerId);
+      return {
+        position: player?.position || '',
+        slot: player?.slot || player?.position || ''
+      };
+    });
+
+    // Get positions/slots of their players
+    const theirPlayerInfo = selectedTheirPlayers.map(playerId => {
+      const player = theirRoster.find(p => p.player_id === playerId);
+      return {
+        position: player?.position || '',
+        slot: player?.slot || player?.position || ''
+      };
+    });
+
+    // Check if we have same number of players
+    if (selectedMyPlayers.length !== selectedTheirPlayers.length) {
+      toast({
+        title: "Position Mismatch",
+        description: `Trades must involve the same number of players. You selected ${selectedMyPlayers.length}, they selected ${selectedTheirPlayers.length}`,
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // For single player trades, check compatibility
+    if (selectedMyPlayers.length === 1 && selectedTheirPlayers.length === 1) {
+      const myInfo = myPlayerInfo[0];
+      const theirInfo = theirPlayerInfo[0];
+      
+      if (!arePositionsCompatible(myInfo.slot, theirInfo.slot, myInfo.position, theirInfo.position)) {
+        const myPlayer = myRoster.find(p => p.player_id === selectedMyPlayers[0]);
+        const theirPlayer = theirRoster.find(p => p.player_id === selectedTheirPlayers[0]);
+        
+        // Provide specific message for FLEX
+        if (myInfo.slot === 'FLEX' || theirInfo.slot === 'FLEX') {
+          toast({
+            title: "Position Mismatch",
+            description: `Cannot trade ${myPlayer?.player_name} (${myInfo.slot === 'FLEX' ? 'FLEX' : myInfo.position}) for ${theirPlayer?.player_name} (${theirInfo.slot === 'FLEX' ? 'FLEX' : theirInfo.position}). FLEX can only be traded for RB, WR, or another FLEX.`,
+            variant: "destructive",
+          });
+        } else {
+          toast({
+            title: "Position Mismatch",
+            description: `Cannot trade ${myPlayer?.player_name} (${myInfo.position}) for ${theirPlayer?.player_name} (${theirInfo.position}). Players must be of compatible positions.`,
+            variant: "destructive",
+          });
+        }
+        return;
+      }
+    } else {
+      // For multiple players, we need more complex matching
+      // Sort positions to check if they match
+      const myPositions = myPlayerInfo.map(p => p.position).sort();
+      const theirPositions = theirPlayerInfo.map(p => p.position).sort();
+      
+      // Simple check for multiple players (can be enhanced)
+      const positionsMatch = myPositions.every((pos, index) => {
+        const mySlot = myPlayerInfo.find(p => p.position === pos)?.slot || pos;
+        const theirPos = theirPositions[index];
+        const theirSlot = theirPlayerInfo.find(p => p.position === theirPos)?.slot || theirPos;
+        return arePositionsCompatible(mySlot, theirSlot, pos, theirPos);
+      });
+
+      if (!positionsMatch) {
+        toast({
+          title: "Position Mismatch",
+          description: `Position requirements don't match. You're offering: ${myPositions.join(', ')}, They're offering: ${theirPositions.join(', ')}`,
+          variant: "destructive",
+        });
+        return;
+      }
     }
 
     try {
@@ -430,6 +547,25 @@ export default function Trades() {
                   <p className="text-sm text-gray-400">
                     {selectedMyPlayers.length}/3 selected
                   </p>
+                  {selectedTheirPlayers.length > 0 && (
+                    <div className="mt-2 p-2 bg-yellow-500/10 border border-yellow-500/30 rounded">
+                      <p className="text-xs text-yellow-300">
+                        ⚠️ Match positions: {(() => {
+                          const theirPositions = selectedTheirPlayers.map(playerId => {
+                            const player = theirRoster.find(p => p.player_id === playerId);
+                            return player?.position || '';
+                          }).reduce((acc, pos) => {
+                            acc[pos] = (acc[pos] || 0) + 1;
+                            return acc;
+                          }, {} as Record<string, number>);
+                          
+                          return Object.entries(theirPositions)
+                            .map(([pos, count]) => count > 1 ? `${count} ${pos}s` : `1 ${pos}`)
+                            .join(', ');
+                        })()}
+                      </p>
+                    </div>
+                  )}
                 </div>
                 
                 <div className="space-y-2">
@@ -444,28 +580,78 @@ export default function Trades() {
                   ) : (
                     <>
                       <h3 className="text-sm font-medium text-gray-400 mb-2">Roster</h3>
-                      {myRoster.map((player) => (
-                        <div
-                          key={player.player_id}
-                          className={`
-                            p-3 rounded-lg border cursor-pointer transition-all
-                            ${selectedMyPlayers.includes(player.player_id)
-                              ? 'bg-nfl-blue/20 border-nfl-blue'
-                              : 'bg-nfl-dark-gray border-nfl-light-gray/20 hover:border-nfl-light-gray/40'
-                            }
-                          `}
-                          onClick={() => togglePlayerSelection(player.player_id, true)}
-                        >
+                      {myRoster.map((player) => {
+                        // Check if this player's position matches what the other team selected
+                        const requiredPositions = selectedTheirPlayers.map(playerId => {
+                          const p = theirRoster.find(r => r.player_id === playerId);
+                          return p?.position || '';
+                        });
+                        
+                        // Get the display slot (use slot if available, otherwise position)
+                        const displaySlot = player.slot || player.position;
+                        
+                        // Check if position is valid for trade
+                        const isValidPosition = selectedTheirPlayers.length === 0 || 
+                          requiredPositions.some(reqPos => {
+                            // Direct match
+                            if (reqPos === player.position) return true;
+                            // FLEX can be traded for RB or WR
+                            if (displaySlot === 'FLEX' && (reqPos === 'RB' || reqPos === 'WR')) return true;
+                            // RB or WR can trade for FLEX
+                            if ((player.position === 'RB' || player.position === 'WR') && 
+                                theirRoster.find(r => selectedTheirPlayers.includes(r.player_id))?.slot === 'FLEX') return true;
+                            return false;
+                          });
+                        
+                        return (
+                          <div
+                            key={player.player_id}
+                            className={`
+                              p-3 rounded-lg border cursor-pointer transition-all
+                              ${selectedMyPlayers.includes(player.player_id)
+                                ? 'bg-nfl-blue/20 border-nfl-blue'
+                                : !isValidPosition
+                                ? 'opacity-50 bg-nfl-dark-gray border-nfl-light-gray/10'
+                                : 'bg-nfl-dark-gray border-nfl-light-gray/20 hover:border-nfl-light-gray/40'
+                              }
+                            `}
+                            onClick={() => {
+                              if (isValidPosition || selectedTheirPlayers.length === 0 || selectedMyPlayers.includes(player.player_id)) {
+                                togglePlayerSelection(player.player_id, true);
+                              } else {
+                                toast({
+                                  title: "Position Mismatch",
+                                  description: `You need to select a ${requiredPositions.join(' or ')} to match their selection`,
+                                  variant: "destructive",
+                                });
+                              }
+                            }}
+                          >
                           <div className="flex items-center justify-between">
                             <div className="flex items-center gap-3">
                               <Checkbox
                                 checked={selectedMyPlayers.includes(player.player_id)}
                                 onCheckedChange={() => togglePlayerSelection(player.player_id, true)}
                                 onClick={(e) => e.stopPropagation()}
+                                disabled={!isValidPosition && selectedTheirPlayers.length > 0 && !selectedMyPlayers.includes(player.player_id)}
                               />
-                              <Badge variant="outline" className="text-xs">
-                                {player.position}
+                              <Badge 
+                                variant="outline" 
+                                className={`text-xs ${
+                                  !isValidPosition && selectedTheirPlayers.length > 0
+                                    ? 'border-gray-600 text-gray-500'
+                                    : selectedTheirPlayers.length > 0 && isValidPosition
+                                    ? 'border-green-500/50 text-green-400'
+                                    : displaySlot === 'FLEX'
+                                    ? 'border-purple-500/50 text-purple-400'
+                                    : ''
+                                }`}
+                              >
+                                {displaySlot}
                               </Badge>
+                              {displaySlot === 'FLEX' && (
+                                <span className="text-xs text-gray-500">({player.position})</span>
+                              )}
                               <div>
                                 <p className="font-medium text-white">
                                   {player.player_name}
@@ -485,7 +671,8 @@ export default function Trades() {
                             </div>
                           </div>
                         </div>
-                      ))}
+                        );
+                      })}
                     </>
                   )}
                 </div>
@@ -519,6 +706,25 @@ export default function Trades() {
                       <p className="text-sm text-gray-400">
                         {selectedTheirPlayers.length}/3 selected
                       </p>
+                      {selectedMyPlayers.length > 0 && (
+                        <div className="mt-2 p-2 bg-yellow-500/10 border border-yellow-500/30 rounded">
+                          <p className="text-xs text-yellow-300">
+                            ⚠️ Match positions: {(() => {
+                              const myPositions = selectedMyPlayers.map(playerId => {
+                                const player = myRoster.find(p => p.player_id === playerId);
+                                return player?.position || '';
+                              }).reduce((acc, pos) => {
+                                acc[pos] = (acc[pos] || 0) + 1;
+                                return acc;
+                              }, {} as Record<string, number>);
+                              
+                              return Object.entries(myPositions)
+                                .map(([pos, count]) => count > 1 ? `${count} ${pos}s` : `1 ${pos}`)
+                                .join(', ');
+                            })()}
+                          </p>
+                        </div>
+                      )}
                     </div>
                     
                     <div className="space-y-2">
@@ -533,28 +739,78 @@ export default function Trades() {
                       ) : (
                         <>
                           <h3 className="text-sm font-medium text-gray-400 mb-2">Roster</h3>
-                          {theirRoster.map((player) => (
-                            <div
-                              key={player.player_id}
-                              className={`
-                                p-3 rounded-lg border cursor-pointer transition-all
-                                ${selectedTheirPlayers.includes(player.player_id)
-                                  ? 'bg-nfl-red/20 border-nfl-red'
-                                  : 'bg-nfl-dark-gray border-nfl-light-gray/20 hover:border-nfl-light-gray/40'
-                                }
-                              `}
-                              onClick={() => togglePlayerSelection(player.player_id, false)}
-                            >
+                          {theirRoster.map((player) => {
+                            // Check if this player's position matches what my team selected
+                            const requiredPositions = selectedMyPlayers.map(playerId => {
+                              const p = myRoster.find(r => r.player_id === playerId);
+                              return p?.position || '';
+                            });
+                            
+                            // Get the display slot (use slot if available, otherwise position)
+                            const displaySlot = player.slot || player.position;
+                            
+                            // Check if position is valid for trade
+                            const isValidPosition = selectedMyPlayers.length === 0 || 
+                              requiredPositions.some(reqPos => {
+                                // Direct match
+                                if (reqPos === player.position) return true;
+                                // FLEX can be traded for RB or WR
+                                if (displaySlot === 'FLEX' && (reqPos === 'RB' || reqPos === 'WR')) return true;
+                                // RB or WR can trade for FLEX
+                                if ((player.position === 'RB' || player.position === 'WR') && 
+                                    myRoster.find(r => selectedMyPlayers.includes(r.player_id))?.slot === 'FLEX') return true;
+                                return false;
+                              });
+                            
+                            return (
+                              <div
+                                key={player.player_id}
+                                className={`
+                                  p-3 rounded-lg border cursor-pointer transition-all
+                                  ${selectedTheirPlayers.includes(player.player_id)
+                                    ? 'bg-nfl-red/20 border-nfl-red'
+                                    : !isValidPosition
+                                    ? 'opacity-50 bg-nfl-dark-gray border-nfl-light-gray/10'
+                                    : 'bg-nfl-dark-gray border-nfl-light-gray/20 hover:border-nfl-light-gray/40'
+                                  }
+                                `}
+                                onClick={() => {
+                                  if (isValidPosition || selectedMyPlayers.length === 0 || selectedTheirPlayers.includes(player.player_id)) {
+                                    togglePlayerSelection(player.player_id, false);
+                                  } else {
+                                    toast({
+                                      title: "Position Mismatch",
+                                      description: `You need to select a ${requiredPositions.join(' or ')} to match your selection`,
+                                      variant: "destructive",
+                                    });
+                                  }
+                                }}
+                              >
                               <div className="flex items-center justify-between">
                                 <div className="flex items-center gap-3">
                                   <Checkbox
                                     checked={selectedTheirPlayers.includes(player.player_id)}
                                     onCheckedChange={() => togglePlayerSelection(player.player_id, false)}
                                     onClick={(e) => e.stopPropagation()}
+                                    disabled={!isValidPosition && selectedMyPlayers.length > 0 && !selectedTheirPlayers.includes(player.player_id)}
                                   />
-                                  <Badge variant="outline" className="text-xs">
-                                    {player.position}
+                                  <Badge 
+                                    variant="outline" 
+                                    className={`text-xs ${
+                                      !isValidPosition && selectedMyPlayers.length > 0
+                                        ? 'border-gray-600 text-gray-500'
+                                        : selectedMyPlayers.length > 0 && isValidPosition
+                                        ? 'border-green-500/50 text-green-400'
+                                        : displaySlot === 'FLEX'
+                                        ? 'border-purple-500/50 text-purple-400'
+                                        : ''
+                                    }`}
+                                  >
+                                    {displaySlot}
                                   </Badge>
+                                  {displaySlot === 'FLEX' && (
+                                    <span className="text-xs text-gray-500">({player.position})</span>
+                                  )}
                                   <div>
                                     <p className="font-medium text-white">
                                       {player.player_name}
@@ -574,7 +830,8 @@ export default function Trades() {
                                 </div>
                               </div>
                             </div>
-                          ))}
+                            );
+                          })}
                         </>
                       )}
                     </div>
@@ -590,11 +847,60 @@ export default function Trades() {
 
           {/* Trade Actions */}
           {selectedMyPlayers.length > 0 && selectedTheirPlayers.length > 0 && (
-            <div className="mt-6 flex justify-center">
+            <div className="mt-6 flex flex-col items-center gap-2">
+              {(() => {
+                // Check if positions match
+                const myPositions = selectedMyPlayers.map(playerId => {
+                  const player = myRoster.find(p => p.player_id === playerId);
+                  return player?.position || '';
+                }).sort();
+                
+                const theirPositions = selectedTheirPlayers.map(playerId => {
+                  const player = theirRoster.find(p => p.player_id === playerId);
+                  return player?.position || '';
+                }).sort();
+                
+                const positionsMatch = selectedMyPlayers.length === selectedTheirPlayers.length &&
+                  myPositions.length === theirPositions.length &&
+                  myPositions.every((pos, index) => pos === theirPositions[index]);
+                
+                if (!positionsMatch) {
+                  return (
+                    <div className="text-center">
+                      <p className="text-sm text-red-400 mb-2">
+                        ⚠️ Position mismatch - trades must be between same positions
+                      </p>
+                      <p className="text-xs text-gray-400">
+                        You're offering: {myPositions.join(', ')} | They're offering: {theirPositions.join(', ')}
+                      </p>
+                    </div>
+                  );
+                }
+                
+                return null;
+              })()}
               <Button
                 size="lg"
-                className="bg-nfl-green hover:bg-nfl-green/90"
+                className="bg-nfl-green hover:bg-nfl-green/90 disabled:opacity-50 disabled:cursor-not-allowed"
                 onClick={proposeTrade}
+                disabled={(() => {
+                  // Check if positions match
+                  const myPositions = selectedMyPlayers.map(playerId => {
+                    const player = myRoster.find(p => p.player_id === playerId);
+                    return player?.position || '';
+                  }).sort();
+                  
+                  const theirPositions = selectedTheirPlayers.map(playerId => {
+                    const player = theirRoster.find(p => p.player_id === playerId);
+                    return player?.position || '';
+                  }).sort();
+                  
+                  const positionsMatch = selectedMyPlayers.length === selectedTheirPlayers.length &&
+                    myPositions.length === theirPositions.length &&
+                    myPositions.every((pos, index) => pos === theirPositions[index]);
+                  
+                  return !positionsMatch;
+                })()}
               >
                 <Check className="w-5 h-5 mr-2" />
                 Propose Trade

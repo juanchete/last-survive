@@ -70,6 +70,7 @@ export function useRosterWithPlayerDetails(fantasyTeamId: string, week: number) 
         return {
           ...rosterItem,
           ...player, // Spread player properties directly
+          slot: rosterItem.slot, // Include the roster slot (e.g., FLEX, QB, RB, etc.)
           stats: playerStats || null
         };
       });

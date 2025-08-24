@@ -17,6 +17,7 @@ interface PlayerStats {
   player_id: number;
   player_name: string;
   position: string;
+  slot: string;
   fantasy_points: number;
   opponent: string;
   game_time: string;
@@ -48,17 +49,39 @@ function TeamRosterDisplay({
 
   const ppg = getTeamPPG(team);
 
+  // Define the slot order
+  const slotOrder = ['QB', 'RB', 'WR', 'TE', 'FLEX', 'K', 'DEF', 'DP'];
+  
   // Convert roster data to PlayerStats format - show ALL players
-  const players: PlayerStats[] = roster.map((player) => ({
-    player_id: parseInt(player.id),
-    player_name: player.name || "Unknown Player",
-    position: player.position || "POS",
-    fantasy_points: player.stats?.fantasy_points || 0,
-    opponent: "vs OPP", // This would need to come from schedule data
-    game_time: "TBD",
-    is_playing: true,
-    projected_points: 0, // This would need projection data
-  }));
+  const players: PlayerStats[] = roster
+    .map((player) => ({
+      player_id: parseInt(player.id),
+      player_name: player.name || "Unknown Player",
+      position: player.position || "POS",
+      slot: player.slot || player.position || "POS", // Use slot from roster data
+      fantasy_points: player.stats?.fantasy_points || 0,
+      opponent: "vs OPP", // This would need to come from schedule data
+      game_time: "TBD",
+      is_playing: true,
+      projected_points: 0, // This would need projection data
+    }))
+    .sort((a, b) => {
+      // Sort by slot order
+      const aIndex = slotOrder.indexOf(a.slot);
+      const bIndex = slotOrder.indexOf(b.slot);
+      
+      // If both slots are in the order array, sort by their index
+      if (aIndex !== -1 && bIndex !== -1) {
+        return aIndex - bIndex;
+      }
+      
+      // If only one is in the order array, it comes first
+      if (aIndex !== -1) return -1;
+      if (bIndex !== -1) return 1;
+      
+      // If neither is in the order array, sort alphabetically
+      return a.slot.localeCompare(b.slot);
+    });
 
   return (
     <div
@@ -137,9 +160,9 @@ function TeamRosterDisplay({
                 <div className="flex items-center gap-2">
                   <Badge 
                     variant="outline" 
-                    className="text-xs border-gray-600 text-gray-300"
+                    className="text-xs border-gray-600 text-gray-300 min-w-[45px] text-center"
                   >
-                    {player.position}
+                    {player.slot}
                   </Badge>
                   <span className="text-sm font-medium text-white">
                     {player.player_name}
@@ -151,7 +174,7 @@ function TeamRosterDisplay({
               </div>
               <div className="flex items-center justify-between text-xs text-gray-400">
                 <span>
-                  {player.position} • {player.opponent} {player.game_time}
+                  {player.position} • {player.opponent}
                 </span>
                 <span>
                   Proj: {player.projected_points.toFixed(1)}
