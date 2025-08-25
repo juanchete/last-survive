@@ -102,7 +102,7 @@ export function LeagueHeader({ leagueId }: LeagueHeaderProps) {
               <div>
                 <span className="text-gray-400">Prize Pool</span>
                 <p className="text-2xl font-bold text-yellow-400">
-                  ${(league.entry_fee * totalTeams * 0.9).toFixed(0)}
+                  ${(league.entry_fee * totalTeams).toFixed(0)}
                 </p>
               </div>
               <div>

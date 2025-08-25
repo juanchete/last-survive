@@ -119,7 +119,7 @@ function TeamRosterDisplay({
         </div>
         <div className="flex items-center justify-between">
           <span className="text-2xl font-bold text-nfl-green">
-            {ppg} PPG
+            {ppg} PTS
           </span>
           <Badge 
             variant="default"

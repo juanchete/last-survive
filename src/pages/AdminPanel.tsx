@@ -117,6 +117,7 @@ export default function AdminPanel() {
   const [selectedLeagueTab, setSelectedLeagueTab] = useState("info");
   const [editingTeamPlayer, setEditingTeamPlayer] = useState<{teamId: string; playerId: number} | null>(null);
   const [availablePlayers, setAvailablePlayers] = useState<Player[]>([]);
+  const [selectedSlot, setSelectedSlot] = useState<string>("");
 
   // Obtener usuarios con búsqueda y filtros
   const { data: users, isLoading: loadingUsers } = useQuery({
@@ -433,26 +434,27 @@ export default function AdminPanel() {
 
   // Mutación para cambiar jugador de un equipo
   const changeTeamPlayerMutation = useMutation({
-    mutationFn: async ({ teamId, oldPlayerId, newPlayerId }: { teamId: string; oldPlayerId: number; newPlayerId: number }) => {
+    mutationFn: async ({ teamId, oldPlayerId, newPlayerId, slot }: { teamId: string; oldPlayerId: number; newPlayerId: number; slot: string }) => {
       // Primero desactivar el jugador actual
       const { error: removeError } = await supabase
         .from("team_rosters")
-        .update({ is_active: false, dropped_week: currentWeek })
+        .update({ is_active: false })
         .eq("fantasy_team_id", teamId)
         .eq("player_id", oldPlayerId)
         .eq("is_active", true);
 
       if (removeError) throw removeError;
 
-      // Luego agregar el nuevo jugador
+      // Luego agregar el nuevo jugador en el mismo slot
       const { error: addError } = await supabase
         .from("team_rosters")
         .insert({
           fantasy_team_id: teamId,
           player_id: newPlayerId,
-          slot: "BENCH",
-          acquired_week: currentWeek,
-          acquired_type: "admin",
+          week: currentWeek || 1,
+          slot: slot,  // Use the same slot as the replaced player
+          acquired_week: currentWeek || 1,
+          acquired_type: "free_agent",
           is_active: true
         });
 
@@ -481,7 +483,7 @@ export default function AdminPanel() {
     mutationFn: async ({ teamId, playerId }: { teamId: string; playerId: number }) => {
       const { error } = await supabase
         .from("team_rosters")
-        .update({ is_active: false, dropped_week: currentWeek })
+        .update({ is_active: false })
         .eq("fantasy_team_id", teamId)
         .eq("player_id", playerId)
         .eq("is_active", true);
@@ -507,15 +509,38 @@ export default function AdminPanel() {
 
   // Mutación para agregar jugador a un equipo
   const addTeamPlayerMutation = useMutation({
-    mutationFn: async ({ teamId, playerId }: { teamId: string; playerId: number }) => {
+    mutationFn: async ({ teamId, playerId, slot }: { teamId: string; playerId: number; slot: string }) => {
+      // First check if slot is occupied
+      const { data: existingPlayer } = await supabase
+        .from("team_rosters")
+        .select("player_id")
+        .eq("fantasy_team_id", teamId)
+        .eq("slot", slot)
+        .eq("is_active", true)
+        .single();
+
+      // If slot is occupied, deactivate the current player
+      if (existingPlayer) {
+        const { error: removeError } = await supabase
+          .from("team_rosters")
+          .update({ is_active: false })
+          .eq("fantasy_team_id", teamId)
+          .eq("player_id", existingPlayer.player_id)
+          .eq("is_active", true);
+        
+        if (removeError) throw removeError;
+      }
+
+      // Add the new player to the slot
       const { error } = await supabase
         .from("team_rosters")
         .insert({
           fantasy_team_id: teamId,
           player_id: playerId,
-          slot: "BENCH",
-          acquired_week: currentWeek,
-          acquired_type: "admin",
+          week: currentWeek || 1,
+          slot: slot,
+          acquired_week: currentWeek || 1,
+          acquired_type: "free_agent",
           is_active: true
         });
 
@@ -529,6 +554,7 @@ export default function AdminPanel() {
         description: "Jugador agregado al equipo",
       });
       setAvailablePlayers([]);
+      setSelectedSlot("");
     },
     onError: (error: Error) => {
       toast({
@@ -1601,16 +1627,37 @@ export default function AdminPanel() {
                           </div>
 
                           {/* Buscar y agregar jugador */}
-                          <div className="flex gap-2 mb-4">
-                            <Input
-                              placeholder="Buscar jugador para agregar..."
-                              onChange={(e) => {
-                                if (e.target.value.length > 2) {
-                                  searchAvailablePlayers(e.target.value);
-                                }
-                              }}
-                              className="bg-nfl-dark border-nfl-light-gray/20"
-                            />
+                          <div className="space-y-3 mb-4">
+                            <div className="flex gap-2">
+                              <Select value={selectedSlot} onValueChange={setSelectedSlot}>
+                                <SelectTrigger className="w-[180px] bg-nfl-dark border-nfl-light-gray/20">
+                                  <SelectValue placeholder="Seleccionar slot" />
+                                </SelectTrigger>
+                                <SelectContent className="bg-nfl-dark border-nfl-light-gray/20">
+                                  <SelectItem value="QB">QB - Quarterback</SelectItem>
+                                  <SelectItem value="RB">RB - Running Back</SelectItem>
+                                  <SelectItem value="WR">WR - Wide Receiver</SelectItem>
+                                  <SelectItem value="TE">TE - Tight End</SelectItem>
+                                  <SelectItem value="FLEX">FLEX - RB/WR/TE</SelectItem>
+                                  <SelectItem value="K">K - Kicker</SelectItem>
+                                  <SelectItem value="DEF">DEF - Defense</SelectItem>
+                                  <SelectItem value="DP">DP - Defensive Player</SelectItem>
+                                </SelectContent>
+                              </Select>
+                              <Input
+                                placeholder="Buscar jugador para agregar..."
+                                onChange={(e) => {
+                                  if (e.target.value.length > 2 && selectedSlot) {
+                                    searchAvailablePlayers(e.target.value);
+                                  }
+                                }}
+                                className="bg-nfl-dark border-nfl-light-gray/20 flex-1"
+                                disabled={!selectedSlot}
+                              />
+                            </div>
+                            {!selectedSlot && (
+                              <p className="text-sm text-yellow-400">Primero selecciona un slot para agregar el jugador</p>
+                            )}
                           </div>
 
                           {availablePlayers.length > 0 && (
@@ -1630,10 +1677,12 @@ export default function AdminPanel() {
                                       size="sm"
                                       onClick={() => addTeamPlayerMutation.mutate({
                                         teamId: editingTeamPlayer.teamId,
-                                        playerId: player.id
+                                        playerId: player.id,
+                                        slot: selectedSlot
                                       })}
+                                      disabled={!selectedSlot}
                                     >
-                                      Agregar
+                                      Agregar a {selectedSlot}
                                     </Button>
                                   </div>
                                 ))}
@@ -1698,7 +1747,8 @@ export default function AdminPanel() {
                                                   onClick={() => changeTeamPlayerMutation.mutate({
                                                     teamId: editingTeamPlayer.teamId,
                                                     oldPlayerId: roster.player_id,
-                                                    newPlayerId: player.id
+                                                    newPlayerId: player.id,
+                                                    slot: roster.slot
                                                   })}
                                                 >
                                                   Seleccionar

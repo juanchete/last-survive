@@ -382,7 +382,7 @@ export default function Team() {
             )}
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 gap-6">
             {/* Starting Lineup */}
             <div className="lg:col-span-2">
               <Card className="bg-nfl-gray border-nfl-light-gray/20">
@@ -461,50 +461,6 @@ export default function Team() {
                     })}
                   </div>
                   )}
-                </CardContent>
-              </Card>
-            </div>
-
-            {/* Bench */}
-            <div>
-              <Card className="bg-nfl-gray border-nfl-light-gray/20">
-                <CardHeader className="border-b border-nfl-light-gray/20">
-                  <CardTitle className="text-white flex items-center justify-between">
-                    <span>Bench</span>
-                    <Badge variant="secondary">{bench.length} players</Badge>
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="p-4">
-                  <div className="space-y-2">
-                    {bench.length === 0 ? (
-                      <p className="text-center text-gray-400 py-8">
-                        No players on bench
-                      </p>
-                    ) : (
-                      bench.map(player => (
-                        <BenchPlayer
-                          key={player.id}
-                          player={player}
-                          onSelect={(p) => {
-                            // Find first available slot for this player
-                            const availableSlot = Object.keys(lineup).find(
-                              key => !lineup[key] && canPlaceInSlot(p, key)
-                            );
-                            if (availableSlot) {
-                              moveToLineup(p, availableSlot);
-                            } else {
-                              toast({
-                                title: "No Available Slot",
-                                description: `No open ${p.position} slot in your lineup`,
-                                variant: "destructive",
-                              });
-                            }
-                          }}
-                          positionColors={positionColors}
-                        />
-                      ))
-                    )}
-                  </div>
                 </CardContent>
               </Card>
             </div>

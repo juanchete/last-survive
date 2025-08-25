@@ -39,7 +39,7 @@ export function Header() {
         {/* Logo Section */}
         <div className="flex items-center">
           <Link to={ user ? "/hub" : "/"} className="flex items-center">
-          Survive Week
+          Survive The Fantasy
             {/* <img 
               src="/lovable-uploads/c98f0db9-c234-4e8c-be65-19438a4ac393.png"
               alt="Survive Week Logo"
