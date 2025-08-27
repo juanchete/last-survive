@@ -16,7 +16,7 @@ import { toast } from "@/hooks/use-toast";
 import { User, Save, AlertTriangle, CheckCircle, XCircle, Clock, Shield } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Player } from "@/types";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQueryClient, useQuery } from "@tanstack/react-query";
 
 // Define lineup positions and requirements
 const LINEUP_SLOTS = [
@@ -37,10 +37,11 @@ interface RosterPlayer {
   position: "QB" | "RB" | "WR" | "TE" | "K" | "DEF" | "DP";
   team: string;
   points: number;
+  projected_points?: number;
   slot?: string;
   is_active: boolean;
   photo?: string;
-  status?: "healthy" | "questionable" | "doubtful" | "out";
+  status?: string;
   matchup?: string;
 }
 
@@ -59,6 +60,43 @@ export default function Team() {
     userTeam?.id || "", 
     currentWeek
   );
+  
+  // Get player projections and health status
+  const { data: playerStats } = useQuery({
+    queryKey: ["playerStats", rosterData.map(p => p.player_id), currentWeek],
+    queryFn: async () => {
+      if (rosterData.length === 0) return [];
+      
+      const playerIds = rosterData.map(p => p.player_id);
+      
+      // Get projections for this week
+      const { data: stats, error: statsError } = await supabase
+        .from("player_stats")
+        .select("player_id, projected_points")
+        .in("player_id", playerIds)
+        .eq("week", currentWeek)
+        .eq("season", new Date().getFullYear());
+      
+      // Get player health status
+      const { data: players, error: playersError } = await supabase
+        .from("players")
+        .select("id, status")
+        .in("id", playerIds);
+      
+      if (statsError || playersError) return [];
+      
+      // Combine the data
+      const statsMap = new Map(stats?.map(s => [s.player_id, s.projected_points]) || []);
+      const statusMap = new Map(players?.map(p => [p.id, p.status]) || []);
+      
+      return playerIds.map(id => ({
+        player_id: id,
+        projected_points: statsMap.get(id) || 0,
+        status: statusMap.get(id) || 'Unknown'
+      }));
+    },
+    enabled: rosterData.length > 0 && !!currentWeek,
+  });
 
   // State for lineup management
   const [lineup, setLineup] = useState<Record<string, RosterPlayer | null>>({});
@@ -100,19 +138,24 @@ export default function Team() {
   // Convert roster data to our format
   useEffect(() => {
     if (rosterData.length > 0) {
-      const players: RosterPlayer[] = rosterData.map(item => ({
-        id: item.id, // This is the roster entry ID
-        player_id: item.player_id, // Use the actual player_id from the roster data
-        name: item.name || "Unknown Player",
-        position: item.position as "QB" | "RB" | "WR" | "TE" | "K" | "DEF" | "DP",
-        team: item.team || "FA",
-        points: item.points || 0,
-        slot: item.slot,
-        is_active: item.is_active,
-        photo: item.photo,
-        status: "healthy" as const, // Mock status for now
-        matchup: `vs ${["KC", "BUF", "SF", "DAL", "GB"][Math.floor(Math.random() * 5)]}`
-      }));
+      const players: RosterPlayer[] = rosterData.map(item => {
+        const playerStat = playerStats?.find(s => s.player_id === item.player_id);
+        
+        return {
+          id: item.id, // This is the roster entry ID
+          player_id: item.player_id, // Use the actual player_id from the roster data
+          name: item.name || "Unknown Player",
+          position: item.position as "QB" | "RB" | "WR" | "TE" | "K" | "DEF" | "DP",
+          team: item.team || "FA",
+          points: item.points || 0,
+          projected_points: playerStat?.projected_points || 0,
+          slot: item.slot,
+          is_active: item.is_active,
+          photo: item.photo,
+          status: playerStat?.status || "Unknown",
+          matchup: `vs ${["KC", "BUF", "SF", "DAL", "GB"][Math.floor(Math.random() * 5)]}`
+        };
+      });
 
       // Initialize lineup slots
       const newLineup: Record<string, RosterPlayer | null> = {};
@@ -159,7 +202,7 @@ export default function Team() {
       setLineup(newLineup);
       setBench(benchPlayers);
     }
-  }, [rosterData]);
+  }, [rosterData, playerStats]);
 
 
   // Check if a player can be placed in a slot
@@ -534,8 +577,30 @@ function LineupSlot({
             </div>
           </div>
           <div className="text-right">
-            <div className="text-xl font-bold text-white">{player.points.toFixed(1)}</div>
-            <div className="text-xs text-gray-400">PTS</div>
+            <div className="flex flex-col">
+              <div className="text-xl font-bold text-white">{player.points.toFixed(1)}</div>
+              <div className="text-xs text-gray-400">Proj: {player.projected_points?.toFixed(1) || '0.0'}</div>
+            </div>
+            {player.status && (
+              <Badge 
+                variant="outline" 
+                className={`text-xs mt-1 ${
+                  player.status === 'Active' || player.status === 'Healthy' ? 'border-green-500/50 text-green-500' :
+                  player.status === 'Questionable' ? 'border-yellow-500/50 text-yellow-500' :
+                  player.status === 'Doubtful' ? 'border-orange-500/50 text-orange-500' :
+                  player.status === 'Out' || player.status === 'Injured Reserve' ? 'border-red-500/50 text-red-500' :
+                  'border-gray-500/50 text-gray-400'
+                }`}
+              >
+                {player.status === 'Active' || player.status === 'Healthy' ? 'Healthy' :
+                 player.status === 'Questionable' ? 'Q' :
+                 player.status === 'Doubtful' ? 'D' :
+                 player.status === 'Out' ? 'O' :
+                 player.status === 'Injured Reserve' ? 'IR' :
+                 player.status === 'Unknown' ? 'Unknown' :
+                 player.status.substring(0, 3)}
+              </Badge>
+            )}
           </div>
         </div>
       ) : (
@@ -575,12 +640,34 @@ function BenchPlayer({
             <Badge className={cn(positionColors[player.position], "text-white text-xs")}>
               {player.position}
             </Badge>
+            {player.status && (
+              <Badge 
+                variant="outline" 
+                className={`text-xs ${
+                  player.status === 'Active' || player.status === 'Healthy' ? 'border-green-500/50 text-green-500' :
+                  player.status === 'Questionable' ? 'border-yellow-500/50 text-yellow-500' :
+                  player.status === 'Doubtful' ? 'border-orange-500/50 text-orange-500' :
+                  player.status === 'Out' || player.status === 'Injured Reserve' ? 'border-red-500/50 text-red-500' :
+                  'border-gray-500/50 text-gray-400'
+                }`}
+              >
+                {player.status === 'Active' || player.status === 'Healthy' ? 'Healthy' :
+                 player.status === 'Questionable' ? 'Q' :
+                 player.status === 'Doubtful' ? 'D' :
+                 player.status === 'Out' ? 'O' :
+                 player.status === 'Injured Reserve' ? 'IR' :
+                 player.status === 'Unknown' ? 'Unknown' :
+                 player.status.substring(0, 3)}
+              </Badge>
+            )}
           </div>
           <p className="text-xs text-gray-400">{player.team} • {player.matchup}</p>
         </div>
         <div className="text-right">
-          <div className="font-bold text-white">{player.points.toFixed(1)}</div>
-          <div className="text-xs text-gray-400">PTS</div>
+          <div className="flex flex-col">
+            <div className="font-bold text-white">{player.points.toFixed(1)}</div>
+            <div className="text-xs text-gray-400">Proj: {player.projected_points?.toFixed(1) || '0.0'}</div>
+          </div>
         </div>
       </div>
     </div>

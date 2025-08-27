@@ -74,13 +74,14 @@ export interface PlayerStats {
 export interface PlayerProjection {
   player_id: string
   stats: {
-    [key: string]: number
+    [key: string]: number | string
   }
   points?: {
     ppr?: number
     half_ppr?: number
     standard?: number
   }
+  player_name?: string
 }
 
 export interface PlayersMap {

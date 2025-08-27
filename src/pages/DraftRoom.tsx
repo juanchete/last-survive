@@ -5,6 +5,7 @@ import { DraftOrderCarousel } from "@/components/DraftOrderCarousel";
 import { DraftBoard } from "@/components/DraftBoard";
 import { TeamRosterSidebar } from "@/components/TeamRosterSidebar";
 import { DraftPicksHistory } from "@/components/DraftPicksHistory";
+import { DraftPlayerList } from "@/components/DraftPlayerList";
 import { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useAvailablePlayers } from "@/hooks/useAvailablePlayers";
@@ -112,9 +113,10 @@ export default function DraftRoom() {
   const { user } = useAuth();
 
   // State
-  const [searchTerm, setSearchTerm] = useState('');
-  const [positionFilter, setPositionFilter] = useState('all');
-  const [sortBy, setSortBy] = useState('points');
+  // Search and filter state now handled by DraftPlayerList component
+  // const [searchTerm, setSearchTerm] = useState('');
+  // const [positionFilter, setPositionFilter] = useState('all');
+  // const [sortBy, setSortBy] = useState('points');
   const [loadingPick, setLoadingPick] = useState(false);
   const [loadingControl, setLoadingControl] = useState(false);
   const [autoTimerEnabled, setAutoTimerEnabled] = useState(true);
@@ -176,22 +178,23 @@ export default function DraftRoom() {
     position: player.position as "QB" | "RB" | "WR" | "TE" | "K" | "DEF" | "DP"
   }));
 
-  const filteredPlayers = typedAvailablePlayers.filter(player => {
-    if (!player.available) return false;
-    if (positionFilter !== 'all' && player.position !== positionFilter) return false;
-    if (searchTerm && !player.name.toLowerCase().includes(searchTerm.toLowerCase()) &&
-        !player.team.toLowerCase().includes(searchTerm.toLowerCase())) {
-      return false;
-    }
-    return true;
-  });
+  // Filtering and sorting now handled by DraftPlayerList component
+  // const filteredPlayers = typedAvailablePlayers.filter(player => {
+  //   if (!player.available) return false;
+  //   if (positionFilter !== 'all' && player.position !== positionFilter) return false;
+  //   if (searchTerm && !player.name.toLowerCase().includes(searchTerm.toLowerCase()) &&
+  //       !player.team.toLowerCase().includes(searchTerm.toLowerCase())) {
+  //     return false;
+  //   }
+  //   return true;
+  // });
   
-  const sortedPlayers = [...filteredPlayers].sort((a, b) => {
-    if (sortBy === 'points') return b.points - a.points;
-    if (sortBy === 'name') return a.name.localeCompare(b.name);
-    if (sortBy === 'position') return a.position.localeCompare(b.position);
-    return 0;
-  });
+  // const sortedPlayers = [...filteredPlayers].sort((a, b) => {
+  //   if (sortBy === 'points') return b.points - a.points;
+  //   if (sortBy === 'name') return a.name.localeCompare(b.name);
+  //   if (sortBy === 'position') return a.position.localeCompare(b.position);
+  //   return 0;
+  // });
 
   // Función para refrescar todos los datos relacionados con el draft
   const refreshDraftData = async () => {
@@ -602,22 +605,25 @@ export default function DraftRoom() {
               />
             </div>
 
-            {/* Draft Board - Center */}
+            {/* Draft Player List - Center */}
             <div className="flex-1">
-              <DraftBoard
-                players={sortedPlayers}
-                onDraft={handleDraft}
+              <DraftPlayerList
+                leagueId={leagueId}
+                week={currentWeek}
+                onSelectPlayer={async (playerId) => {
+                  // Get the player to determine the slot
+                  const player = availablePlayers.find(p => String(p.id) === String(playerId));
+                  if (player) {
+                    const slot = getAvailableSlot(player);
+                    if (slot) {
+                      await handleDraft(playerId, slot);
+                    }
+                  }
+                }}
                 isMyTurn={isMyTurn}
-                loadingPick={loadingPick}
-                draftState={draftState}
-                getAvailableSlot={getAvailableSlot}
-                getSlotFeedback={getSlotFeedback}
-                searchTerm={searchTerm}
-                setSearchTerm={setSearchTerm}
-                positionFilter={positionFilter}
-                setPositionFilter={setPositionFilter}
-                sortBy={sortBy}
-                setSortBy={setSortBy}
+                myRoster={myRoster}
+                slotCounts={slotCounts}
+                slotLimits={SLOT_LIMITS}
               />
             </div>
 

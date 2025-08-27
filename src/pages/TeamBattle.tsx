@@ -30,12 +30,16 @@ function TeamRosterDisplay({
   team, 
   isUserTeam, 
   currentWeek,
-  index 
+  index,
+  projections,
+  totalTeams
 }: { 
   team: any; 
   isUserTeam: boolean; 
   currentWeek: number;
   index: number;
+  projections?: any[];
+  totalTeams: number;
 }) {
   const { data: roster = [], isLoading } = useRosterWithPlayerDetails(
     team.id,
@@ -48,6 +52,7 @@ function TeamRosterDisplay({
   };
 
   const ppg = getTeamPPG(team);
+  const projection = projections?.find(p => p.teamId === team.id)?.projectedPoints || 0;
 
   // Define the slot order
   const slotOrder = ['QB', 'RB', 'WR', 'TE', 'FLEX', 'K', 'DEF', 'DP'];
@@ -118,14 +123,23 @@ function TeamRosterDisplay({
           )}
         </div>
         <div className="flex items-center justify-between">
-          <span className="text-2xl font-bold text-nfl-green">
-            {ppg} PTS
-          </span>
+          <div className="flex flex-col">
+            <span className="text-2xl font-bold text-nfl-green">
+              {team.points.toFixed(1)} PTS
+            </span>
+            <span className="text-sm text-gray-400">
+              Proj: {projection.toFixed(1)}
+            </span>
+          </div>
           <Badge 
             variant="default"
-            className="bg-nfl-green/20 text-nfl-green border-nfl-green/30"
+            className={`${
+              team.rank <= totalTeams - Math.floor(totalTeams / 4)
+                ? 'bg-nfl-green/20 text-nfl-green border-nfl-green/30'
+                : 'bg-red-500/20 text-red-500 border-red-500/30'
+            }`}
           >
-            SAFE
+            {team.rank <= totalTeams - Math.floor(totalTeams / 4) ? 'SAFE' : 'DANGER'}
           </Badge>
         </div>
       </div>
@@ -194,6 +208,30 @@ export default function TeamBattle() {
   const leagueId = searchParams.get("league") || "";
   const { user } = useAuth();
   const [autoScroll, setAutoScroll] = useState(false);
+  
+  // Determine if we're in game week (Thu night - Mon) or non-game week (Tue - Thu day)
+  const isGameWeek = () => {
+    const now = new Date();
+    const day = now.getDay(); // 0 = Sunday, 1 = Monday, ..., 6 = Saturday
+    const hour = now.getHours();
+    
+    // Game week: Thursday night (4 @ 20:00) through Monday (1)
+    // Non-game week: Tuesday (2), Wednesday (3), Thursday day (4 before 20:00)
+    
+    if (day === 0 || day === 1 || day === 5 || day === 6) {
+      // Sunday, Monday, Friday, Saturday - always game week
+      return true;
+    } else if (day === 2 || day === 3) {
+      // Tuesday, Wednesday - always non-game week
+      return false;
+    } else if (day === 4) {
+      // Thursday - game week starts at 8 PM (20:00)
+      return hour >= 20;
+    }
+    return false;
+  };
+  
+  const sortingMode = isGameWeek() ? 'actual' : 'projected';
 
   // Hooks for real data
   const { data: teams = [], isLoading: loadingTeams } = useFantasyTeams(leagueId);
@@ -216,8 +254,70 @@ export default function TeamBattle() {
     enabled: !!leagueId,
   });
 
-  // Sort teams by ranking - show ALL teams
-  const sortedTeams = [...teams].sort((a, b) => a.rank - b.rank);
+  // Get projected points for each team
+  const { data: projections } = useQuery({
+    queryKey: ["teamProjections", leagueId, currentWeek?.number],
+    queryFn: async () => {
+      if (!currentWeek?.number) return [];
+      
+      // Get all rosters for this week
+      const { data: rosters, error: rostersError } = await supabase
+        .from("team_rosters")
+        .select(`
+          fantasy_team_id,
+          player_id,
+          slot
+        `)
+        .eq("week", currentWeek.number);
+      
+      if (rostersError) return [];
+      
+      // Get player projections for this week
+      const playerIds = rosters?.map(r => r.player_id) || [];
+      const { data: stats, error: statsError } = await supabase
+        .from("player_stats")
+        .select("player_id, projected_points")
+        .in("player_id", playerIds)
+        .eq("week", currentWeek.number)
+        .eq("season", new Date().getFullYear());
+      
+      if (statsError) return [];
+      
+      // Calculate projected points per team
+      const statsMap = new Map(stats?.map(s => [s.player_id, s.projected_points || 0]) || []);
+      const teamProjections = new Map();
+      
+      rosters?.forEach(roster => {
+        const currentProjection = teamProjections.get(roster.fantasy_team_id) || 0;
+        const playerProjection = statsMap.get(roster.player_id) || 0;
+        teamProjections.set(roster.fantasy_team_id, currentProjection + playerProjection);
+      });
+      
+      return Array.from(teamProjections.entries()).map(([teamId, projectedPoints]) => ({
+        teamId,
+        projectedPoints
+      }));
+    },
+    enabled: !!leagueId && !!currentWeek?.number,
+  });
+  
+  // Sort teams based on current mode (projected vs actual points)
+  const sortedTeams = [...teams].sort((a, b) => {
+    if (sortingMode === 'projected') {
+      // Sort by projected points for non-game week
+      const aProjection = projections?.find(p => p.teamId === a.id)?.projectedPoints || 0;
+      const bProjection = projections?.find(p => p.teamId === b.id)?.projectedPoints || 0;
+      return bProjection - aProjection; // Highest first
+    } else {
+      // Sort by actual points for game week
+      return b.points - a.points; // Highest first
+    }
+  });
+  
+  // Update rankings based on sorted order
+  sortedTeams.forEach((team, index) => {
+    team.rank = index + 1;
+  });
 
   return (
     <Layout>
@@ -238,7 +338,7 @@ export default function TeamBattle() {
                 League Battle View
               </h2>
               <span className="text-gray-400">
-                ({teams.filter(t => !t.eliminated).length} teams remaining)
+                ({teams.filter(t => !t.eliminated).length} teams remaining - Sorting by {sortingMode === 'projected' ? 'Projected' : 'Actual'} Points)
               </span>
             </div>
             <div className="flex items-center gap-2">
@@ -281,6 +381,8 @@ export default function TeamBattle() {
                     isUserTeam={isUserTeam}
                     currentWeek={currentWeek?.number || 1}
                     index={index}
+                    projections={projections}
+                    totalTeams={teams.length}
                   />
                 );
               })

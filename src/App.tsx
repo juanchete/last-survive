@@ -28,6 +28,12 @@ import JoinLeague from "./pages/JoinLeague";
 import AdminPanel from "./pages/AdminPanel";
 import { AuthProvider } from "@/hooks/useAuth";
 import PrivateRoute from "@/components/PrivateRoute";
+
+// Import test file for development
+if (import.meta.env.DEV) {
+  import('./test-sportsdata-integration');
+  import('./scripts/sync-sportsdata');
+}
 import AdminRoute from "@/components/AdminRoute";
 import Trades from "./pages/Trades";
 import LeagueManagerDashboard from "./pages/LeagueManagerDashboard";

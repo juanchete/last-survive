@@ -12,6 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { DraftPlayerCard } from "@/components/DraftPlayerCard";
 import { DraftRecommendations } from "@/components/DraftRecommendations";
+import { DraftPlayerList } from "@/components/DraftPlayerList";
 import { Search, Award, Settings, Play, Pause, RotateCcw, CheckCircle, Clock, Trophy, Users, Wifi, WifiOff, AlertCircle, Check, X } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useAvailablePlayers } from "@/hooks/useAvailablePlayers";
@@ -181,23 +182,23 @@ export default function Draft() {
     position: player.position as "QB" | "RB" | "WR" | "TE" | "K" | "DEF" | "DP" | "LB" | "DB" | "DL"
   }));
 
-  const filteredPlayers = typedAvailablePlayers.filter(player => {
-    if (!player.available) return false;
-    if (positionFilter !== 'all' && player.position !== positionFilter) return false;
-    if (searchTerm && !player.name.toLowerCase().includes(searchTerm.toLowerCase()) &&
-        !player.team.toLowerCase().includes(searchTerm.toLowerCase())) {
-      return false;
-    }
-    return true;
-  });
+  // These are now handled by the DraftPlayerList component
+  // const filteredPlayers = typedAvailablePlayers.filter(player => {
+  //   if (!player.available) return false;
+  //   if (positionFilter !== 'all' && player.position !== positionFilter) return false;
+  //   if (searchTerm && !player.name.toLowerCase().includes(searchTerm.toLowerCase()) &&
+  //       !player.team.toLowerCase().includes(searchTerm.toLowerCase())) {
+  //     return false;
+  //   }
+  //   return true;
+  // });
   
-  // Ensure positions are properly typed when sorting
-  const sortedPlayers = [...filteredPlayers].sort((a, b) => {
-    if (sortBy === 'points') return b.points - a.points;
-    if (sortBy === 'name') return a.name.localeCompare(b.name);
-    if (sortBy === 'position') return a.position.localeCompare(b.position);
-    return 0;
-  });
+  // const sortedPlayers = [...filteredPlayers].sort((a, b) => {
+  //   if (sortBy === 'points') return b.points - a.points;
+  //   if (sortBy === 'name') return a.name.localeCompare(b.name);
+  //   if (sortBy === 'position') return a.position.localeCompare(b.position);
+  //   return 0;
+  // });
 
   // Función para refrescar todos los datos relacionados con el draft
   const refreshDraftData = async () => {
@@ -867,57 +868,6 @@ export default function Draft() {
                 {!isMyTurn && <div className="text-gray-400">Waiting for your turn...</div>}
               </div>
             ) : null}
-            {/* Filtros */}
-            <Card className="mb-6 bg-nfl-gray border-nfl-light-gray/20">
-              <CardContent className="p-4">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div>
-                    <label htmlFor="search" className="text-sm text-gray-400 mb-1 block">Search Players</label>
-                    <div className="relative">
-                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-                      <Input
-                        id="search"
-                        placeholder="Search by name or team..."
-                        className="pl-10"
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                      />
-                    </div>
-                  </div>
-                  <div>
-                    <label htmlFor="position" className="text-sm text-gray-400 mb-1 block">Position</label>
-                    <Select value={positionFilter} onValueChange={setPositionFilter}>
-                      <SelectTrigger id="position">
-                        <SelectValue placeholder="All Positions" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">All</SelectItem>
-                        <SelectItem value="QB">Quarterback (QB)</SelectItem>
-                        <SelectItem value="RB">Running Back (RB)</SelectItem>
-                        <SelectItem value="WR">Wide Receiver (WR)</SelectItem>
-                        <SelectItem value="TE">Tight End (TE)</SelectItem>
-                        <SelectItem value="K">Kicker (K)</SelectItem>
-                        <SelectItem value="DEF">Team Defense (DEF)</SelectItem>
-                        <SelectItem value="DP">Individual Defensive Players (IDP)</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div>
-                    <label htmlFor="sort" className="text-sm text-gray-400 mb-1 block">Sort By</label>
-                    <Select value={sortBy} onValueChange={setSortBy}>
-                      <SelectTrigger id="sort">
-                        <SelectValue placeholder="Points (Highest to Lowest)" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="points">Points (Highest to Lowest)</SelectItem>
-                        <SelectItem value="name">Name (A-Z)</SelectItem>
-                        <SelectItem value="position">Position</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
             
             {/* Draft Recommendations - Show only when it's user's turn */}
             {isMyTurn && draftState?.draft_status === 'in_progress' && (
@@ -934,72 +884,22 @@ export default function Draft() {
               />
             )}
             
-            {/* Jugadores disponibles */}
-            <div className="mb-4">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-xl font-bold">Available Players</h2>
-                <Badge variant="outline" className="bg-transparent">
-                  {filteredPlayers.length} Players
-                </Badge>
-              </div>
-              {loadingPlayers ? (
-                <p className="text-gray-400">Loading players...</p>
-              ) : filteredPlayers.length > 0 ? (
-                <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-4">
-                  {sortedPlayers.map(player => {
-                    const slot = getAvailableSlot(player);
-                    const canDraft = isMyTurn && 
-                                    !loadingPick && 
-                                    !loadingControl &&
-                                    !!slot && 
-                                    draftState?.draft_status === 'in_progress';
-                    const feedback = !canDraft ? getSlotFeedback(player) : null;
-                    
-                    // Mensaje específico si el draft está pausado
-                    let disabledReason = feedback;
-                    if (draftState?.draft_status === 'pending') {
-                      disabledReason = "Draft pausado por el administrador";
-                    } else if (draftState?.draft_status === 'completed') {
-                      disabledReason = "Draft finalizado";
-                    } else if (!isMyTurn) {
-                      disabledReason = "No es tu turno";
-                    }
-                    
-                    // Add mock status and matchup for now
-                    const enhancedPlayer = {
-                      ...player,
-                      status: "healthy" as const,
-                      matchup: `vs ${["KC", "BUF", "SF", "DAL", "GB"][Math.floor(Math.random() * 5)]}`
-                    };
-                    
-                    return (
-                      <DraftPlayerCard
-                        key={player.id}
-                        player={enhancedPlayer}
-                        onDraft={canDraft ? (playerId) => handleDraft(Number(playerId), slot!) : undefined}
-                        canDraft={canDraft}
-                        slot={slot}
-                        disabled={!canDraft}
-                        disabledReason={disabledReason}
-                      />
-                    );
-                  })}
-                </div>
-              ) : (
-                <Card className="bg-nfl-gray border-nfl-light-gray/20 p-8 text-center">
-                  <div className="text-gray-400 mb-2">No players match your search</div>
-                  <Button
-                    variant="outline"
-                    onClick={() => {
-                      setSearchTerm('');
-                      setPositionFilter('all');
-                    }}
-                  >
-                    Reset Filters
-                  </Button>
-                </Card>
-              )}
-            </div>
+            {/* Lista de jugadores disponibles con paginación */}
+            <DraftPlayerList
+              leagueId={leagueId}
+              week={currentWeek}
+              onSelectPlayer={async (playerId) => {
+                // Get the player to determine the slot
+                const player = availablePlayers.find(p => String(p.id) === String(playerId));
+                if (player) {
+                  const slot = getAvailableSlot(player);
+                  if (slot) {
+                    await handleDraft(playerId, slot);
+                  }
+                }
+              }}
+              isMyTurn={isMyTurn}
+            />
           </div>
           {/* Sidebar */}
           <div className="lg:w-80 space-y-6">

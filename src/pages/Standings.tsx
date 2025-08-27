@@ -11,22 +11,124 @@ import { useAuth } from "@/hooks/useAuth";
 import { Card, CardContent } from "@/components/ui/card";
 import { SectionHeader } from "@/components/ui/section-header";
 import { StatCard } from "@/components/ui/stat-card";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 
 export default function Standings() {
   const location = useLocation();
   const searchParams = new URLSearchParams(location.search);
   const leagueId = searchParams.get("league") || "";
   const { user } = useAuth();
+  
+  // Determine if we're in game week (Thu night - Mon) or non-game week (Tue - Thu day)
+  const isGameWeek = () => {
+    const now = new Date();
+    const day = now.getDay(); // 0 = Sunday, 1 = Monday, ..., 6 = Saturday
+    const hour = now.getHours();
+    
+    // Game week: Thursday night (4 @ 20:00) through Monday (1)
+    // Non-game week: Tuesday (2), Wednesday (3), Thursday day (4 before 20:00)
+    
+    if (day === 0 || day === 1 || day === 5 || day === 6) {
+      // Sunday, Monday, Friday, Saturday - always game week
+      return true;
+    } else if (day === 2 || day === 3) {
+      // Tuesday, Wednesday - always non-game week
+      return false;
+    } else if (day === 4) {
+      // Thursday - game week starts at 8 PM (20:00)
+      return hour >= 20;
+    }
+    return false;
+  };
+  
+  const sortingMode = isGameWeek() ? 'actual' : 'projected';
 
   // Hooks for real data
   const { data: teams = [], isLoading: loadingTeams } = useFantasyTeams(leagueId);
   const { data: userTeam } = useUserFantasyTeam(leagueId);
 
-  // Sort teams by ranking
-  const sortedTeams = [...teams].sort((a, b) => a.rank - b.rank);
+  // Get current week
+  const { data: currentWeekData } = useQuery({
+    queryKey: ["currentWeek", leagueId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("weeks")
+        .select("number")
+        .eq("league_id", leagueId)
+        .eq("status", "active")
+        .single();
+      
+      if (error) return { number: 1 };
+      return data;
+    },
+    enabled: !!leagueId,
+  });
   
-  // Calculate average points (assuming at least 1 week played)
-  const currentWeek = Math.max(1, 1); // This should come from actual week data
+  const currentWeek = currentWeekData?.number || 1;
+  
+  // Get projected points for each team
+  const { data: projections } = useQuery({
+    queryKey: ["teamProjections", leagueId, currentWeek],
+    queryFn: async () => {
+      // Get all rosters for this week
+      const { data: rosters, error: rostersError } = await supabase
+        .from("team_rosters")
+        .select(`
+          fantasy_team_id,
+          player_id,
+          slot
+        `)
+        .eq("week", currentWeek);
+      
+      if (rostersError) return [];
+      
+      // Get player projections for this week
+      const playerIds = rosters?.map(r => r.player_id) || [];
+      const { data: stats, error: statsError } = await supabase
+        .from("player_stats")
+        .select("player_id, projected_points")
+        .in("player_id", playerIds)
+        .eq("week", currentWeek)
+        .eq("season", new Date().getFullYear());
+      
+      if (statsError) return [];
+      
+      // Calculate projected points per team
+      const statsMap = new Map(stats?.map(s => [s.player_id, s.projected_points || 0]) || []);
+      const teamProjections = new Map();
+      
+      rosters?.forEach(roster => {
+        const currentProjection = teamProjections.get(roster.fantasy_team_id) || 0;
+        const playerProjection = statsMap.get(roster.player_id) || 0;
+        teamProjections.set(roster.fantasy_team_id, currentProjection + playerProjection);
+      });
+      
+      return Array.from(teamProjections.entries()).map(([teamId, projectedPoints]) => ({
+        teamId,
+        projectedPoints
+      }));
+    },
+    enabled: !!leagueId && !!currentWeek,
+  });
+  
+  // Sort teams based on current mode (projected vs actual points)
+  const sortedTeams = [...teams].sort((a, b) => {
+    if (sortingMode === 'projected') {
+      // Sort by projected points for non-game week
+      const aProjection = projections?.find(p => p.teamId === a.id)?.projectedPoints || 0;
+      const bProjection = projections?.find(p => p.teamId === b.id)?.projectedPoints || 0;
+      return bProjection - aProjection; // Highest first
+    } else {
+      // Sort by actual points for game week
+      return b.points - a.points; // Highest first
+    }
+  });
+  
+  // Update rankings based on sorted order
+  sortedTeams.forEach((team, index) => {
+    team.rank = index + 1;
+  });
 
   return (
     <Layout>
@@ -73,7 +175,7 @@ export default function Standings() {
 
           <SectionHeader
             title="Full League Standings"
-            subtitle={`Week ${currentWeek} Rankings`}
+            subtitle={`Week ${currentWeek} Rankings - Sorting by ${sortingMode === 'projected' ? 'Projected' : 'Actual'} Points`}
           />
           
           {/* Standings Table */}
@@ -85,14 +187,16 @@ export default function Standings() {
                   <TableHead className="text-gray-400 font-medium">Team</TableHead>
                   <TableHead className="text-gray-400 font-medium">Owner</TableHead>
                   <TableHead className="text-gray-400 font-medium text-center">Top Performer</TableHead>
-                  <TableHead className="text-gray-400 font-medium text-right">Avg Pts</TableHead>
+                  <TableHead className="text-gray-400 font-medium text-right">Points</TableHead>
+                  <TableHead className="text-gray-400 font-medium text-right">Projected</TableHead>
+                  <TableHead className="text-gray-400 font-medium text-right">Points to Safety</TableHead>
                   <TableHead className="text-gray-400 font-medium text-right">Status</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {loadingTeams ? (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-center py-8">
+                    <TableCell colSpan={8} className="text-center py-8">
                       <div className="animate-pulse">
                         <div className="h-4 bg-gray-700 rounded w-1/4 mx-auto mb-2"></div>
                         <div className="h-3 bg-gray-700 rounded w-1/6 mx-auto"></div>
@@ -101,15 +205,31 @@ export default function Standings() {
                   </TableRow>
                 ) : sortedTeams.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-center py-8 text-gray-400">
+                    <TableCell colSpan={8} className="text-center py-8 text-gray-400">
                       No teams found
                     </TableCell>
                   </TableRow>
                 ) : (
                   sortedTeams.map((team, index) => {
                     const isUserTeam = team.owner_id === user?.id;
-                    const avgPoints = (team.points / currentWeek).toFixed(1);
                     const isTopThree = index < 3;
+                    
+                    // Find the lowest projected points among non-eliminated teams
+                    const activeTeams = sortedTeams.filter(t => !t.eliminated);
+                    const lowestProjectedTeam = activeTeams.length > 0 ? 
+                      activeTeams.reduce((prev, curr) => {
+                        const prevProjection = projections?.find(p => p.teamId === prev.id)?.projectedPoints || 0;
+                        const currProjection = projections?.find(p => p.teamId === curr.id)?.projectedPoints || 0;
+                        return currProjection < prevProjection ? curr : prev;
+                      }) : null;
+                    
+                    const teamProjection = projections?.find(p => p.teamId === team.id)?.projectedPoints || 0;
+                    const lowestProjection = lowestProjectedTeam ? 
+                      (projections?.find(p => p.teamId === lowestProjectedTeam.id)?.projectedPoints || 0) : 0;
+                    
+                    // Points needed to be safe (more than the lowest projected team)
+                    const pointsToSafety = team.eliminated ? 0 : Math.max(0, (lowestProjection + 0.1) - teamProjection);
+                    const isInDanger = !team.eliminated && lowestProjectedTeam && team.id === lowestProjectedTeam.id;
                     
                     return (
                       <TableRow 
@@ -157,19 +277,33 @@ export default function Standings() {
                           {team.top_performers || Math.floor(Math.random() * 10)}
                         </TableCell>
                         <TableCell className="text-right font-medium text-nfl-accent">
-                          {avgPoints}
+                          {team.points.toFixed(1)}
+                        </TableCell>
+                        <TableCell className="text-right font-medium text-gray-400">
+                          {teamProjection.toFixed(1)}
+                        </TableCell>
+                        <TableCell className="text-right font-medium">
+                          {team.eliminated ? (
+                            <span className="text-gray-500">-</span>
+                          ) : pointsToSafety > 0 ? (
+                            <span className="text-yellow-400">+{pointsToSafety.toFixed(1)}</span>
+                          ) : (
+                            <span className="text-nfl-green">Safe</span>
+                          )}
                         </TableCell>
                         <TableCell className="text-right">
                           <Badge 
-                            variant={team.eliminated ? "destructive" : "default"}
+                            variant={team.eliminated ? "destructive" : isInDanger ? "warning" : "default"}
                             className={`
                               ${team.eliminated 
                                 ? 'bg-nfl-red/20 text-nfl-red border-nfl-red/30' 
+                                : isInDanger
+                                ? 'bg-orange-500/20 text-orange-500 border-orange-500/30'
                                 : 'bg-nfl-green/20 text-nfl-green border-nfl-green/30'
                               }
                             `}
                           >
-                            {team.eliminated ? 'Eliminated' : 'Safe'}
+                            {team.eliminated ? 'Eliminated' : isInDanger ? 'IN DANGER' : 'Safe'}
                           </Badge>
                         </TableCell>
                       </TableRow>
@@ -201,14 +335,34 @@ export default function Standings() {
                   Elimination Zone
                 </h3>
                 <div className="space-y-3">
-                  {sortedTeams.slice(-3).map((team) => (
-                    <div key={team.id} className="flex items-center justify-between">
-                      <span className="text-gray-300">{team.name}</span>
-                      <Badge className="bg-nfl-red/20 text-nfl-red border-nfl-red/30">
-                        At Risk
-                      </Badge>
-                    </div>
-                  ))}
+                  {(() => {
+                    const activeTeams = sortedTeams.filter(t => !t.eliminated);
+                    const bottomThree = activeTeams
+                      .sort((a, b) => {
+                        const aProjection = projections?.find(p => p.teamId === a.id)?.projectedPoints || 0;
+                        const bProjection = projections?.find(p => p.teamId === b.id)?.projectedPoints || 0;
+                        return aProjection - bProjection;
+                      })
+                      .slice(0, 3);
+                    
+                    return bottomThree.map((team, idx) => {
+                      const teamProjection = projections?.find(p => p.teamId === team.id)?.projectedPoints || 0;
+                      return (
+                        <div key={team.id} className="flex items-center justify-between">
+                          <span className="text-gray-300">{team.name}</span>
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs text-gray-400">Proj: {teamProjection.toFixed(1)}</span>
+                            <Badge className={idx === 0 ? 
+                              "bg-orange-500/20 text-orange-500 border-orange-500/30" :
+                              "bg-nfl-red/20 text-nfl-red border-nfl-red/30"
+                            }>
+                              {idx === 0 ? 'In Danger' : 'At Risk'}
+                            </Badge>
+                          </div>
+                        </div>
+                      );
+                    });
+                  })()}
                 </div>
               </CardContent>
             </Card>

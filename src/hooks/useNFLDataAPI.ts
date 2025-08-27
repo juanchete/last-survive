@@ -6,18 +6,43 @@
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { sleeperProvider } from '@/lib/providers/SleeperProvider';
+import { providerManager } from '@/lib/providers/ProviderManager';
 import { sleeperSync } from '@/lib/sleeper-sync';
 import { toast } from 'sonner';
+import { getActiveProvider } from '@/config/providers';
 import type { NFLState, PlayersMap, StatsMap, ProjectionsMap } from '@/lib/providers/FantasyProvider';
+import type { ProviderName } from '@/lib/providers/ProviderManager';
+
+/**
+ * Hook to manage the active provider
+ */
+export function useActiveProvider() {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: async (provider: ProviderName) => {
+      providerManager.switchProvider(provider);
+      return provider;
+    },
+    onSuccess: (provider) => {
+      // Invalidate all NFL data queries to refetch with new provider
+      queryClient.invalidateQueries({ queryKey: ['nfl'] });
+      toast.success(`Switched to ${provider} provider`);
+    },
+    onError: (error) => {
+      toast.error(`Failed to switch provider: ${error.message}`);
+    },
+  });
+}
 
 /**
  * Get current NFL state (week, season, etc.)
  */
 export function useNFLState() {
   return useQuery({
-    queryKey: ['nfl', 'state'],
+    queryKey: ['nfl', 'state', getActiveProvider()],
     queryFn: async () => {
-      const response = await sleeperProvider.getNFLState();
+      const response = await providerManager.getNFLState();
       if (response.error) {
         throw new Error(response.error);
       }
@@ -33,9 +58,9 @@ export function useNFLState() {
  */
 export function useNFLPlayers() {
   return useQuery({
-    queryKey: ['nfl', 'players'],
+    queryKey: ['nfl', 'players', getActiveProvider()],
     queryFn: async () => {
-      const response = await sleeperProvider.getAllPlayers();
+      const response = await providerManager.getAllPlayers();
       if (response.error) {
         throw new Error(response.error);
       }
@@ -57,9 +82,9 @@ export function useWeeklyStats(
   enabled: boolean = true
 ) {
   return useQuery({
-    queryKey: ['nfl', 'weekly-stats', season, week, seasonType],
+    queryKey: ['nfl', 'weekly-stats', season, week, seasonType, getActiveProvider()],
     queryFn: async () => {
-      const response = await sleeperProvider.getWeeklyStats(season, week, seasonType);
+      const response = await providerManager.getWeeklyStats(season, week, seasonType);
       if (response.error) {
         throw new Error(response.error);
       }
@@ -81,9 +106,9 @@ export function useWeeklyProjections(
   enabled: boolean = true
 ) {
   return useQuery({
-    queryKey: ['nfl', 'weekly-projections', season, week, seasonType],
+    queryKey: ['nfl', 'weekly-projections', season, week, seasonType, getActiveProvider()],
     queryFn: async () => {
-      const response = await sleeperProvider.getWeeklyProjections(season, week, seasonType);
+      const response = await providerManager.getWeeklyProjections(season, week, seasonType);
       if (response.error) {
         throw new Error(response.error);
       }
@@ -105,9 +130,9 @@ export function usePlayerStats(
   seasonType: 'pre' | 'regular' | 'post' = 'regular'
 ) {
   return useQuery({
-    queryKey: ['nfl', 'player-stats', playerId, season, week, seasonType],
+    queryKey: ['nfl', 'player-stats', playerId, season, week, seasonType, getActiveProvider()],
     queryFn: async () => {
-      const response = await sleeperProvider.getPlayerStats(playerId, season, week, seasonType);
+      const response = await providerManager.getPlayerStats(playerId, season, week, seasonType);
       if (response.error) {
         throw new Error(response.error);
       }
@@ -129,9 +154,9 @@ export function usePlayerProjection(
   seasonType: 'pre' | 'regular' | 'post' = 'regular'
 ) {
   return useQuery({
-    queryKey: ['nfl', 'player-projection', playerId, season, week, seasonType],
+    queryKey: ['nfl', 'player-projection', playerId, season, week, seasonType, getActiveProvider()],
     queryFn: async () => {
-      const response = await sleeperProvider.getPlayerProjection(playerId, season, week, seasonType);
+      const response = await providerManager.getPlayerProjection(playerId, season, week, seasonType);
       if (response.error) {
         throw new Error(response.error);
       }
@@ -148,9 +173,9 @@ export function usePlayerProjection(
  */
 export function useSearchPlayers(query: string, enabled: boolean = true) {
   return useQuery({
-    queryKey: ['nfl', 'search-players', query],
+    queryKey: ['nfl', 'search-players', query, getActiveProvider()],
     queryFn: async () => {
-      const response = await sleeperProvider.searchPlayers(query);
+      const response = await providerManager.searchPlayers(query);
       if (response.error) {
         throw new Error(response.error);
       }
@@ -167,9 +192,9 @@ export function useSearchPlayers(query: string, enabled: boolean = true) {
  */
 export function usePlayersByPosition(position: string, enabled: boolean = true) {
   return useQuery({
-    queryKey: ['nfl', 'players-by-position', position],
+    queryKey: ['nfl', 'players-by-position', position, getActiveProvider()],
     queryFn: async () => {
-      const response = await sleeperProvider.getPlayersByPosition(position);
+      const response = await providerManager.getPlayersByPosition(position);
       if (response.error) {
         throw new Error(response.error);
       }
@@ -186,9 +211,9 @@ export function usePlayersByPosition(position: string, enabled: boolean = true) 
  */
 export function usePlayersByTeam(team: string, enabled: boolean = true) {
   return useQuery({
-    queryKey: ['nfl', 'players-by-team', team],
+    queryKey: ['nfl', 'players-by-team', team, getActiveProvider()],
     queryFn: async () => {
-      const response = await sleeperProvider.getPlayersByTeam(team);
+      const response = await providerManager.getPlayersByTeam(team);
       if (response.error) {
         throw new Error(response.error);
       }
@@ -337,7 +362,19 @@ export function useSyncStatus() {
 export function useProviderHealth() {
   return useQuery({
     queryKey: ['nfl', 'provider-health'],
-    queryFn: () => sleeperProvider.healthCheck(),
+    queryFn: () => providerManager.healthCheck(),
+    staleTime: 1000 * 30, // 30 seconds
+    refetchInterval: 1000 * 60, // Auto-refresh every minute
+  });
+}
+
+/**
+ * Get provider statistics
+ */
+export function useProviderStats() {
+  return useQuery({
+    queryKey: ['nfl', 'provider-stats'],
+    queryFn: () => providerManager.getProviderStats(),
     staleTime: 1000 * 30, // 30 seconds
     refetchInterval: 1000 * 60, // Auto-refresh every minute
   });
@@ -350,12 +387,13 @@ export function useCacheStats() {
   return useQuery({
     queryKey: ['nfl', 'cache-stats'],
     queryFn: async () => {
-      // This would need to be implemented in the Edge Function
-      // For now, we'll return basic stats from provider health
-      const health = await sleeperProvider.healthCheck();
+      // Get stats from provider manager
+      const health = await providerManager.healthCheck();
+      const stats = await providerManager.getProviderStats();
       return {
         healthy: health.healthy,
         cacheEnabled: true,
+        providers: stats,
         details: health.details,
         timestamp: new Date().toISOString()
       };

@@ -1,5 +1,6 @@
 import { supabase } from '@/integrations/supabase/client';
 import { sleeperProvider } from './providers/SleeperProvider';
+import { providerManager } from './providers/ProviderManager';
 import type { Database } from '@/integrations/supabase/types';
 import type { NFLPlayer, PlayerStats as ProviderPlayerStats } from './providers/FantasyProvider';
 
@@ -26,7 +27,7 @@ export class SleeperSyncService {
   }
 
   /**
-   * Sync all NFL teams from Sleeper API
+   * Sync all NFL teams from provider API (SportsData)
    */
   async syncNFLTeams(): Promise<{ success: boolean; message: string; count?: number }> {
     try {
@@ -39,72 +40,109 @@ export class SleeperSyncService {
         existingTeams?.map(team => [team.abbreviation, team]) || []
       );
 
-      // Get all players using the new provider
-      const playersResponse = await sleeperProvider.getAllPlayers();
+      // Try to get teams data from SportsData provider
+      let teamsData: any[] = [];
+      let teamsToUpsert: any[] = [];
       
-      if (playersResponse.error) {
-        throw new Error(playersResponse.error);
-      }
-
-      const activeTeams = new Set<string>();
-
-      // Extract unique team abbreviations from active players
-      Object.values(playersResponse.data || {}).forEach(player => {
-        if (player.active && player.team) {
-          activeTeams.add(player.team);
+      // Check if we're using SportsData provider
+      const currentProvider = providerManager.getActiveProvider();
+      if (currentProvider === 'sportsdata') {
+        try {
+          // Get the SportsData provider instance
+          const sportsDataProvider = providerManager.getProvider('sportsdata') as any;
+          if (sportsDataProvider && typeof sportsDataProvider.fetchFromEdgeFunction === 'function') {
+            // Fetch teams from SportsData
+            const result = await sportsDataProvider.fetchFromEdgeFunction('/teams');
+            if (result && Array.isArray(result)) {
+              teamsData = result;
+              
+              // Process SportsData teams to extract WikipediaLogoUrl
+              for (const team of teamsData) {
+                if (team.Key) {  // Key is the abbreviation in SportsData
+                  const existingTeam = existingTeamMap.get(team.Key);
+                  
+                  // Update if logo is different or team doesn't exist
+                  if (!existingTeam || existingTeam.logo_url !== team.WikipediaLogoUrl) {
+                    teamsToUpsert.push({
+                      abbreviation: team.Key,
+                      name: team.FullName || team.Name || existingTeam?.name || team.Key,
+                      logo_url: team.WikipediaLogoUrl || null
+                    });
+                  }
+                }
+              }
+            }
+          }
+        } catch (error) {
+          console.warn('Could not fetch teams from SportsData, falling back to basic sync:', error);
         }
-      });
-
-      // NFL team mapping (Sleeper abbreviation -> full name)
-      const teamMapping: Record<string, string> = {
-        'ARI': 'Arizona Cardinals',
-        'ATL': 'Atlanta Falcons',
-        'BAL': 'Baltimore Ravens',
-        'BUF': 'Buffalo Bills',
-        'CAR': 'Carolina Panthers',
-        'CHI': 'Chicago Bears',
-        'CIN': 'Cincinnati Bengals',
-        'CLE': 'Cleveland Browns',
-        'DAL': 'Dallas Cowboys',
-        'DEN': 'Denver Broncos',
-        'DET': 'Detroit Lions',
-        'GB': 'Green Bay Packers',
-        'HOU': 'Houston Texans',
-        'IND': 'Indianapolis Colts',
-        'JAX': 'Jacksonville Jaguars',
-        'KC': 'Kansas City Chiefs',
-        'LAC': 'Los Angeles Chargers',
-        'LAR': 'Los Angeles Rams',
-        'LV': 'Las Vegas Raiders',
-        'MIA': 'Miami Dolphins',
-        'MIN': 'Minnesota Vikings',
-        'NE': 'New England Patriots',
-        'NO': 'New Orleans Saints',
-        'NYG': 'New York Giants',
-        'NYJ': 'New York Jets',
-        'PHI': 'Philadelphia Eagles',
-        'PIT': 'Pittsburgh Steelers',
-        'SEA': 'Seattle Seahawks',
-        'SF': 'San Francisco 49ers',
-        'TB': 'Tampa Bay Buccaneers',
-        'TEN': 'Tennessee Titans',
-        'WAS': 'Washington Commanders'
-      };
-
-      const teamsToUpsert = [];
+      }
       
-      for (const abbreviation of activeTeams) {
-        const fullName = teamMapping[abbreviation] || abbreviation;
-        const existingTeam = existingTeamMap.get(abbreviation);
+      // If we couldn't get teams from SportsData, fall back to basic sync from players
+      if (teamsToUpsert.length === 0) {
+        // Get all players using the active provider
+        const playersResponse = await providerManager.getAllPlayers();
         
-        if (!existingTeam || existingTeam.name !== fullName) {
-          teamsToUpsert.push({
-            abbreviation,
-            name: fullName,
-            logo: null,
-            conference: null,
-            division: null
-          });
+        if (playersResponse.error) {
+          throw new Error(playersResponse.error);
+        }
+
+        const activeTeams = new Set<string>();
+
+        // Extract unique team abbreviations from active players
+        Object.values(playersResponse.data || {}).forEach(player => {
+          if (player.active && player.team) {
+            activeTeams.add(player.team);
+          }
+        });
+
+        // NFL team mapping (Sleeper abbreviation -> full name)
+        const teamMapping: Record<string, string> = {
+          'ARI': 'Arizona Cardinals',
+          'ATL': 'Atlanta Falcons',
+          'BAL': 'Baltimore Ravens',
+          'BUF': 'Buffalo Bills',
+          'CAR': 'Carolina Panthers',
+          'CHI': 'Chicago Bears',
+          'CIN': 'Cincinnati Bengals',
+          'CLE': 'Cleveland Browns',
+          'DAL': 'Dallas Cowboys',
+          'DEN': 'Denver Broncos',
+          'DET': 'Detroit Lions',
+          'GB': 'Green Bay Packers',
+          'HOU': 'Houston Texans',
+          'IND': 'Indianapolis Colts',
+          'JAX': 'Jacksonville Jaguars',
+          'KC': 'Kansas City Chiefs',
+          'LAC': 'Los Angeles Chargers',
+          'LAR': 'Los Angeles Rams',
+          'LV': 'Las Vegas Raiders',
+          'MIA': 'Miami Dolphins',
+          'MIN': 'Minnesota Vikings',
+          'NE': 'New England Patriots',
+          'NO': 'New Orleans Saints',
+          'NYG': 'New York Giants',
+          'NYJ': 'New York Jets',
+          'PHI': 'Philadelphia Eagles',
+          'PIT': 'Pittsburgh Steelers',
+          'SEA': 'Seattle Seahawks',
+          'SF': 'San Francisco 49ers',
+          'TB': 'Tampa Bay Buccaneers',
+          'TEN': 'Tennessee Titans',
+          'WAS': 'Washington Commanders'
+        };
+        
+        for (const abbreviation of activeTeams) {
+          const fullName = teamMapping[abbreviation] || abbreviation;
+          const existingTeam = existingTeamMap.get(abbreviation);
+          
+          if (!existingTeam || existingTeam.name !== fullName) {
+            teamsToUpsert.push({
+              abbreviation,
+              name: fullName,
+              logo_url: null
+            });
+          }
         }
       }
 
@@ -120,8 +158,8 @@ export class SleeperSyncService {
 
       return {
         success: true,
-        message: `Synced ${activeTeams.size} teams (${teamsToUpsert.length} updated)`,
-        count: activeTeams.size
+        message: `Synced ${teamsToUpsert.length} teams${teamsData.length > 0 ? ' with logos from SportsData' : ''}`,
+        count: teamsToUpsert.length
       };
     } catch (error) {
       console.error('Error syncing NFL teams:', error);
@@ -142,8 +180,8 @@ export class SleeperSyncService {
     activeOnly: boolean = true
   ): Promise<{ success: boolean; message: string; count?: number }> {
     try {
-      // Get all players using the new provider
-      const playersResponse = await sleeperProvider.getAllPlayers();
+      // Get all players using the active provider
+      const playersResponse = await providerManager.getAllPlayers();
       
       if (playersResponse.error) {
         throw new Error(playersResponse.error);
@@ -235,6 +273,7 @@ export class SleeperSyncService {
             rotowire_id: player.rotowire_id || null,
             fantasypros_id: player.fantasypros_id || null,
             pfr_id: player.pfr_id || null,
+            sportsdata_id: player.metadata?.sportsdata_id || null,  // Store SportsData PlayerID
             last_sync_at: new Date().toISOString()
           });
         }
@@ -375,8 +414,8 @@ export class SleeperSyncService {
     seasonType: 'regular' | 'post' | 'pre' = 'regular'
   ): Promise<{ success: boolean; message: string; count?: number }> {
     try {
-      // Get stats using the new provider
-      const statsResponse = await sleeperProvider.getWeeklyStats(season, week, seasonType);
+      // Get stats using the active provider
+      const statsResponse = await providerManager.getWeeklyStats(season, week, seasonType);
       
       if (statsResponse.error) {
         throw new Error(statsResponse.error);
@@ -407,26 +446,21 @@ export class SleeperSyncService {
             player_id: playerId,
             week,
             season,
-            points_scored: totalPoints,
+            // Actual stats
             passing_yards: stats.stats.pass_yd || 0,
-            passing_tds: stats.stats.pass_td || 0,
-            interceptions: stats.stats.pass_int || 0,
+            passing_td: stats.stats.pass_td || 0,
             rushing_yards: stats.stats.rush_yd || 0,
-            rushing_tds: stats.stats.rush_td || 0,
+            rushing_td: stats.stats.rush_td || 0,
             receiving_yards: stats.stats.rec_yd || 0,
-            receiving_tds: stats.stats.rec_td || 0,
-            receptions: stats.stats.rec || 0,
-            targets: stats.stats.rec_tgt || 0,
-            fumbles_lost: stats.stats.fum_lost || 0,
-            two_point_conversions: (stats.stats.pass_2pt || 0) + (stats.stats.rush_2pt || 0) + (stats.stats.rec_2pt || 0),
-            defensive_touchdowns: stats.stats.def_td || 0,
-            defensive_interceptions: stats.stats.idp_int || 0,
+            receiving_td: stats.stats.rec_td || 0,
+            field_goals: stats.stats.fgm || 0,
+            tackles: stats.stats.idp_tkl || 0,
             sacks: stats.stats.idp_sack || 0,
-            safeties: stats.stats.idp_safe || 0,
-            field_goals_made: stats.stats.fgm || 0,
-            field_goals_attempted: stats.stats.fga || 0,
-            extra_points_made: stats.stats.xpm || 0,
-            extra_points_attempted: stats.stats.xpa || 0
+            interceptions: stats.stats.pass_int || stats.stats.idp_int || 0,
+            fantasy_points: totalPoints,
+            actual_points: totalPoints,
+            is_final: true
+            // Don't overwrite projection columns
           });
         }
       });
@@ -562,8 +596,8 @@ export class SleeperSyncService {
     seasonType: 'regular' | 'post' | 'pre' = 'regular'
   ): Promise<{ success: boolean; message: string; count?: number }> {
     try {
-      // Get projections using the new provider
-      const projectionsResponse = await sleeperProvider.getWeeklyProjections(season, week, seasonType);
+      // Get projections using the active provider
+      const projectionsResponse = await providerManager.getWeeklyProjections(season, week, seasonType);
       
       if (projectionsResponse.error) {
         throw new Error(projectionsResponse.error);
@@ -571,25 +605,102 @@ export class SleeperSyncService {
 
       const weeklyProjections = projectionsResponse.data || {};
 
-      // Get player mappings
+      // Get player mappings - for SportsData we need to map by name, stats_id, or sportsdata_id
       const { data: players } = await supabase
         .from('players')
-        .select('id, sleeper_id');
+        .select('id, sleeper_id, name, stats_id, sportsdata_id');
 
-      const playerMap = new Map(
-        players?.map(p => [p.sleeper_id, p.id]) || []
+      // Create multiple mapping strategies
+      const sleeperIdMap = new Map(
+        players?.map(p => [p.sleeper_id, p.id]).filter(([k]) => k) || []
+      );
+      const statsIdMap = new Map(
+        players?.map(p => [p.stats_id, p.id]).filter(([k]) => k) || []
+      );
+      const sportsdataIdMap = new Map(
+        players?.map(p => [p.sportsdata_id, p.id]).filter(([k]) => k) || []
+      );
+      const nameMap = new Map(
+        players?.map(p => [p.name?.toLowerCase(), p.id]).filter(([k]) => k) || []
       );
 
-      // For now, we'll store projections in a separate table or as part of player metadata
-      // This would require a new migration for a projections table
-      // For backward compatibility, we'll just log the success
+      // Prepare projection updates for player_stats
+      const statsToUpsert: any[] = [];
       
-      const projectionCount = Object.keys(weeklyProjections).length;
+      Object.entries(weeklyProjections).forEach(([playerKey, projection]) => {
+        // Try different ways to find the player ID
+        // For SportsData, the key is the PlayerID, so we try to match by sportsdata_id first
+        let playerId = sportsdataIdMap.get(playerKey) ||  // Try SportsData ID first
+                       sleeperIdMap.get(playerKey) || 
+                       statsIdMap.get(playerKey) ||
+                       nameMap.get(projection.player_name?.toLowerCase());
+        
+        // If we still can't find it and we have a player name, try a partial match
+        if (!playerId && projection.player_name) {
+          const playerName = projection.player_name.toLowerCase();
+          for (const [name, id] of nameMap.entries()) {
+            if (name && name.includes(playerName.split(' ')[0] + ' ' + playerName.split(' ').slice(-1)[0])) {
+              playerId = id;
+              break;
+            }
+          }
+        }
+                       
+        if (playerId && projection.stats && projection.points) {
+          // Check if we have projections for this player
+          const projectedPoints = projection.points.ppr || projection.points.standard || 0;
+          
+          statsToUpsert.push({
+            player_id: playerId,
+            week,
+            season,
+            // Projected stats (ensure integers are properly rounded)
+            projected_passing_yards: Math.round(projection.stats.pass_yd || 0),
+            projected_passing_td: Math.round(projection.stats.pass_td || 0),
+            projected_rushing_yards: Math.round(projection.stats.rush_yd || 0),
+            projected_rushing_td: Math.round(projection.stats.rush_td || 0),
+            projected_receiving_yards: Math.round(projection.stats.rec_yd || 0),
+            projected_receiving_td: Math.round(projection.stats.rec_td || 0),
+            projected_receptions: parseFloat(projection.stats.rec || 0),  // This can be decimal
+            projected_points: projectedPoints,
+            is_projection_updated: true,
+            projection_last_updated: new Date().toISOString(),
+            // Initialize actual stats as 0 (will be updated when actual stats come in)
+            passing_yards: 0,
+            passing_td: 0,
+            rushing_yards: 0,
+            rushing_td: 0,
+            receiving_yards: 0,
+            receiving_td: 0,
+            fantasy_points: 0,
+            is_final: false
+          });
+        }
+      });
+
+      // Batch upsert stats with projections
+      if (statsToUpsert.length > 0) {
+        const chunkSize = 500;
+        for (let i = 0; i < statsToUpsert.length; i += chunkSize) {
+          const chunk = statsToUpsert.slice(i, i + chunkSize);
+          
+          const { error } = await supabase
+            .from('player_stats')
+            .upsert(chunk, {
+              onConflict: 'player_id,week,season'
+            });
+
+          if (error) {
+            console.error('Error upserting projections:', error);
+            throw error;
+          }
+        }
+      }
 
       return {
         success: true,
-        message: `Processed ${projectionCount} player projections for Week ${week} (cached: ${projectionsResponse.cached})`,
-        count: projectionCount
+        message: `Synced ${statsToUpsert.length} player projections for Week ${week} (cached: ${projectionsResponse.cached})`,
+        count: statsToUpsert.length
       };
     } catch (error) {
       console.error('Error syncing weekly projections:', error);

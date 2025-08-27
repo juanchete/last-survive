@@ -12,9 +12,12 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { 
   Users, Shield, AlertTriangle, Ban, 
-  UserCheck, Edit, Database, Trophy, Eye, Trash2, RotateCcw, Target, Settings, Zap
+  UserCheck, Edit, Database, Trophy, Eye, Trash2, RotateCcw, Target, Settings, Zap, Activity
 } from "lucide-react";
 import { SleeperAPIControl } from "@/components/SleeperAPIControl";
+import { ProviderSelector } from "@/components/ProviderSelector";
+import { DataSyncControl } from "@/components/DataSyncControl";
+import { LiveScoreBoard } from "@/components/LiveScoreBoard";
 import { useAuth } from "@/hooks/useAuth";
 import { useAdmin, type RosterPlayer } from "@/hooks/useAdmin";
 import { supabase } from "@/integrations/supabase/client";
@@ -851,8 +854,9 @@ export default function AdminPanel() {
 
         {/* Panel de pestañas */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid w-full grid-cols-5 bg-nfl-gray">
+          <TabsList className="grid w-full grid-cols-6 bg-nfl-gray">
             <TabsTrigger value="sleeper" className="text-white">Sleeper API</TabsTrigger>
+            <TabsTrigger value="live" className="text-white">En Vivo</TabsTrigger>
             <TabsTrigger value="users" className="text-white">Gestión de Usuarios</TabsTrigger>
             <TabsTrigger value="leagues" className="text-white">Supervisión de Ligas</TabsTrigger>
             <TabsTrigger value="players" className="text-white">Edición de Jugadores</TabsTrigger>
@@ -870,6 +874,61 @@ export default function AdminPanel() {
               </CardHeader>
               <CardContent>
                 <SleeperAPIControl />
+              </CardContent>
+            </Card>
+
+            {/* Provider Selector */}
+            <Card className="bg-nfl-gray border-nfl-light-gray/20 mt-6">
+              <CardHeader>
+                <CardTitle className="text-white flex items-center gap-2">
+                  <Database className="h-5 w-5" />
+                  Fantasy Data Provider
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <ProviderSelector />
+              </CardContent>
+            </Card>
+
+            {/* Data Sync Control */}
+            <Card className="bg-nfl-gray border-nfl-light-gray/20 mt-6">
+              <CardHeader>
+                <CardTitle className="text-white flex items-center gap-2">
+                  <Database className="h-5 w-5" />
+                  Data Synchronization
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <DataSyncControl />
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Live Score Board - Real-time Stats */}
+          <TabsContent value="live" className="space-y-6">
+            <Card className="bg-nfl-gray border-nfl-light-gray/20">
+              <CardHeader>
+                <CardTitle className="text-white flex items-center gap-2">
+                  <Activity className="h-5 w-5" />
+                  Puntuación en Vivo
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {selectedLeague ? (
+                  <LiveScoreBoard 
+                    leagueId={selectedLeague.id}
+                    week={currentWeek || 1}
+                    season={2024}
+                    autoStart={false}
+                  />
+                ) : (
+                  <Alert className="border-yellow-600 bg-yellow-600/10">
+                    <AlertTriangle className="h-4 w-4 text-yellow-500" />
+                    <AlertDescription className="text-white">
+                      Selecciona una liga para ver las puntuaciones en vivo
+                    </AlertDescription>
+                  </Alert>
+                )}
               </CardContent>
             </Card>
           </TabsContent>
