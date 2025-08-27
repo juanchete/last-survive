@@ -41,6 +41,8 @@ import { useWaiverHistory } from "@/hooks/useWaiverHistory";
 import { WaiverPlayerCard } from "@/components/WaiverPlayerCard";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { WaiverStatusBadge, WaiverPriorityList } from "@/components/WaiverStatusBadge";
+import { useWaiverStatus } from "@/hooks/useWaiverStatus";
 
 interface WaiverPriority {
   priority: number;
@@ -91,6 +93,11 @@ export default function Waivers() {
   });
 
   const weekNumber = currentWeek?.number || 1;
+
+  // Get waiver status (period and requests)
+  const { data: waiverStatus } = useWaiverStatus(leagueId);
+  const isWaiverPeriod = waiverStatus?.is_waiver_period || false;
+  const isFreeAgency = waiverStatus?.is_free_agency || false;
 
   // Get waiver priority data
   const { data: waiverPriorityData = [] } = useWaiverPriority(leagueId, weekNumber);
@@ -348,6 +355,11 @@ export default function Waivers() {
 
         {/* Main Content */}
         <div className="container mx-auto px-4 py-6">
+          {/* Waiver Status Badge */}
+          <div className="mb-6">
+            <WaiverStatusBadge leagueId={leagueId} showDetails={true} />
+          </div>
+          
           {/* Stats Overview */}
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 mb-8">
             <StatCard
@@ -397,16 +409,24 @@ export default function Waivers() {
                   }
                 }}>
                   <DialogTrigger asChild>
-                    <Button className="bg-nfl-accent hover:bg-nfl-accent/90 text-black">
+                    <Button 
+                      className="bg-nfl-accent hover:bg-nfl-accent/90 text-black"
+                      disabled={!isWaiverPeriod && !isFreeAgency}
+                    >
                       <Plus className="w-4 h-4 mr-2" />
-                      Claim Player
+                      {isFreeAgency ? 'Add Free Agent' : 'Claim Player'}
                     </Button>
                   </DialogTrigger>
-                  <DialogContent className="bg-nfl-gray border-nfl-light-gray/20 max-w-3xl max-h-[90vh] overflow-hidden">
+                  <DialogContent className="bg-nfl-gray border-nfl-light-gray/20 max-w-3xl max-h-[90vh] overflow-y-auto">
                     <DialogHeader>
-                      <DialogTitle className="text-white">Submit Waiver Claim</DialogTitle>
+                      <DialogTitle className="text-white">
+                        {isFreeAgency ? 'Add Free Agent' : 'Submit Waiver Claim'}
+                      </DialogTitle>
                       <DialogDescription className="text-gray-400">
-                        Select players to claim from waivers. You can add and drop multiple players in one request.
+                        {isFreeAgency 
+                          ? 'Free Agency is open - first come, first served! Add players immediately to your roster.'
+                          : 'Select players to claim from waivers. Claims will be processed in priority order at the deadline.'
+                        }
                         Current roster: {userRoster.length}/10 players
                         {selectedPlayers.length > 0 && selectedDropPlayers.length > 0 && (
                           <div className="mt-2 p-2 bg-yellow-500/10 border border-yellow-500/30 rounded text-yellow-300 text-sm">
@@ -415,7 +435,7 @@ export default function Waivers() {
                         )}
                       </DialogDescription>
                     </DialogHeader>
-                    <div className="space-y-4 mt-4">
+                    <div className="space-y-4 mt-4 pb-4">
                       <div>
                         <label className="text-sm font-medium text-gray-300 mb-2 block">
                           Players to Claim ({selectedPlayers.length} selected)
@@ -448,7 +468,7 @@ export default function Waivers() {
                         </div>
 
                         {/* Player List */}
-                        <ScrollArea className="h-[400px] pr-4">
+                        <ScrollArea className="h-[300px] pr-4">
                           <div className="space-y-2">
                             {filteredWaiverPlayers.length === 0 ? (
                               <div className="text-center py-8 text-gray-400">
@@ -512,7 +532,7 @@ export default function Waivers() {
                             return null;
                           })()}
                         </label>
-                        <div className="space-y-2 max-h-60 overflow-y-auto border border-nfl-light-gray/20 rounded-lg p-2">
+                        <div className="space-y-2 max-h-48 overflow-y-auto border border-nfl-light-gray/20 rounded-lg p-2">
                           {userRoster.map((player) => {
                             // Check if this player's position matches what we need to drop
                             const requiredPositions = selectedPlayers.map(playerId => {
@@ -763,8 +783,8 @@ export default function Waivers() {
                 <CardContent className="p-6">
                   <div className="space-y-3">
                     {myWaiverRequests.map((request, index) => {
-                      const claimPlayer = waiverPlayers.find(p => p.id === request.player_id.toString());
-                      const dropPlayer = userRoster.find(r => parseInt(r.id) === request.drop_player_id);
+                      const claimPlayer = request.player_id ? waiverPlayers.find(p => p.id === request.player_id.toString()) : null;
+                      const dropPlayer = request.drop_player_id ? userRoster.find(r => parseInt(r.id) === request.drop_player_id) : null;
                       
                       return (
                         <div key={request.id} className="flex items-center justify-between p-3 bg-nfl-dark-gray/50 rounded-lg">

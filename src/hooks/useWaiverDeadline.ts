@@ -25,7 +25,7 @@ export function useWaiverDeadline(leagueId: string) {
         const result = data as any;
         return {
           deadline: result.deadline || '',
-          deadline_day: result.deadline_day || 3,
+          deadline_day: result.deadline_day || 2,
           deadline_hour: result.deadline_hour || 23,
           time_remaining: result.time_remaining || 0,
           deadline_passed: result.deadline_passed || false
