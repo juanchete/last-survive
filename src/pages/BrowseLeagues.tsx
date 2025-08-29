@@ -370,7 +370,9 @@ export default function BrowseLeagues() {
                 {/* Mostrar diferentes botones según si es la liga del usuario o no */}
                 {myLeagues.some(league => league.id === selectedLeague.id) ? (
                   <Button asChild className="bg-nfl-blue hover:bg-nfl-lightblue w-full sm:w-auto">
-                    <a href={`/dashboard?league=${selectedLeague.id}`}>
+                    <a href={`
+                      /league-dashboard?league=${selectedLeague.id}`
+                      }>
                       Go to Dashboard
                     </a>
                   </Button>
