@@ -295,6 +295,51 @@ export function useLeagueDashboardActions(leagueId: string) {
     },
   });
 
+  // Eliminar usuario de la liga
+  const removeUserFromLeague = useMutation({
+    mutationFn: async ({
+      userId,
+      reason,
+    }: {
+      userId: string;
+      reason?: string;
+    }) => {
+      if (!user?.id) throw new Error("Usuario no autenticado");
+
+      const { data, error } = await supabase.rpc("remove_user_from_league", {
+        admin_id: user.id,
+        target_user_id: userId,
+        league_id_param: leagueId,
+        reason: reason || "Eliminado por el administrador de la liga",
+      });
+
+      if (error) {
+        throw error;
+      }
+
+      const result = data as {
+        success: boolean;
+        message?: string;
+        error?: string;
+        user_name?: string;
+      };
+
+      if (!result.success) {
+        throw new Error(result.error || "Error al eliminar usuario de la liga");
+      }
+
+      return result;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["leagueMembers", leagueId] });
+      queryClient.invalidateQueries({ queryKey: ["leagueTeams", leagueId] });
+      toast.success(`${data.user_name} ha sido eliminado de la liga exitosamente`);
+    },
+    onError: (error) => {
+      toast.error(`Error al eliminar usuario: ${error.message}`);
+    },
+  });
+
   return {
     banUser: banUser.mutate,
     unbanUser: unbanUser.mutate,
@@ -304,6 +349,7 @@ export function useLeagueDashboardActions(leagueId: string) {
     removePlayerFromRoster: removePlayerFromRoster.mutate,
     editRosterPlayer: editRosterPlayer.mutate,
     recalculateTeamScores: recalculateTeamScores.mutate,
+    removeUserFromLeague: removeUserFromLeague.mutate,
     isLoading:
       banUser.isPending ||
       unbanUser.isPending ||
@@ -312,6 +358,7 @@ export function useLeagueDashboardActions(leagueId: string) {
       addPlayerToRoster.isPending ||
       removePlayerFromRoster.isPending ||
       editRosterPlayer.isPending ||
-      recalculateTeamScores.isPending,
+      recalculateTeamScores.isPending ||
+      removeUserFromLeague.isPending,
   };
 }

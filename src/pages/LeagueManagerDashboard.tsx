@@ -48,6 +48,7 @@ const LeagueManagerDashboard: React.FC = () => {
     addPlayerToRoster,
     editRosterPlayer,
     recalculateTeamScores,
+    removeUserFromLeague,
     isLoading: actionsLoading 
   } = useLeagueDashboardActions(leagueId || "");
 
@@ -104,6 +105,8 @@ const LeagueManagerDashboard: React.FC = () => {
       banUser({ userId, reason });
     } else if (action === 'unban') {
       unbanUser({ userId, reason });
+    } else if (action === 'remove') {
+      removeUserFromLeague({ userId, reason });
     }
   };
 

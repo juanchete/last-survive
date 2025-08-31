@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { UserX, UserCheck, Mail, Calendar, MoreHorizontal } from 'lucide-react';
+import { UserX, UserCheck, Mail, Calendar, MoreHorizontal, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -38,7 +38,7 @@ interface User {
 
 interface UserManagementTableProps {
   users: User[];
-  onUserAction: (userId: string, action: string) => void;
+  onUserAction: (userId: string, action: string, reason?: string) => void;
   isLoading?: boolean;
 }
 
@@ -74,7 +74,7 @@ const UserManagementTable: React.FC<UserManagementTableProps> = ({
 
   const handleActionConfirm = () => {
     if (selectedAction) {
-      onUserAction(selectedAction.userId, selectedAction.action);
+      onUserAction(selectedAction.userId, selectedAction.action, getActionReason(selectedAction.action));
       setSelectedAction(null);
     }
   };
@@ -89,8 +89,23 @@ const UserManagementTable: React.FC<UserManagementTableProps> = ({
         return 'aprobar';
       case 'reject':
         return 'rechazar';
+      case 'remove':
+        return 'eliminar de la liga';
       default:
         return action;
+    }
+  };
+
+  const getActionReason = (action: string) => {
+    switch (action) {
+      case 'ban':
+        return 'Baneado por el administrador de la liga';
+      case 'unban':
+        return 'Desbaneado por el administrador de la liga';
+      case 'remove':
+        return 'Eliminado de la liga por el administrador';
+      default:
+        return `Acción ${action} realizada por el administrador`;
     }
   };
 
@@ -174,7 +189,7 @@ const UserManagementTable: React.FC<UserManagementTableProps> = ({
                         <DropdownMenuItem
                           className="text-red-600"
                           onClick={() => setSelectedAction({
-                            userId: user.id,
+                            userId: user.user_id,
                             action: 'ban',
                             userName: user.name
                           })}
@@ -188,7 +203,7 @@ const UserManagementTable: React.FC<UserManagementTableProps> = ({
                         <DropdownMenuItem
                           className="text-green-600"
                           onClick={() => setSelectedAction({
-                            userId: user.id,
+                            userId: user.user_id,
                             action: 'unban',
                             userName: user.name
                           })}
@@ -203,7 +218,7 @@ const UserManagementTable: React.FC<UserManagementTableProps> = ({
                           <DropdownMenuItem
                             className="text-green-600"
                             onClick={() => setSelectedAction({
-                              userId: user.id,
+                              userId: user.user_id,
                               action: 'approve',
                               userName: user.name
                             })}
@@ -214,13 +229,31 @@ const UserManagementTable: React.FC<UserManagementTableProps> = ({
                           <DropdownMenuItem
                             className="text-red-600"
                             onClick={() => setSelectedAction({
-                              userId: user.id,
+                              userId: user.user_id,
                               action: 'reject',
                               userName: user.name
                             })}
                           >
                             <UserX className="h-4 w-4 mr-2" />
                             Rechazar usuario
+                          </DropdownMenuItem>
+                        </>
+                      )}
+
+                      {/* Opción para eliminar usuario de la liga - disponible para todos los estados */}
+                      {user.status !== "pending" && (
+                        <>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem
+                            className="text-red-600 font-medium"
+                            onClick={() => setSelectedAction({
+                              userId: user.user_id,
+                              action: 'remove',
+                              userName: user.name
+                            })}
+                          >
+                            <Trash2 className="h-4 w-4 mr-2" />
+                            Eliminar de Liga
                           </DropdownMenuItem>
                         </>
                       )}
@@ -243,6 +276,17 @@ const UserManagementTable: React.FC<UserManagementTableProps> = ({
               <span className="font-semibold">{selectedAction?.userName}</span>?
               {selectedAction?.action === 'ban' && ' Esta acción impedirá al usuario acceder a la liga.'}
               {selectedAction?.action === 'reject' && ' Esta acción eliminará la solicitud del usuario.'}
+              {selectedAction?.action === 'remove' && (
+                <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-md">
+                  <p className="text-sm text-red-800 font-medium">⚠️ Esta acción es IRREVERSIBLE y:</p>
+                  <ul className="list-disc list-inside text-sm text-red-700 mt-2 space-y-1">
+                    <li>Eliminará al usuario completamente de la liga</li>
+                    <li>Liberará TODOS sus jugadores como agentes libres</li>
+                    <li>El usuario tendrá que volver a unirse para participar</li>
+                    <li>Reducirá el número total de participantes</li>
+                  </ul>
+                </div>
+              )}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
