@@ -333,6 +333,48 @@ export function useLeagueDashboardActions(leagueId: string) {
     },
   });
 
+  // Editar configuración de liga
+  const editLeague = useMutation({
+    mutationFn: async ({
+      name,
+      maxMembers,
+      entryFee,
+      status,
+      imageUrl,
+    }: {
+      name?: string;
+      maxMembers?: number;
+      entryFee?: number;
+      status?: string;
+      imageUrl?: string;
+    }) => {
+      if (!user?.id) throw new Error("Usuario no autenticado");
+
+      const updateData: any = {};
+      if (name !== undefined) updateData.name = name;
+      if (maxMembers !== undefined) updateData.max_members = maxMembers;
+      if (entryFee !== undefined) updateData.entry_fee = entryFee;
+      if (status !== undefined) updateData.status = status;
+      if (imageUrl !== undefined) updateData.image_url = imageUrl;
+
+      const { error } = await supabase
+        .from("leagues")
+        .update(updateData)
+        .eq("id", leagueId);
+
+      if (error) throw error;
+
+      return { success: true };
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["leagueInfo", leagueId] });
+      toast.success("Liga actualizada exitosamente");
+    },
+    onError: (error) => {
+      toast.error(`Error al actualizar liga: ${error.message}`);
+    },
+  });
+
   // Eliminar usuario de la liga
   const removeUserFromLeague = useMutation({
     mutationFn: async ({
@@ -389,6 +431,7 @@ export function useLeagueDashboardActions(leagueId: string) {
     recalculateTeamScores: recalculateTeamScores.mutate,
     removeUserFromLeague: removeUserFromLeague.mutate,
     deleteLeague: deleteLeague.mutate,
+    editLeague: editLeague.mutate,
     isLoading:
       banUser.isPending ||
       unbanUser.isPending ||
@@ -399,6 +442,7 @@ export function useLeagueDashboardActions(leagueId: string) {
       editRosterPlayer.isPending ||
       recalculateTeamScores.isPending ||
       removeUserFromLeague.isPending ||
-      deleteLeague.isPending,
+      deleteLeague.isPending ||
+      editLeague.isPending,
   };
 }

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useParams, Navigate } from 'react-router-dom';
-import { Users, Trophy, TrendingUp, Settings, AlertCircle, Calculator, Trash2 } from 'lucide-react';
+import { Users, Trophy, TrendingUp, Settings, AlertCircle, Calculator, Trash2, Edit3 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
@@ -28,6 +28,15 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog';
 import { useIsLeagueOwner } from '@/hooks/useIsLeagueOwner';
 import { useAuth } from '@/hooks/useAuth';
 
@@ -42,6 +51,14 @@ const LeagueManagerDashboard: React.FC = () => {
     currentPoints: number;
   } | null>(null);
   const [newPoints, setNewPoints] = useState("");
+  const [showEditDialog, setShowEditDialog] = useState(false);
+  const [editFormData, setEditFormData] = useState({
+    name: "",
+    maxMembers: 10,
+    entryFee: 0,
+    status: "active",
+    imageUrl: ""
+  });
   
   // Verificar si el usuario es owner de la liga
   const { data: isOwner, isLoading: isOwnerLoading } = useIsLeagueOwner(leagueId || "");
@@ -61,6 +78,7 @@ const LeagueManagerDashboard: React.FC = () => {
     recalculateTeamScores,
     removeUserFromLeague,
     deleteLeague,
+    editLeague,
     isLoading: actionsLoading 
   } = useLeagueDashboardActions(leagueId || "");
 
@@ -166,6 +184,28 @@ const LeagueManagerDashboard: React.FC = () => {
     }
   };
 
+  const handleEditLeague = () => {
+    setEditFormData({
+      name: stats?.leagueName || "",
+      maxMembers: 10, // Podrías obtener esto de los datos de la liga
+      entryFee: 0, // Podrías obtener esto de los datos de la liga
+      status: "active", // Podrías obtener esto de los datos de la liga
+      imageUrl: "" // Se podría obtener de los datos de la liga
+    });
+    setShowEditDialog(true);
+  };
+
+  const handleSaveLeague = () => {
+    editLeague({
+      name: editFormData.name,
+      maxMembers: editFormData.maxMembers,
+      entryFee: editFormData.entryFee,
+      status: editFormData.status,
+      imageUrl: editFormData.imageUrl
+    });
+    setShowEditDialog(false);
+  };
+
   return (
     <div className="container mx-auto p-6 space-y-6">
       {/* Header */}
@@ -200,6 +240,12 @@ const LeagueManagerDashboard: React.FC = () => {
           <Badge variant="outline" className="text-sm">
             Temporada {stats?.season || 2024}
           </Badge>
+          
+          {/* Botón para editar liga */}
+          <Button variant="outline" size="sm" onClick={handleEditLeague}>
+            <Edit3 className="h-4 w-4 mr-2" />
+            Editar Liga
+          </Button>
           
           {/* Botón para eliminar liga */}
           <AlertDialog>
@@ -498,6 +544,122 @@ const LeagueManagerDashboard: React.FC = () => {
         </TabsContent>
 
       </Tabs>
+
+      {/* Dialog de Edición de Liga */}
+      <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Editar Configuración de Liga</DialogTitle>
+            <DialogDescription>
+              Modifica la configuración básica de tu liga de fantasy NFL.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="league-name">Nombre de la Liga</Label>
+              <Input
+                id="league-name"
+                value={editFormData.name}
+                onChange={(e) => setEditFormData({
+                  ...editFormData,
+                  name: e.target.value
+                })}
+                placeholder="Nombre de tu liga"
+              />
+            </div>
+            
+            <div>
+              <Label htmlFor="max-members">Máximo de Miembros</Label>
+              <Input
+                id="max-members"
+                type="number"
+                min="2"
+                max="32"
+                value={editFormData.maxMembers}
+                onChange={(e) => setEditFormData({
+                  ...editFormData,
+                  maxMembers: parseInt(e.target.value) || 10
+                })}
+              />
+            </div>
+            
+            <div>
+              <Label htmlFor="entry-fee">Cuota de Entrada ($)</Label>
+              <Input
+                id="entry-fee"
+                type="number"
+                min="0"
+                step="0.01"
+                value={editFormData.entryFee}
+                onChange={(e) => setEditFormData({
+                  ...editFormData,
+                  entryFee: parseFloat(e.target.value) || 0
+                })}
+              />
+            </div>
+            
+            <div>
+              <Label htmlFor="image-url">URL de Imagen de Liga</Label>
+              <Input
+                id="image-url"
+                type="url"
+                value={editFormData.imageUrl}
+                onChange={(e) => setEditFormData({
+                  ...editFormData,
+                  imageUrl: e.target.value
+                })}
+                placeholder="https://ejemplo.com/imagen.jpg"
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                Agrega una imagen para personalizar tu liga (opcional)
+              </p>
+              {editFormData.imageUrl && (
+                <div className="mt-2">
+                  <img 
+                    src={editFormData.imageUrl} 
+                    alt="Vista previa" 
+                    className="w-20 h-20 object-cover rounded border"
+                    onError={(e) => {
+                      e.currentTarget.style.display = 'none';
+                    }}
+                  />
+                </div>
+              )}
+            </div>
+            
+            <div>
+              <Label htmlFor="status">Estado de la Liga</Label>
+              <Select
+                value={editFormData.status}
+                onValueChange={(value) => setEditFormData({
+                  ...editFormData,
+                  status: value
+                })}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="draft">En Draft</SelectItem>
+                  <SelectItem value="active">Activa</SelectItem>
+                  <SelectItem value="completed">Completada</SelectItem>
+                  <SelectItem value="cancelled">Cancelada</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowEditDialog(false)}>
+              Cancelar
+            </Button>
+            <Button onClick={handleSaveLeague} disabled={actionsLoading}>
+              Guardar Cambios
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
