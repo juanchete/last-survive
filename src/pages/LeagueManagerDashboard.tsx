@@ -17,6 +17,17 @@ import UserManagementTable from '@/components/UserManagementTable';
 import TradeManagementPanel from '@/components/TradeManagementPanel';
 import { useLeagueDashboardData } from '@/hooks/useLeagueDashboardData';
 import { useLeagueDashboardActions } from '@/hooks/useLeagueDashboardActions';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 import { useIsLeagueOwner } from '@/hooks/useIsLeagueOwner';
 import { useAuth } from '@/hooks/useAuth';
 
@@ -49,6 +60,7 @@ const LeagueManagerDashboard: React.FC = () => {
     editRosterPlayer,
     recalculateTeamScores,
     removeUserFromLeague,
+    deleteLeague,
     isLoading: actionsLoading 
   } = useLeagueDashboardActions(leagueId || "");
 
@@ -188,6 +200,49 @@ const LeagueManagerDashboard: React.FC = () => {
           <Badge variant="outline" className="text-sm">
             Temporada {stats?.season || 2024}
           </Badge>
+          
+          {/* Botón para eliminar liga */}
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button variant="destructive" size="sm">
+                <Trash2 className="h-4 w-4 mr-2" />
+                Eliminar Liga
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>¿Eliminar Liga Completamente?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  <div className="space-y-3">
+                    <p>¿Estás seguro de que quieres eliminar <strong>{stats?.leagueName}</strong>? Esta acción es <strong>IRREVERSIBLE</strong>.</p>
+                    <div className="p-3 bg-red-50 border border-red-200 rounded-md">
+                      <p className="text-sm text-red-800 font-medium">⚠️ Esta acción eliminará PERMANENTEMENTE:</p>
+                      <ul className="list-disc list-inside text-sm text-red-700 mt-2 space-y-1">
+                        <li>La liga completa y toda su configuración</li>
+                        <li>Todos los equipos fantasy y sus rosters</li>
+                        <li>Todo el historial de intercambios</li>
+                        <li>Las estadísticas y ranking de la temporada</li>
+                        <li>Todas las solicitudes de waiver</li>
+                        <li>Los registros de eliminación semanal</li>
+                      </ul>
+                      <p className="text-sm text-red-800 font-medium mt-2">
+                        Los usuarios NO podrán recuperar sus datos ni unirse nuevamente a esta liga.
+                      </p>
+                    </div>
+                  </div>
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={() => deleteLeague()}
+                  className="bg-red-600 hover:bg-red-700"
+                >
+                  Sí, Eliminar Liga Permanentemente
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </div>
       </div>
 

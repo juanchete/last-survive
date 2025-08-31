@@ -295,6 +295,44 @@ export function useLeagueDashboardActions(leagueId: string) {
     },
   });
 
+  // Eliminar liga completa usando la función RPC
+  const deleteLeague = useMutation({
+    mutationFn: async () => {
+      if (!user?.id) throw new Error("Usuario no autenticado");
+
+      const { data, error } = await supabase.rpc("delete_league_complete", {
+        admin_id: user.id,
+        league_id_param: leagueId,
+        reason: "Liga eliminada por el propietario",
+      });
+
+      if (error) throw error;
+
+      const result = data as {
+        success: boolean;
+        message?: string;
+        error?: string;
+        league_name?: string;
+      };
+
+      if (!result.success) {
+        throw new Error(result.error || "Error al eliminar liga");
+      }
+
+      return result;
+    },
+    onSuccess: () => {
+      toast.success("Liga eliminada exitosamente");
+      // Redirigir al dashboard principal después de eliminar la liga
+      setTimeout(() => {
+        window.location.href = "/hub";
+      }, 2000);
+    },
+    onError: (error) => {
+      toast.error(`Error al eliminar liga: ${error.message}`);
+    },
+  });
+
   // Eliminar usuario de la liga
   const removeUserFromLeague = useMutation({
     mutationFn: async ({
@@ -350,6 +388,7 @@ export function useLeagueDashboardActions(leagueId: string) {
     editRosterPlayer: editRosterPlayer.mutate,
     recalculateTeamScores: recalculateTeamScores.mutate,
     removeUserFromLeague: removeUserFromLeague.mutate,
+    deleteLeague: deleteLeague.mutate,
     isLoading:
       banUser.isPending ||
       unbanUser.isPending ||
@@ -359,6 +398,7 @@ export function useLeagueDashboardActions(leagueId: string) {
       removePlayerFromRoster.isPending ||
       editRosterPlayer.isPending ||
       recalculateTeamScores.isPending ||
-      removeUserFromLeague.isPending,
+      removeUserFromLeague.isPending ||
+      deleteLeague.isPending,
   };
 }

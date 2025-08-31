@@ -30,7 +30,8 @@ export function Header() {
   const isAdmin = user && (
     user.email?.includes('admin') || 
     user.email === 'juanlopezlmg@gmail.com' || // Cambiar por tu email
-    user.email === 'admin@lastsurvive.com'
+    user.email === 'admin@lastsurvive.com'|| // Cambiar por tu email
+    user.email === '26justusl@gmail.com'
   );
 
   return (
