@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import { Separator } from '@/components/ui/separator';
 import { Trophy, Users, Calendar, DollarSign, ArrowLeft } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
@@ -103,12 +104,39 @@ export default function JoinLeague() {
     enabled: !!league?.id,
   });
 
-  // Unirse a la liga
-  const joinLeagueMutation = useMutation({
-    mutationFn: async () => {
-      const { data: currentUser } = await supabase.auth.getUser();
-      if (!currentUser.user) throw new Error('Usuario no autenticado');
+  // State for join request
+  const [requestMessage, setRequestMessage] = useState('');
 
+  // Check if user already has a pending request
+  const { data: currentUser } = useQuery({
+    queryKey: ['current-user'],
+    queryFn: async () => {
+      const { data } = await supabase.auth.getUser();
+      return data.user;
+    }
+  });
+
+  const { data: existingRequest } = useQuery({
+    queryKey: ['league-join-request', league?.id, currentUser?.id],
+    queryFn: async () => {
+      if (!league?.id || !currentUser?.id) return null;
+      
+      const { data } = await supabase
+        .from('league_join_requests')
+        .select('*')
+        .eq('league_id', league.id)
+        .eq('user_id', currentUser.id)
+        .single();
+        
+      return data;
+    },
+    enabled: !!league?.id && !!currentUser?.id
+  });
+
+  // Request to join league (for private leagues with private_code)
+  const requestJoinMutation = useMutation({
+    mutationFn: async () => {
+      if (!currentUser) throw new Error('Usuario no autenticado');
       if (!league) throw new Error('Liga no encontrada');
 
       // Verificar si ya es miembro
@@ -116,7 +144,61 @@ export default function JoinLeague() {
         .from('league_members')
         .select('*')
         .eq('league_id', league.id)
-        .eq('user_id', currentUser.user.id)
+        .eq('user_id', currentUser.id)
+        .single();
+
+      if (existingMember) {
+        throw new Error('Ya eres miembro de esta liga');
+      }
+
+      // Create join request
+      const { error } = await supabase
+        .from('league_join_requests')
+        .insert({
+          league_id: league.id,
+          user_id: currentUser.id,
+          message: requestMessage.trim() || null,
+          status: 'pending'
+        });
+
+      if (error) throw error;
+
+      // Send notification to league owner
+      const { error: notificationError } = await supabase
+        .from('notifications')
+        .insert({
+          user_id: league.owner_id,
+          league_id: league.id,
+          message: `${currentUser.user_metadata?.full_name || currentUser.email} ha solicitado unirse a tu liga "${league.name}"`,
+          type: 'info'
+        });
+
+      if (notificationError) {
+        console.warn('Failed to send notification:', notificationError);
+        // Don't fail the request if notification fails
+      }
+    },
+    onSuccess: () => {
+      toast.success('Solicitud de acceso enviada. El administrador de la liga revisará tu solicitud.');
+      setRequestMessage('');
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || 'Error al enviar solicitud');
+    },
+  });
+
+  // Unirse a la liga directamente (for temporary invitations)
+  const joinLeagueMutation = useMutation({
+    mutationFn: async () => {
+      if (!currentUser) throw new Error('Usuario no autenticado');
+      if (!league) throw new Error('Liga no encontrada');
+
+      // Verificar si ya es miembro
+      const { data: existingMember } = await supabase
+        .from('league_members')
+        .select('*')
+        .eq('league_id', league.id)
+        .eq('user_id', currentUser.id)
         .single();
 
       if (existingMember) {
@@ -133,8 +215,8 @@ export default function JoinLeague() {
         .from('fantasy_teams')
         .insert({
           league_id: league.id,
-          user_id: currentUser.user.id,
-          name: `Equipo de ${currentUser.user.user_metadata?.full_name || currentUser.user.email?.split('@')[0]}`,
+          user_id: currentUser.id,
+          name: `Equipo de ${currentUser.user_metadata?.full_name || currentUser.email?.split('@')[0]}`,
           points: 0,
           rank: (members?.length || 0) + 1,
           eliminated: false,
@@ -149,7 +231,7 @@ export default function JoinLeague() {
         .from('league_members')
         .insert({
           league_id: league.id,
-          user_id: currentUser.user.id,
+          user_id: currentUser.id,
           role: 'member',
           team_id: fantasyTeam.id,
         });
@@ -348,17 +430,99 @@ export default function JoinLeague() {
                 )}
 
                 <div className="space-y-3">
-                  <Button
-                    onClick={() => joinLeagueMutation.mutate()}
-                    disabled={!canJoin || joinLeagueMutation.isPending}
-                    className="w-full bg-nfl-blue hover:bg-nfl-blue/80 text-white"
-                    size="lg"
-                  >
-                    {joinLeagueMutation.isPending 
-                      ? '⏳ Uniéndose...' 
-                      : '✅ Confirmar y Unirse a la Liga'
-                    }
-                  </Button>
+                  {/* Debug info - remove after testing */}
+                  {process.env.NODE_ENV === 'development' && (
+                    <div className="bg-gray-800/50 p-2 rounded text-xs text-gray-400">
+                      Debug: invitationType = {(league as any)?.invitationType} | isPrivate = {league.is_private?.toString()} | hasPrivateCode = {!!league.private_code?.toString()}
+                    </div>
+                  )}
+                  
+                  {/* Show different UI based on invitation type and request status */}
+                  
+                  {/* For temporary invitations - join directly */}
+                  {(league as any)?.invitationType === 'temporary' && (
+                    <Button
+                      onClick={() => joinLeagueMutation.mutate()}
+                      disabled={!canJoin || joinLeagueMutation.isPending}
+                      className="w-full bg-nfl-blue hover:bg-nfl-blue/80 text-white"
+                      size="lg"
+                    >
+                      {joinLeagueMutation.isPending 
+                        ? '⏳ Uniéndose...' 
+                        : '✅ Confirmar y Unirse a la Liga'
+                      }
+                    </Button>
+                  )}
+
+                  {/* For private code leagues - request access or show request status */}
+                  {(league as any)?.invitationType === 'private_code' && (
+                    <>
+                      {existingRequest?.status === 'pending' && (
+                        <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-lg p-4">
+                          <p className="text-yellow-400 text-sm font-medium">
+                            ⏳ Solicitud Pendiente
+                          </p>
+                          <p className="text-gray-300 text-xs mt-1">
+                            Ya enviaste una solicitud para unirte a esta liga. 
+                            El administrador la revisará pronto.
+                          </p>
+                          {existingRequest.message && (
+                            <p className="text-gray-400 text-xs mt-2 italic">
+                              "Tu mensaje: {existingRequest.message}"
+                            </p>
+                          )}
+                        </div>
+                      )}
+
+                      {existingRequest?.status === 'rejected' && (
+                        <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-4">
+                          <p className="text-red-400 text-sm font-medium">
+                            ❌ Solicitud Rechazada
+                          </p>
+                          <p className="text-gray-300 text-xs mt-1">
+                            Tu solicitud para unirte a esta liga fue rechazada.
+                          </p>
+                          {existingRequest.response_message && (
+                            <p className="text-gray-400 text-xs mt-2 italic">
+                              "Motivo: {existingRequest.response_message}"
+                            </p>
+                          )}
+                        </div>
+                      )}
+
+                      {!existingRequest && canJoin && (
+                        <>
+                          <div className="space-y-3">
+                            <div>
+                              <Label htmlFor="message" className="text-gray-300 text-sm">
+                                Mensaje para el administrador (opcional)
+                              </Label>
+                              <Textarea
+                                id="message"
+                                placeholder="Ej: Hola! Me gustaría unirme a la liga. Soy un jugador activo y comprometido..."
+                                value={requestMessage}
+                                onChange={(e) => setRequestMessage(e.target.value)}
+                                className="bg-nfl-dark/50 border-nfl-light-gray/20 text-white placeholder:text-gray-500 mt-1"
+                                rows={3}
+                              />
+                            </div>
+                          </div>
+                          
+                          <Button
+                            onClick={() => requestJoinMutation.mutate()}
+                            disabled={requestJoinMutation.isPending}
+                            className="w-full bg-orange-600 hover:bg-orange-700 text-white"
+                            size="lg"
+                          >
+                            {requestJoinMutation.isPending 
+                              ? '⏳ Enviando solicitud...' 
+                              : '📩 Solicitar Acceso a la Liga'
+                            }
+                          </Button>
+                        </>
+                      )}
+                    </>
+                  )}
                   
                   <Button
                     variant="outline"

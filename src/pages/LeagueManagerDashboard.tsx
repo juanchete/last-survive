@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useParams, Navigate } from 'react-router-dom';
-import { Users, Trophy, TrendingUp, Settings, AlertCircle, Calculator, Trash2, Edit3 } from 'lucide-react';
+import { Users, Trophy, TrendingUp, Settings, AlertCircle, Calculator, Trash2, Edit3, UserPlus } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
@@ -15,6 +15,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import DashboardStatsCard from '@/components/DashboardStatsCard';
 import UserManagementTable from '@/components/UserManagementTable';
 import TradeManagementPanel from '@/components/TradeManagementPanel';
+import { LeagueJoinRequests } from '@/components/LeagueJoinRequests';
 import { useLeagueDashboardData } from '@/hooks/useLeagueDashboardData';
 import { useLeagueDashboardActions } from '@/hooks/useLeagueDashboardActions';
 import {
@@ -294,10 +295,14 @@ const LeagueManagerDashboard: React.FC = () => {
 
       {/* Tabs Navigation */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-5">
           <TabsTrigger value="overview" className="flex items-center gap-2">
             <TrendingUp className="h-4 w-4" />
             Resumen
+          </TabsTrigger>
+          <TabsTrigger value="requests" className="flex items-center gap-2">
+            <UserPlus className="h-4 w-4" />
+            Solicitudes
           </TabsTrigger>
           <TabsTrigger value="users" className="flex items-center gap-2">
             <Users className="h-4 w-4" />
@@ -385,6 +390,18 @@ const LeagueManagerDashboard: React.FC = () => {
                 </CardContent>
               </Card>
             </>
+          )}
+        </TabsContent>
+
+        {/* Join Requests Tab */}
+        <TabsContent value="requests" className="space-y-6">
+          {isLoading ? (
+            <Skeleton className="h-96 w-full" />
+          ) : (
+            <LeagueJoinRequests 
+              leagueId={leagueId!} 
+              isOwner={!!isOwner} 
+            />
           )}
         </TabsContent>
 

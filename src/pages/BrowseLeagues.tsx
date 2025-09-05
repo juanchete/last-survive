@@ -124,15 +124,87 @@ export default function BrowseLeagues() {
     }
   };
 
-  const handleSendRequest = () => {
-    // Aquí podrías implementar lógica para enviar una solicitud real al owner
-    toast({
-      title: "¡Request sent!",
-      description: `Your request to join ${selectedLeague?.name} has been sent to the owner of the league.`,
-      variant: "default",
-    });
-    setIsRequestDialogOpen(false);
-    setRequestMessage("");
+  const handleSendRequest = async () => {
+    if (!user || !selectedLeague) {
+      toast({ title: "Error", description: "Usuario o liga no encontrados", variant: "destructive" });
+      return;
+    }
+
+    try {
+      // Check if already a member
+      const { data: existingMember } = await supabase
+        .from('league_members')
+        .select('*')
+        .eq('league_id', selectedLeague.id)
+        .eq('user_id', user.id)
+        .single();
+
+      if (existingMember) {
+        toast({ title: "Error", description: "Ya eres miembro de esta liga", variant: "destructive" });
+        return;
+      }
+
+      // Check if already has a pending request
+      const { data: existingRequest } = await supabase
+        .from('league_join_requests')
+        .select('*')
+        .eq('league_id', selectedLeague.id)
+        .eq('user_id', user.id)
+        .eq('status', 'pending')
+        .single();
+
+      if (existingRequest) {
+        toast({ title: "Info", description: "Ya tienes una solicitud pendiente para esta liga", variant: "default" });
+        setIsRequestDialogOpen(false);
+        return;
+      }
+
+      // Create join request
+      const { error: requestError } = await supabase
+        .from('league_join_requests')
+        .insert({
+          league_id: selectedLeague.id,
+          user_id: user.id,
+          message: requestMessage.trim() || null,
+          status: 'pending'
+        });
+
+      if (requestError) {
+        throw requestError;
+      }
+
+      // Send notification to league owner
+      const { error: notificationError } = await supabase
+        .from("notifications")
+        .insert({
+          user_id: selectedLeague.owner_id,
+          league_id: selectedLeague.id,
+          message: `${user.user_metadata?.full_name || user.email} ha solicitado unirse a tu liga "${selectedLeague.name}"`,
+          type: "info",
+        });
+
+      if (notificationError) {
+        console.error("Error sending notification:", notificationError);
+        // Don't fail the request if notification fails
+      }
+
+      toast({
+        title: "¡Solicitud enviada!",
+        description: `Tu solicitud para unirte a "${selectedLeague.name}" ha sido enviada al administrador.`,
+        variant: "default",
+      });
+      
+      setIsRequestDialogOpen(false);
+      setRequestMessage("");
+      
+    } catch (error: any) {
+      console.error("Error sending request:", error);
+      toast({ 
+        title: "Error", 
+        description: error.message || "Error al enviar la solicitud", 
+        variant: "destructive" 
+      });
+    }
   };
 
   // Función para contar miembros de una liga
