@@ -20,6 +20,7 @@ export interface Player {
   points: number; // PPJ - Puntos Por Jugar (projected/fantasy points)
   actualPoints?: number; // PTS - Puntos acumulados reales
   photo?: string;
+  adp?: number; // Average Draft Position
 }
 
 export interface NFLTeam {

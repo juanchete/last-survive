@@ -14,10 +14,9 @@ import {
   PlayerStats,
   PlayerProjection
 } from './FantasyProvider';
-import { SleeperProvider, sleeperProvider } from './SleeperProvider';
 import { SportsDataProvider, sportsDataProvider } from './SportsDataProvider';
 
-export type ProviderName = 'sleeper' | 'sportsdata';
+export type ProviderName = 'sportsdata';
 
 export interface ProviderManagerConfig {
   primaryProvider: ProviderName;
@@ -36,9 +35,9 @@ export class ProviderManager implements FantasyProvider {
 
   constructor(config?: Partial<ProviderManagerConfig>) {
     this.config = {
-      primaryProvider: 'sleeper',
-      fallbackProvider: 'sportsdata',
-      enableFallback: true,
+      primaryProvider: 'sportsdata',
+      fallbackProvider: undefined,
+      enableFallback: false,
       cacheResults: true,
       logErrors: true,
       ...config
@@ -46,7 +45,6 @@ export class ProviderManager implements FantasyProvider {
 
     // Initialize providers
     this.providers = new Map();
-    this.providers.set('sleeper', sleeperProvider);
     this.providers.set('sportsdata', sportsDataProvider);
     
     this.lastHealthCheck = new Map();

@@ -13,7 +13,7 @@ async function updateSportsDataIds() {
     console.log('Fetching players from SportsData API...');
     
     // Fetch directly from SportsData API
-    const response = await fetch('https://api.sportsdata.io/v3/nfl/scores/json/PlayersByAvailable?key=a7fdf8e0c4914c15894d1cb3bb3c884a');
+    const response = await fetch('https://api.sportsdata.io/v3/nfl/scores/json/PlayersByAvailable?key=f1826e4060774e56a6f56bae1d9eb76e');
     
     if (!response.ok) {
       console.error('Failed to fetch players from SportsData:', response.status);

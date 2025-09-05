@@ -237,7 +237,7 @@ export default function DraftRoom() {
       toast.success('¡Jugador drafteado exitosamente!');
       
       // Broadcast the pick to other users
-      const player = sortedPlayers.find(p => p.id === String(playerId));
+      const player = typedAvailablePlayers.find(p => p.id === playerId);
       if (player) {
         await broadcastPick(String(playerId), player.name);
       }

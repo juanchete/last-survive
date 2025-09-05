@@ -2,7 +2,7 @@
  * Script to check DailyFantasyPoints endpoint for defense data
  */
 
-const API_KEY = 'a7fdf8e0c4914c15894d1cb3bb3c884a';
+const API_KEY = 'f1826e4060774e56a6f56bae1d9eb76e';
 
 async function checkDailyFantasyPoints() {
   console.log('🔍 Checking DailyFantasyPoints endpoint...\n');

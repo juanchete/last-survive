@@ -8,7 +8,7 @@ export function useAvailablePlayers(leagueId: string, week: number, enableFallba
       // 1. Obtener todos los jugadores y equipos NFL con sus puntos de la temporada pasada
       const { data: players, error: playersError } = await supabase
         .from("players")
-        .select("id, name, position, nfl_team_id, photo_url, last_season_points");
+        .select("id, name, position, nfl_team_id, photo_url, last_season_points, adp_standard, adp_ppr");
       if (playersError) throw playersError;
 
       const { data: nflTeams, error: teamsError } = await supabase
@@ -45,9 +45,11 @@ export function useAvailablePlayers(leagueId: string, week: number, enableFallba
             eliminated: nflTeam?.eliminated || false,
             points: player.last_season_points || 0, // Use last season points for draft
             photo: player.photo_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(player.name)}&background=1a1a1a&color=fff`,
+            adp: player.adp_standard || player.adp_ppr || 999, // Use ADP for sorting
           };
         })
-        .filter((p) => p.available);
+        .filter((p) => p.available)
+        .sort((a, b) => a.adp - b.adp); // Sort by ADP (lower is better)
     },
     enabled: !!leagueId && !!week,
     // More aggressive polling for draft (3 seconds when enabled)

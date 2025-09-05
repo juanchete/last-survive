@@ -49,8 +49,12 @@ async function fetchFromSportsData(
       url = `${SPORTSDATA_API_BASE}/scores/json/CurrentWeek?key=${apiKey}`;
       break;
     case "/players":
-      // Use PlayersByAvailable endpoint which returns all available players
-      url = `${SPORTSDATA_API_BASE}/scores/json/PlayersByAvailable?key=${apiKey}`;
+      // Use Players endpoint for complete player data
+      url = `${SPORTSDATA_API_BASE}/scores/json/Players?key=${apiKey}`;
+      break;
+    case "/fantasy-players":
+      // Use FantasyPlayers endpoint specifically for ADP data
+      url = `${SPORTSDATA_API_BASE}/stats/json/FantasyPlayers?key=${apiKey}`;
       break;
     case "/stats":
       const statsSeason = params?.get("season") || "2024";
@@ -85,7 +89,7 @@ async function fetchFromSportsData(
       url = `${SPORTSDATA_API_BASE}/projections/json/PlayerGameProjectionStatsByWeek/${projSeason}${projSdType}/${projWeek}?key=${apiKey}`;
       break;
     case "/teams":
-      url = `${SPORTSDATA_API_BASE}/scores/json/Teams?key=a7fdf8e0c4914c15894d1cb3bb3c884a`;
+      url = `${SPORTSDATA_API_BASE}/scores/json/Teams?key=${apiKey}`;
       break;
     case "/health":
       // Health check endpoint - just test the current week endpoint
@@ -95,10 +99,14 @@ async function fetchFromSportsData(
       throw new Error(`Unknown endpoint: ${endpoint}`);
   }
   
+  // For FantasyPlayers endpoint, use minimal headers
+  const headers: Record<string, string> = {};
+  if (endpoint !== "/fantasy-players") {
+    headers["Accept"] = "application/json";
+  }
+  
   const response = await fetch(url, {
-    headers: {
-      "Accept": "application/json",
-    },
+    headers,
   });
   
   if (!response.ok) {
@@ -112,6 +120,11 @@ async function fetchFromSportsData(
   // Filter active players if it's the players endpoint
   if (endpoint === "/players" && Array.isArray(data)) {
     return data.filter((player: any) => player.Status === "Active");
+  }
+  
+  // Filter players with teams if it's the fantasy-players endpoint
+  if (endpoint === "/fantasy-players" && Array.isArray(data)) {
+    return data.filter((player: any) => player.Team && player.Team !== null && player.Team !== "");
   }
   
   return data;
@@ -131,7 +144,7 @@ serve(async (req: Request) => {
     // Get API key from header or environment
     const apiKey = req.headers.get("X-API-Key") || 
                    Deno.env.get("SPORTSDATA_API_KEY") || 
-                   "a7fdf8e0c4914c15894d1cb3bb3c884a";
+                   "f1826e4060774e56a6f56bae1d9eb76e";
     
     if (!apiKey) {
       return new Response(

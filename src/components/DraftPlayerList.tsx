@@ -26,8 +26,8 @@ export function DraftPlayerList({ leagueId, week, onSelectPlayer, isMyTurn, myRo
   const [searchTerm, setSearchTerm] = useState("");
   const [position, setPosition] = useState("all");
   const [page, setPage] = useState(1);
-  const [sortBy, setSortBy] = useState<'name' | 'projected_points' | 'position' | 'team'>('projected_points');
-  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
+  const [sortBy, setSortBy] = useState<'name' | 'projected_points' | 'position' | 'team' | 'adp'>('adp');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
 
   const { data, isLoading, error } = useAvailablePlayersPaginated({
     leagueId,
@@ -262,6 +262,15 @@ export function DraftPlayerList({ leagueId, week, onSelectPlayer, isMyTurn, myRo
               </TableHead>
               <TableHead 
                 className="cursor-pointer hover:bg-muted/50 text-right"
+                onClick={() => handleSort('adp')}
+              >
+                <div className="flex items-center justify-end gap-1">
+                  ADP
+                  {sortBy === 'adp' && (sortOrder === 'asc' ? ' ↑' : ' ↓')}
+                </div>
+              </TableHead>
+              <TableHead 
+                className="cursor-pointer hover:bg-muted/50 text-right"
                 onClick={() => handleSort('projected_points')}
               >
                 <div className="flex items-center justify-end gap-1">
@@ -271,7 +280,6 @@ export function DraftPlayerList({ leagueId, week, onSelectPlayer, isMyTurn, myRo
                 </div>
               </TableHead>
               <TableHead className="text-right">2024</TableHead>
-              <TableHead>Estado</TableHead>
               <TableHead className="text-center">Acción</TableHead>
             </TableRow>
           </TableHeader>
@@ -348,6 +356,11 @@ export function DraftPlayerList({ leagueId, week, onSelectPlayer, isMyTurn, myRo
                     </div>
                   </TableCell>
                   <TableCell className="text-right">
+                    <span className="text-sm font-medium">
+                      {player.adp ? player.adp.toFixed(0) : '-'}
+                    </span>
+                  </TableCell>
+                  <TableCell className="text-right">
                     <div className="text-sm">
                       <p className="font-bold">{player.projectedPoints.toFixed(1)}</p>
                       {player.position === 'QB' && player.projectedPassingYards > 0 && (
@@ -370,12 +383,6 @@ export function DraftPlayerList({ leagueId, week, onSelectPlayer, isMyTurn, myRo
                   </TableCell>
                   <TableCell className="text-right">
                     <p className="text-sm text-muted-foreground">{player.lastSeasonPoints.toFixed(1)}</p>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-1">
-                      {getStatusIcon(player.status)}
-                      <span className="text-xs">{player.status}</span>
-                    </div>
                   </TableCell>
                   <TableCell className="text-center">
                     <Button

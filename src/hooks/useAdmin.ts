@@ -12,8 +12,8 @@ export interface AdminStats {
   recent_actions: Array<{
     id: string;
     action_type: string;
-    admin_user: string;
-    target_user: string;
+    admin_user_id: string;
+    target_user_id: string;
     created_at: string;
     reason?: string;
   }>;
@@ -533,116 +533,6 @@ export const useAdmin = () => {
     }
   };
 
-  const syncPlayersFromSleeper = async (
-    fantasyPositionsOnly: boolean = true,
-    activeOnly: boolean = true
-  ): Promise<{ success: boolean; message: string; count?: number }> => {
-    if (!isAdmin || !user) {
-      return { success: false, message: "Sin permisos de administrador" };
-    }
-
-    try {
-      // Import the sync service dynamically to avoid circular dependencies
-      const { sleeperSync } = await import('@/lib/sleeper-sync');
-      return await sleeperSync.syncPlayers(fantasyPositionsOnly, activeOnly);
-    } catch (error) {
-      console.error("Error syncing players from Sleeper:", error);
-      return { 
-        success: false, 
-        message: error instanceof Error ? error.message : "Error desconocido al sincronizar jugadores"
-      };
-    }
-  };
-
-  const syncWeeklyStatsFromSleeper = async (
-    season: number,
-    week: number,
-    scoringType: 'std' | 'ppr' | 'half_ppr' = 'std'
-  ): Promise<{ success: boolean; message: string; count?: number }> => {
-    if (!isAdmin || !user) {
-      return { success: false, message: "Sin permisos de administrador" };
-    }
-
-    try {
-      // Import the sync service dynamically to avoid circular dependencies
-      const { sleeperSync } = await import('@/lib/sleeper-sync');
-      return await sleeperSync.syncWeeklyStats(season, week, scoringType);
-    } catch (error) {
-      console.error("Error syncing weekly stats from Sleeper:", error);
-      return { 
-        success: false, 
-        message: error instanceof Error ? error.message : "Error desconocido al sincronizar estadísticas"
-      };
-    }
-  };
-
-  const syncNFLTeamsFromSleeper = async (): Promise<{ success: boolean; message: string; count?: number }> => {
-    if (!isAdmin || !user) {
-      return { success: false, message: "Sin permisos de administrador" };
-    }
-
-    try {
-      // Import the sync service dynamically to avoid circular dependencies
-      const { sleeperSync } = await import('@/lib/sleeper-sync');
-      return await sleeperSync.syncNFLTeams();
-    } catch (error) {
-      console.error("Error syncing NFL teams from Sleeper:", error);
-      return { 
-        success: false, 
-        message: error instanceof Error ? error.message : "Error desconocido al sincronizar equipos NFL"
-      };
-    }
-  };
-
-  const syncTeamDefensesFromSleeper = async (): Promise<{ success: boolean; message: string; count?: number }> => {
-    if (!isAdmin || !user) {
-      return { success: false, message: "Sin permisos de administrador" };
-    }
-
-    try {
-      // Import the sync service dynamically to avoid circular dependencies
-      const { sleeperSync } = await import('@/lib/sleeper-sync');
-      return await sleeperSync.syncTeamDefenses();
-    } catch (error) {
-      console.error("Error syncing team defenses from Sleeper:", error);
-      return { 
-        success: false, 
-        message: error instanceof Error ? error.message : "Error desconocido al sincronizar defensas"
-      };
-    }
-  };
-
-  const getSleeperSyncStatus = async () => {
-    if (!isAdmin) return null;
-
-    try {
-      // Import the sync service dynamically to avoid circular dependencies
-      const { sleeperSync } = await import('@/lib/sleeper-sync');
-      return await sleeperSync.getSyncStatus();
-    } catch (error) {
-      console.error("Error getting Sleeper sync status:", error);
-      return null;
-    }
-  };
-
-  const mapExistingPlayersToSleeper = async (): Promise<{ success: boolean; message: string; count?: number }> => {
-    if (!isAdmin || !user) {
-      return { success: false, message: "Sin permisos de administrador" };
-    }
-
-    try {
-      // Import the sync service dynamically to avoid circular dependencies
-      const { sleeperSync } = await import('@/lib/sleeper-sync');
-      return await sleeperSync.mapExistingPlayersToSleeper();
-    } catch (error) {
-      console.error("Error mapping existing players to Sleeper:", error);
-      return { 
-        success: false, 
-        message: error instanceof Error ? error.message : "Error desconocido al mapear jugadores existentes"
-      };
-    }
-  };
-
   const cleanDuplicatePlayers = async (dryRun: boolean = true): Promise<{ 
     success: boolean; 
     message: string; 
@@ -686,8 +576,21 @@ export const useAdmin = () => {
     }
 
     try {
-      const { sleeperSync } = await import('@/lib/sleeper-sync');
-      return await sleeperSync.updateLastSeasonPoints(season);
+      // Usar la función SQL directa
+      const { data, error } = await supabase.rpc('update_player_last_season_points', {
+        p_season: season
+      });
+
+      if (error) {
+        console.error("Error updating last season points:", error);
+        return { success: false, message: "Error al actualizar puntos de la temporada pasada" };
+      }
+
+      return {
+        success: true,
+        message: data?.[0]?.message || "Puntos de temporada pasada actualizados",
+        count: data?.[0]?.updated_count || 0
+      };
     } catch (error) {
       console.error("Error updating last season points:", error);
       return { 
@@ -715,13 +618,7 @@ export const useAdmin = () => {
     addPlayerToRoster,
     removePlayerFromRoster,
     recalculateTeamScores,
-    // Sleeper API integration functions
-    syncPlayersFromSleeper,
-    syncWeeklyStatsFromSleeper,
-    syncNFLTeamsFromSleeper,
-    syncTeamDefensesFromSleeper,
-    getSleeperSyncStatus,
-    mapExistingPlayersToSleeper,
+    // Data management functions
     cleanDuplicatePlayers,
     updateLastSeasonPoints,
   };

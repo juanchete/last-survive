@@ -49,7 +49,7 @@ export function ProviderSelector() {
     refetchStats();
   };
 
-  const providers: ProviderName[] = ['sleeper', 'sportsdata'];
+  const providers: ProviderName[] = ['sportsdata'];
 
   return (
     <div className="space-y-6">

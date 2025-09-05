@@ -456,6 +456,11 @@ export class SportsDataProvider extends BaseFantasyProvider {
     sportsDataPlayers.forEach((playerData: SportsDataPlayer) => {
       const playerId = String(playerData.PlayerID);
       
+      // Skip players without a team (free agents, etc.) - not useful for fantasy
+      if (!playerData.Team || playerData.Team === '' || playerData.Team === 'FA') {
+        return;
+      }
+      
       // Use UsaTodayHeadshotURL for player photo
       const photoUrl = playerData.UsaTodayHeadshotURL || playerData.PhotoUrl || null;
       
@@ -488,6 +493,13 @@ export class SportsDataProvider extends BaseFantasyProvider {
         injury_notes: playerData.InjuryNotes,
         practice_participation: playerData.InjuryPractice,
         practice_description: playerData.InjuryPracticeDescription,
+        // ADP (Average Draft Position) fields
+        adp_standard: playerData.AverageDraftPosition,
+        adp_ppr: playerData.AverageDraftPositionPPR,
+        adp_2qb: playerData.AverageDraftPosition2QB,
+        adp_rookie: playerData.AverageDraftPositionRookie,
+        adp_dynasty: playerData.AverageDraftPositionDynasty,
+        adp_dynasty_ppr: playerData.AverageDraftPositionDynastyPPR,
         // Cross-reference IDs
         gsis_id: playerData.SportDataPlayerID,
         sportradar_id: playerData.SportRadarPlayerID,
@@ -499,8 +511,6 @@ export class SportsDataProvider extends BaseFantasyProvider {
           jersey_number: playerData.Number,
           draft_kings_id: playerData.DraftKingsPlayerID,
           fanduel_id: playerData.FanDuelPlayerID,
-          average_draft_position: playerData.AverageDraftPosition,
-          average_draft_position_ppr: playerData.AverageDraftPositionPPR,
           team_logo: teamLogoUrl,
         },
       };

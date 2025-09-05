@@ -1,9 +1,8 @@
 /**
  * Central export point for all hooks
- * Provides a migration path from old to new APIs
  */
 
-// Export new NFL Data API hooks (preferred)
+// Export NFL Data API hooks (using SportsData.io)
 export * from './useNFLDataAPI';
 
 // Export other existing hooks
@@ -29,44 +28,3 @@ export * from './useUserLeagues';
 export * from './useWaiverManagement';
 export * from './useWeeklyEliminationManagement';
 export * from './useWeeks';
-
-// Backward compatibility: Export old Sleeper API hooks
-// These are now wrappers around the new provider-based hooks
-import {
-  useSleeperNFLState,
-  useSleeperPlayers,
-  useSleeperWeeklyStats,
-  useSleeperPlayerStats,
-  useSyncPlayers,
-  useSyncWeeklyStats,
-  useSyncNFLTeams,
-  useSyncStatus,
-  useSleeperAPIStats
-} from './useNFLDataAPI';
-
-// Re-export with original names for backward compatibility
-export {
-  useSleeperNFLState,
-  useSleeperPlayers,
-  useSleeperWeeklyStats,
-  useSleeperPlayerStats,
-  useSyncPlayers,
-  useSyncWeeklyStats,
-  useSyncNFLTeams,
-  useSyncStatus,
-  useSleeperAPIStats
-};
-
-// Migration helper - logs deprecation warnings in development
-if (process.env.NODE_ENV === 'development') {
-  const logDeprecation = (oldName: string, newName: string) => {
-    console.warn(`[Deprecation] ${oldName} is deprecated. Please use ${newName} instead.`);
-  };
-
-  // Add deprecation warnings to backward compatibility exports
-  const originalUseSleeperNFLState = useSleeperNFLState;
-  (useSleeperNFLState as any)._deprecated = true;
-  
-  const originalUseSleeperPlayers = useSleeperPlayers;
-  (useSleeperPlayers as any)._deprecated = true;
-}

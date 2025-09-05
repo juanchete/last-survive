@@ -8,7 +8,7 @@ interface UseAvailablePlayersParams {
   searchTerm?: string;
   page?: number;
   pageSize?: number;
-  sortBy?: 'name' | 'projected_points' | 'position' | 'team';
+  sortBy?: 'name' | 'projected_points' | 'position' | 'team' | 'adp';
   sortOrder?: 'asc' | 'desc';
 }
 
@@ -19,8 +19,8 @@ export function useAvailablePlayersPaginated({
   searchTerm = '',
   page = 1,
   pageSize = 50,
-  sortBy = 'projected_points',
-  sortOrder = 'desc'
+  sortBy = 'adp',
+  sortOrder = 'asc'
 }: UseAvailablePlayersParams) {
   return useQuery({
     queryKey: ["availablePlayersPaginated", leagueId, week, position, searchTerm, page, pageSize, sortBy, sortOrder],
@@ -56,6 +56,9 @@ export function useAvailablePlayersPaginated({
           college,
           sportsdata_id,
           is_team_defense,
+          adp_standard,
+          adp_ppr,
+          adp_2qb,
           nfl_teams!players_nfl_team_id_fkey (
             id,
             abbreviation,
@@ -76,8 +79,16 @@ export function useAvailablePlayersPaginated({
 
       // Apply sorting
       const orderColumn = sortBy === 'projected_points' ? 'last_season_points' : 
-                          sortBy === 'team' ? 'nfl_team_id' : sortBy;
-      playersQuery = playersQuery.order(orderColumn, { ascending: sortOrder === 'asc' });
+                          sortBy === 'team' ? 'nfl_team_id' : 
+                          sortBy === 'adp' ? 'adp_standard' : sortBy;
+      
+      // For ADP, we want ascending order by default (lower ADP = better)
+      const isAscending = sortBy === 'adp' ? sortOrder === 'asc' : sortOrder === 'asc';
+      
+      playersQuery = playersQuery.order(orderColumn, { 
+        ascending: isAscending,
+        nullsLast: sortBy === 'adp' // Only put nulls last for ADP sorting
+      });
 
       // Apply pagination
       const from = (page - 1) * pageSize;
@@ -129,7 +140,8 @@ export function useAvailablePlayersPaginated({
           height: player.height,
           weight: player.weight,
           college: player.college,
-          isDefense: player.is_team_defense || false
+          isDefense: player.is_team_defense || false,
+          adp: player.adp_standard || null
         };
       }) || [];
 

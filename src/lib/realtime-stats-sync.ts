@@ -123,14 +123,14 @@ export class RealtimeStatsSync {
       // Get player mappings
       const { data: players } = await supabase
         .from('players')
-        .select('id, sleeper_id, stats_id, name');
+        .select('id, stats_id, sportsdata_id, name');
 
       // Create mapping strategies
-      const sleeperIdMap = new Map(
-        players?.map(p => [p.sleeper_id, p.id]).filter(([k]) => k) || []
-      );
       const statsIdMap = new Map(
         players?.map(p => [p.stats_id, p.id]).filter(([k]) => k) || []
+      );
+      const sportsDataIdMap = new Map(
+        players?.map(p => [p.sportsdata_id, p.id]).filter(([k]) => k) || []
       );
       const nameMap = new Map(
         players?.map(p => [p.name?.toLowerCase(), p.id]).filter(([k]) => k) || []
@@ -142,7 +142,7 @@ export class RealtimeStatsSync {
       
       Object.entries(weeklyStats).forEach(([playerKey, stats]) => {
         // Find player ID
-        let playerId = sleeperIdMap.get(playerKey) || 
+        let playerId = sportsDataIdMap.get(playerKey) || 
                        statsIdMap.get(playerKey) ||
                        nameMap.get(stats.player_name?.toLowerCase());
         

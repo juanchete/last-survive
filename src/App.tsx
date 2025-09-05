@@ -32,7 +32,7 @@ import PrivateRoute from "@/components/PrivateRoute";
 // Import test file for development
 if (import.meta.env.DEV) {
   import('./test-sportsdata-integration');
-  import('./scripts/sync-sportsdata');
+  // Note: sync-sportsdata script disabled due to Sleeper removal
 }
 import AdminRoute from "@/components/AdminRoute";
 import Trades from "./pages/Trades";

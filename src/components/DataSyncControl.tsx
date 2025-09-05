@@ -17,7 +17,8 @@ import {
   useSyncNFLTeams,
   useSyncStatus,
   useProviderStats,
-  useNFLState
+  useNFLState,
+  useSyncADP
 } from '@/hooks/useNFLDataAPI';
 import { providerManager } from '@/lib/providers/ProviderManager';
 import { getProviderDisplayName } from '@/config/providers';
@@ -48,6 +49,7 @@ export function DataSyncControl() {
   const syncWeeklyStats = useSyncWeeklyStats();
   const syncWeeklyProjections = useSyncWeeklyProjections();
   const syncNFLTeams = useSyncNFLTeams();
+  const syncADP = useSyncADP();
 
   const currentProvider = providerManager.getConfig().primaryProvider;
   
@@ -69,13 +71,19 @@ export function DataSyncControl() {
       await syncNFLTeams.mutateAsync();
       addSyncMessage('✅ NFL teams synced successfully');
       
-      // Step 2: Sync Players (40%)
+      // Step 2: Sync Players (30%)
       addSyncMessage('Syncing players from ' + getProviderDisplayName(currentProvider) + '...');
-      setSyncProgress(40);
+      setSyncProgress(30);
       await syncPlayers.mutateAsync();
       addSyncMessage('✅ Players synced successfully');
       
-      // Step 3: Sync Weekly Stats (70%)
+      // Step 3: Sync ADP data (50%)
+      addSyncMessage('Syncing ADP data...');
+      setSyncProgress(50);
+      await syncADP.mutateAsync();
+      addSyncMessage('✅ ADP data synced successfully');
+      
+      // Step 4: Sync Weekly Stats (70%)
       if (nflState) {
         addSyncMessage(`Syncing stats for ${nflState.season} Week ${nflState.week}...`);
         setSyncProgress(70);
@@ -111,7 +119,7 @@ export function DataSyncControl() {
   };
 
   // Sync specific data type
-  const handleSyncSpecific = async (type: 'players' | 'stats' | 'projections' | 'teams') => {
+  const handleSyncSpecific = async (type: 'players' | 'stats' | 'projections' | 'teams' | 'adp') => {
     setIsSyncing(true);
     setSyncMessages([]);
     
@@ -131,7 +139,7 @@ export function DataSyncControl() {
           
         case 'stats':
           if (nflState) {
-            addSyncMessage(`Syncing stats for Week ${nflState.week}...`);
+            addSyncMessage(`Syncing stats for ${nflState.season} Week ${nflState.week}...`);
             await syncWeeklyStats.mutateAsync({
               season: parseInt(nflState.season),
               week: nflState.week,
@@ -143,7 +151,7 @@ export function DataSyncControl() {
           
         case 'projections':
           if (nflState) {
-            addSyncMessage(`Syncing projections for Week ${nflState.week}...`);
+            addSyncMessage(`Syncing projections for ${nflState.season} Week ${nflState.week}...`);
             await syncWeeklyProjections.mutateAsync({
               season: parseInt(nflState.season),
               week: nflState.week,
@@ -151,6 +159,12 @@ export function DataSyncControl() {
             });
             addSyncMessage('✅ Projections synced');
           }
+          break;
+          
+        case 'adp':
+          addSyncMessage('Syncing ADP data...');
+          await syncADP.mutateAsync();
+          addSyncMessage('✅ ADP data synced');
           break;
       }
       
@@ -298,7 +312,7 @@ export function DataSyncControl() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
             <Button 
               onClick={() => handleSyncSpecific('teams')}
               variant="outline"
@@ -312,6 +326,13 @@ export function DataSyncControl() {
               disabled={isSyncing}
             >
               Players
+            </Button>
+            <Button 
+              onClick={() => handleSyncSpecific('adp')}
+              variant="outline"
+              disabled={isSyncing}
+            >
+              ADP Data
             </Button>
             <Button 
               onClick={() => handleSyncSpecific('stats')}

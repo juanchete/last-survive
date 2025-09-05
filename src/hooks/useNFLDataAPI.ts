@@ -5,13 +5,12 @@
  */
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { sleeperProvider } from '@/lib/providers/SleeperProvider';
 import { providerManager } from '@/lib/providers/ProviderManager';
-import { sleeperSync } from '@/lib/sleeper-sync';
 import { toast } from 'sonner';
 import { getActiveProvider } from '@/config/providers';
 import type { NFLState, PlayersMap, StatsMap, ProjectionsMap } from '@/lib/providers/FantasyProvider';
 import type { ProviderName } from '@/lib/providers/ProviderManager';
+import { syncNFLTeams, syncPlayers, syncTeamDefenses, syncProjections, syncStats, syncADP } from '@/scripts/sync-all-sportsdata';
 
 /**
  * Hook to manage the active provider
@@ -233,18 +232,18 @@ export function useSyncPlayers() {
 
   return useMutation({
     mutationFn: async () => {
-      return sleeperSync.syncPlayers();
+      const result = await syncPlayers();
+      if (!result) {
+        throw new Error('Failed to sync players from SportsData.io');
+      }
+      return { success: true, message: 'Players synced successfully' };
     },
     onSuccess: (data) => {
-      if (data.success) {
-        toast.success(data.message);
-        // Invalidate players queries to refetch updated data
-        queryClient.invalidateQueries({ queryKey: ['players'] });
-        queryClient.invalidateQueries({ queryKey: ['available-players'] });
-        queryClient.invalidateQueries({ queryKey: ['nfl', 'players'] });
-      } else {
-        toast.error(data.message);
-      }
+      toast.success('Players synced successfully');
+      // Invalidate players queries to refetch updated data
+      queryClient.invalidateQueries({ queryKey: ['players'] });
+      queryClient.invalidateQueries({ queryKey: ['available-players'] });
+      queryClient.invalidateQueries({ queryKey: ['nfl', 'players'] });
     },
     onError: (error) => {
       toast.error(`Failed to sync players: ${error.message}`);
@@ -268,19 +267,19 @@ export function useSyncWeeklyStats() {
       week: number;
       seasonType?: 'pre' | 'regular' | 'post';
     }) => {
-      return sleeperSync.syncWeeklyStats(season, week, seasonType);
+      const result = await syncStats(week, season);
+      if (!result) {
+        throw new Error('Failed to sync stats from SportsData.io');
+      }
+      return { success: true, message: 'Stats synced successfully' };
     },
     onSuccess: (data) => {
-      if (data.success) {
-        toast.success(data.message);
-        // Invalidate relevant queries
-        queryClient.invalidateQueries({ queryKey: ['player-stats'] });
-        queryClient.invalidateQueries({ queryKey: ['team-scores'] });
-        queryClient.invalidateQueries({ queryKey: ['standings'] });
-        queryClient.invalidateQueries({ queryKey: ['nfl', 'weekly-stats'] });
-      } else {
-        toast.error(data.message);
-      }
+      toast.success('Weekly stats synced successfully');
+      // Invalidate relevant queries
+      queryClient.invalidateQueries({ queryKey: ['player-stats'] });
+      queryClient.invalidateQueries({ queryKey: ['team-scores'] });
+      queryClient.invalidateQueries({ queryKey: ['standings'] });
+      queryClient.invalidateQueries({ queryKey: ['nfl', 'weekly-stats'] });
     },
     onError: (error) => {
       toast.error(`Failed to sync weekly stats: ${error.message}`);
@@ -304,17 +303,17 @@ export function useSyncWeeklyProjections() {
       week: number;
       seasonType?: 'pre' | 'regular' | 'post';
     }) => {
-      return sleeperSync.syncWeeklyProjections(season, week, seasonType);
+      const result = await syncProjections(week, season);
+      if (!result) {
+        throw new Error('Failed to sync projections from SportsData.io');
+      }
+      return { success: true, message: 'Projections synced successfully' };
     },
     onSuccess: (data) => {
-      if (data.success) {
-        toast.success(data.message);
-        // Invalidate relevant queries
-        queryClient.invalidateQueries({ queryKey: ['nfl', 'weekly-projections'] });
-        queryClient.invalidateQueries({ queryKey: ['player-projections'] });
-      } else {
-        toast.error(data.message);
-      }
+      toast.success('Weekly projections synced successfully');
+      // Invalidate relevant queries
+      queryClient.invalidateQueries({ queryKey: ['nfl', 'weekly-projections'] });
+      queryClient.invalidateQueries({ queryKey: ['player-projections'] });
     },
     onError: (error) => {
       toast.error(`Failed to sync weekly projections: ${error.message}`);
@@ -329,17 +328,46 @@ export function useSyncNFLTeams() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: () => sleeperSync.syncNFLTeams(),
-    onSuccess: (data) => {
-      if (data.success) {
-        toast.success(data.message);
-        queryClient.invalidateQueries({ queryKey: ['nfl-teams'] });
-      } else {
-        toast.error(data.message);
+    mutationFn: async () => {
+      const result = await syncNFLTeams();
+      if (!result) {
+        throw new Error('Failed to sync NFL teams from SportsData.io');
       }
+      return { success: true, message: 'NFL teams synced successfully' };
+    },
+    onSuccess: (data) => {
+      toast.success('NFL teams synced successfully');
+      queryClient.invalidateQueries({ queryKey: ['nfl-teams'] });
     },
     onError: (error) => {
       toast.error(`Failed to sync NFL teams: ${error.message}`);
+    },
+  });
+}
+
+/**
+ * Sync ADP data from FantasyPlayers endpoint
+ */
+export function useSyncADP() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async () => {
+      const result = await syncADP();
+      if (!result) {
+        throw new Error('Failed to sync ADP from SportsData.io');
+      }
+      return { success: true, message: 'ADP data synced successfully' };
+    },
+    onSuccess: (data) => {
+      toast.success('ADP data synced successfully');
+      // Invalidate players queries to refetch updated data
+      queryClient.invalidateQueries({ queryKey: ['players'] });
+      queryClient.invalidateQueries({ queryKey: ['available-players'] });
+      queryClient.invalidateQueries({ queryKey: ['nfl', 'players'] });
+    },
+    onError: (error) => {
+      toast.error(`Failed to sync ADP: ${error.message}`);
     },
   });
 }
@@ -350,7 +378,14 @@ export function useSyncNFLTeams() {
 export function useSyncStatus() {
   return useQuery({
     queryKey: ['nfl', 'sync-status'],
-    queryFn: () => sleeperSync.getSyncStatus(),
+    queryFn: async () => {
+      return {
+        success: true,
+        message: 'SportsData.io sync status not implemented',
+        lastSync: new Date().toISOString(),
+        syncEnabled: false
+      };
+    },
     staleTime: 1000 * 60 * 5, // 5 minutes
     retry: 1,
   });

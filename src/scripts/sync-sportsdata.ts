@@ -4,7 +4,6 @@
  */
 
 import { providerManager } from '../lib/providers/ProviderManager';
-import { sleeperSync } from '../lib/sleeper-sync';
 
 async function syncSportsDataToDatabase() {
   console.log('🚀 Iniciando sincronización con SportsData.io...\n');
@@ -13,16 +12,9 @@ async function syncSportsDataToDatabase() {
   providerManager.switchProvider('sportsdata');
   console.log('✅ Proveedor cambiado a SportsData.io');
   
-  const results = {
-    teams: { success: false, message: '' },
-    players: { success: false, message: '' },
-    stats: { success: false, message: '' },
-    projections: { success: false, message: '' }
-  };
-
   try {
-    // 1. Obtener el estado actual de la NFL
-    console.log('\n📅 Obteniendo estado actual de la NFL...');
+    // 1. Verificar el estado actual de la NFL
+    console.log('\n📅 Verificando estado actual de la NFL...');
     const nflStateResponse = await providerManager.getNFLState();
     
     if (nflStateResponse.error) {
@@ -33,77 +25,73 @@ async function syncSportsDataToDatabase() {
     const nflState = nflStateResponse.data!;
     console.log(`✅ Estado actual: ${nflState.season} - Semana ${nflState.week} (${nflState.season_type})`);
     
-    // 2. Sincronizar equipos NFL
-    console.log('\n🏈 Sincronizando equipos NFL...');
-    const teamsResult = await sleeperSync.syncNFLTeams();
-    results.teams = teamsResult;
-    console.log(teamsResult.success ? '✅' : '❌', teamsResult.message);
+    // 2. Verificar conexión con SportsData.io
+    console.log('\n🔌 Verificando conexión con SportsData.io...');
+    const healthResponse = await providerManager.healthCheck();
+    if (healthResponse.healthy) {
+      console.log('✅ Conexión con SportsData.io exitosa');
+    } else {
+      console.error('❌ Error de conexión:', healthResponse.details);
+      return;
+    }
     
-    // 3. Sincronizar jugadores
-    console.log('\n👥 Sincronizando jugadores desde SportsData...');
-    const playersResult = await sleeperSync.syncPlayers(false, true);
-    results.players = playersResult;
-    console.log(playersResult.success ? '✅' : '❌', playersResult.message);
+    // 3. Obtener muestra de jugadores
+    console.log('\n👥 Obteniendo muestra de jugadores...');
+    const playersResponse = await providerManager.getAllPlayers();
     
-    // 4. Sincronizar estadísticas de la semana actual
-    const currentSeason = parseInt(nflState.season);
-    const currentWeek = nflState.week;
+    if (playersResponse.error) {
+      console.error('❌ Error obteniendo jugadores:', playersResponse.error);
+      return;
+    }
     
-    console.log(`\n📊 Sincronizando estadísticas de la Semana ${currentWeek}...`);
-    const statsResult = await sleeperSync.syncWeeklyStats(
-      currentSeason, 
-      currentWeek, 
+    const players = playersResponse.data || {};
+    const playerCount = Object.keys(players).length;
+    console.log(`✅ ${playerCount} jugadores disponibles desde SportsData.io`);
+    
+    // 4. Obtener muestra de estadísticas
+    console.log(`\n📊 Obteniendo estadísticas de la Semana ${nflState.week}...`);
+    const statsResponse = await providerManager.getWeeklyStats(
+      parseInt(nflState.season),
+      nflState.week,
       nflState.season_type
     );
-    results.stats = statsResult;
-    console.log(statsResult.success ? '✅' : '❌', statsResult.message);
     
-    // 5. Sincronizar proyecciones de la semana actual
-    console.log(`\n📈 Sincronizando proyecciones de la Semana ${currentWeek}...`);
-    const projectionsResult = await sleeperSync.syncWeeklyProjections(
-      currentSeason,
-      currentWeek,
+    if (statsResponse.error) {
+      console.warn('⚠️ Error obteniendo estadísticas:', statsResponse.error);
+    } else {
+      const stats = statsResponse.data || {};
+      const statsCount = Object.keys(stats).length;
+      console.log(`✅ ${statsCount} jugadores con estadísticas disponibles`);
+    }
+    
+    // 5. Obtener muestra de proyecciones
+    console.log(`\n📈 Obteniendo proyecciones de la Semana ${nflState.week}...`);
+    const projectionsResponse = await providerManager.getWeeklyProjections(
+      parseInt(nflState.season),
+      nflState.week,
       nflState.season_type
     );
-    results.projections = projectionsResult;
-    console.log(projectionsResult.success ? '✅' : '❌', projectionsResult.message);
     
-    // 6. Obtener estado de sincronización
-    console.log('\n📊 Estado de la base de datos después de la sincronización:');
-    const syncStatus = await sleeperSync.getSyncStatus();
-    console.log(`- Jugadores: ${syncStatus.playerCount}`);
-    console.log(`- Estadísticas: ${syncStatus.statsCount}`);
-    console.log(`- Proyecciones: ${syncStatus.projectionsCount}`);
-    console.log(`- Proveedor activo: ${syncStatus.activeProvider}`);
-    console.log(`- Última sincronización: ${syncStatus.lastSync || 'Nunca'}`);
+    if (projectionsResponse.error) {
+      console.warn('⚠️ Error obteniendo proyecciones:', projectionsResponse.error);
+    } else {
+      const projections = projectionsResponse.data || {};
+      const projCount = Object.keys(projections).length;
+      console.log(`✅ ${projCount} jugadores con proyecciones disponibles`);
+    }
+    
+    console.log('\n🎉 ¡Verificación de SportsData.io completa!');
+    console.log('💡 Para sincronizar datos a la base de datos, usa el script sync-all-sportsdata.ts');
     
   } catch (error) {
-    console.error('\n❌ Error durante la sincronización:', error);
-  }
-
-  // Resumen final
-  console.log('\n' + '='.repeat(50));
-  console.log('📋 RESUMEN DE SINCRONIZACIÓN:');
-  console.log('='.repeat(50));
-  
-  Object.entries(results).forEach(([key, result]) => {
-    console.log(`${result.success ? '✅' : '❌'} ${key.toUpperCase()}: ${result.message}`);
-  });
-  
-  const successCount = Object.values(results).filter(r => r.success).length;
-  console.log(`\n🎯 Resultado: ${successCount}/4 sincronizaciones exitosas`);
-  
-  if (successCount === 4) {
-    console.log('🎉 ¡Sincronización completa exitosa!');
-  } else {
-    console.log('⚠️ Algunas sincronizaciones fallaron. Revisa los logs para más detalles.');
+    console.error('\n❌ Error durante la verificación:', error);
   }
 }
 
 // Hacer la función disponible globalmente para ejecutar desde la consola
 if (typeof window !== 'undefined') {
   (window as any).syncSportsData = syncSportsDataToDatabase;
-  console.log('💡 Ejecuta `syncSportsData()` en la consola para sincronizar datos desde SportsData.io');
+  console.log('💡 Ejecuta `syncSportsData()` en la consola para verificar SportsData.io');
 }
 
 export { syncSportsDataToDatabase };

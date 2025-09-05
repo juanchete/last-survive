@@ -7,16 +7,11 @@ import { ProviderName, ProviderManagerConfig } from '@/lib/providers/ProviderMan
 
 // Provider API keys - These should ideally come from environment variables
 export const PROVIDER_API_KEYS = {
-  sportsdata: import.meta.env.VITE_SPORTSDATA_API_KEY || 'a7fdf8e0c4914c15894d1cb3bb3c884a',
-  sleeper: import.meta.env.VITE_SLEEPER_API_KEY || '', // Sleeper doesn't require an API key
+  sportsdata: import.meta.env.VITE_SPORTSDATA_API_KEY || 'f1826e4060774e56a6f56bae1d9eb76e',
 } as const;
 
 // Provider endpoints configuration
 export const PROVIDER_ENDPOINTS = {
-  sleeper: {
-    base: 'https://api.sleeper.app',
-    edge: '/sleeper-proxy', // Our Edge Function proxy
-  },
   sportsdata: {
     base: 'https://api.sportsdata.io/v3/nfl',
     edge: '/sportsdata-proxy', // Our Edge Function proxy
@@ -25,34 +20,15 @@ export const PROVIDER_ENDPOINTS = {
 
 // Default provider configuration
 export const DEFAULT_PROVIDER_CONFIG: ProviderManagerConfig = {
-  primaryProvider: 'sleeper' as ProviderName, // Default to Sleeper
-  fallbackProvider: 'sportsdata' as ProviderName,
-  enableFallback: true,
+  primaryProvider: 'sportsdata' as ProviderName, // Default to SportsData.io
+  fallbackProvider: undefined,
+  enableFallback: false,
   cacheResults: true,
   logErrors: true,
 };
 
 // Provider-specific settings
 export const PROVIDER_SETTINGS = {
-  sleeper: {
-    rateLimit: {
-      requestsPerMinute: 100,
-      requestsPerHour: 1000,
-    },
-    cache: {
-      players: 86400, // 24 hours in seconds
-      stats: 300, // 5 minutes
-      projections: 300, // 5 minutes
-      state: 60, // 1 minute
-    },
-    features: {
-      hasProjections: true,
-      hasLiveStats: true,
-      hasDFS: false,
-      hasOdds: false,
-      hasNews: true,
-    },
-  },
   sportsdata: {
     rateLimit: {
       requestsPerMinute: 60,
@@ -169,7 +145,6 @@ export function clearProviderCache(provider?: ProviderName): void {
  */
 export function getProviderDisplayName(provider: ProviderName): string {
   const names: Record<ProviderName, string> = {
-    sleeper: 'Sleeper',
     sportsdata: 'SportsData.io',
   };
   return names[provider] || provider;
@@ -187,7 +162,7 @@ export function getProviderStatusColor(healthy: boolean): string {
  */
 export function providerSupportsFeature(
   provider: ProviderName,
-  feature: keyof typeof PROVIDER_SETTINGS.sleeper.features
+  feature: keyof typeof PROVIDER_SETTINGS.sportsdata.features
 ): boolean {
   return PROVIDER_SETTINGS[provider]?.features[feature] ?? false;
 }

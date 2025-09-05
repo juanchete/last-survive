@@ -45,6 +45,13 @@ export interface NFLPlayer {
   practice_participation?: string
   practice_description?: string
   news_updated?: number
+  // ADP (Average Draft Position) fields
+  adp_standard?: number
+  adp_ppr?: number
+  adp_2qb?: number
+  adp_rookie?: number
+  adp_dynasty?: number
+  adp_dynasty_ppr?: number
   metadata?: {
     [key: string]: any
   }
