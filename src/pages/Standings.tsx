@@ -214,22 +214,27 @@ export default function Standings() {
                     const isUserTeam = team.owner_id === user?.id;
                     const isTopThree = index < 3;
                     
-                    // Find the lowest projected points among non-eliminated teams
+                    // Find the team in last place based on current sorting mode
                     const activeTeams = sortedTeams.filter(t => !t.eliminated);
-                    const lowestProjectedTeam = activeTeams.length > 0 ? 
-                      activeTeams.reduce((prev, curr) => {
-                        const prevProjection = projections?.find(p => p.teamId === prev.id)?.projectedPoints || 0;
-                        const currProjection = projections?.find(p => p.teamId === curr.id)?.projectedPoints || 0;
-                        return currProjection < prevProjection ? curr : prev;
-                      }) : null;
+                    const lastPlaceTeam = activeTeams.length > 0 ? activeTeams[activeTeams.length - 1] : null;
                     
                     const teamProjection = projections?.find(p => p.teamId === team.id)?.projectedPoints || 0;
-                    const lowestProjection = lowestProjectedTeam ? 
-                      (projections?.find(p => p.teamId === lowestProjectedTeam.id)?.projectedPoints || 0) : 0;
                     
-                    // Points needed to be safe (more than the lowest projected team)
-                    const pointsToSafety = team.eliminated ? 0 : Math.max(0, (lowestProjection + 0.1) - teamProjection);
-                    const isInDanger = !team.eliminated && lowestProjectedTeam && team.id === lowestProjectedTeam.id;
+                    // Points needed to be safe - based on current sorting mode
+                    let pointsToSafety = 0;
+                    let isInDanger = false;
+                    
+                    if (!team.eliminated && lastPlaceTeam) {
+                      if (sortingMode === 'projected') {
+                        const lastPlaceProjection = projections?.find(p => p.teamId === lastPlaceTeam.id)?.projectedPoints || 0;
+                        pointsToSafety = Math.max(0, (lastPlaceProjection + 0.1) - teamProjection);
+                        isInDanger = team.id === lastPlaceTeam.id;
+                      } else {
+                        // For actual points mode, the team in danger is the one currently in last place
+                        pointsToSafety = Math.max(0, (lastPlaceTeam.points + 0.1) - team.points);
+                        isInDanger = team.id === lastPlaceTeam.id;
+                      }
+                    }
                     
                     return (
                       <TableRow 

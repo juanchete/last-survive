@@ -31,8 +31,18 @@ export default function Dashboard() {
   const { data: userTeam, isLoading: loadingUserTeam } = useUserFantasyTeam(leagueId);
   const { data: availablePlayers = [], isLoading: loadingPlayers } = useAvailablePlayers(leagueId, currentWeek);
 
-  // Top equipos ordenados por ranking
-  const topTeams = [...teams].sort((a, b) => a.rank - b.rank).slice(0, 3);
+  // Top equipos ordenados por puntos (con desempate por orden alfabético)
+  const topTeams = [...teams]
+    .sort((a, b) => {
+      // First sort by points (descending)
+      if (b.points !== a.points) {
+        return b.points - a.points;
+      }
+      // If points are equal, sort by name for consistent ordering
+      return a.name.localeCompare(b.name);
+    })
+    .map((team, index) => ({ ...team, rank: index + 1 })) // Update ranks based on actual sorting
+    .slice(0, 5); // Show top 5 instead of 3 for better context
   // Top jugadores disponibles por puntos
   const topAvailablePlayers = availablePlayers
     .sort((a, b) => b.points - a.points)

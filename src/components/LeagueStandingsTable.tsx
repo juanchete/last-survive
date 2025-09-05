@@ -26,11 +26,24 @@ export function LeagueStandingsTable({ teams, isLoading }: LeagueStandingsTableP
     );
   }
 
-  // Show top 5 teams
-  const topTeams = teams.slice(0, 5);
+  // Sort teams by points and assign proper ranks
+  const sortedTeams = [...teams]
+    .sort((a, b) => {
+      // Sort by points (descending)
+      if (b.points !== a.points) {
+        return b.points - a.points;
+      }
+      // If points are equal, sort by name for consistent ordering
+      return a.name.localeCompare(b.name);
+    })
+    .map((team, index) => ({ ...team, rank: index + 1 }));
 
-  // Calculate average points (assuming at least 1 week played)
+  // Show all teams (not just top 5)
   const currentWeek = Math.max(1, 1); // This should come from actual week data
+  
+  // Find team in last place among non-eliminated teams
+  const activeTeams = sortedTeams.filter(t => !t.eliminated);
+  const lastPlaceTeam = activeTeams.length > 0 ? activeTeams[activeTeams.length - 1] : null;
 
   return (
     <Card className="bg-nfl-gray border-nfl-light-gray/20 overflow-hidden">
@@ -45,9 +58,10 @@ export function LeagueStandingsTable({ teams, isLoading }: LeagueStandingsTableP
           </TableRow>
         </TableHeader>
         <TableBody>
-          {topTeams.map((team) => {
+          {sortedTeams.map((team) => {
             const isUserTeam = team.owner_id === user?.id;
             const avgPoints = (team.points / currentWeek).toFixed(1);
+            const isInDanger = !team.eliminated && lastPlaceTeam && team.id === lastPlaceTeam.id;
             
             return (
               <TableRow 
@@ -79,15 +93,17 @@ export function LeagueStandingsTable({ teams, isLoading }: LeagueStandingsTableP
                 </TableCell>
                 <TableCell className="text-right">
                   <Badge 
-                    variant={team.eliminated ? "destructive" : "default"}
+                    variant={team.eliminated ? "destructive" : isInDanger ? "warning" : "default"}
                     className={`
                       ${team.eliminated 
                         ? 'bg-nfl-red/20 text-nfl-red border-nfl-red/30' 
+                        : isInDanger
+                        ? 'bg-orange-500/20 text-orange-500 border-orange-500/30'
                         : 'bg-nfl-green/20 text-nfl-green border-nfl-green/30'
                       }
                     `}
                   >
-                    {team.eliminated ? 'Eliminated' : 'Safe'}
+                    {team.eliminated ? 'Eliminated' : isInDanger ? 'IN DANGER' : 'Safe'}
                   </Badge>
                 </TableCell>
               </TableRow>
