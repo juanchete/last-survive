@@ -7,7 +7,7 @@ export function useIsAdmin() {
 
   // Get admin emails from environment variable
   const adminEmails =
-    ["juanlopezlmg@gmail.com"].map((email: string) => email.trim()) || [];
+    ["juanlopezlmg@gmail.com", "26justusl@gmail.com"].map((email: string) => email.trim()) || [];
 
   // Add default admin check for development
   const defaultAdminChecks = user?.email?.includes("admin");
