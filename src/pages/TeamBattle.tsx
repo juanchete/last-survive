@@ -12,6 +12,7 @@ import { Switch } from "@/components/ui/switch";
 import { useAuth } from "@/hooks/useAuth";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useRealtimeStats } from "@/hooks/useRealtimeStats";
 
 interface PlayerStats {
   player_id: number;
@@ -236,6 +237,9 @@ export default function TeamBattle() {
   // Hooks for real data
   const { data: teams = [], isLoading: loadingTeams } = useFantasyTeams(leagueId);
   const { data: userTeam } = useUserFantasyTeam(leagueId);
+  
+  // Auto-start real-time stats sync during game time
+  const { status: syncStatus, forceSync } = useRealtimeStats(true);
 
   // Get current week
   const { data: currentWeek } = useQuery({
@@ -341,13 +345,25 @@ export default function TeamBattle() {
                 ({teams.filter(t => !t.eliminated).length} teams remaining - Sorting by {sortingMode === 'projected' ? 'Projected' : 'Actual'} Points)
               </span>
             </div>
-            <div className="flex items-center gap-2">
-              <RefreshCw className="w-4 h-4 text-gray-400" />
-              <span className="text-sm text-gray-400">Auto-Scroll</span>
-              <Switch
-                checked={autoScroll}
-                onCheckedChange={setAutoScroll}
-              />
+            <div className="flex items-center gap-4">
+              {/* Real-time sync status */}
+              <div className="flex items-center gap-2">
+                <RefreshCw 
+                  className={`w-4 h-4 ${syncStatus.isRunning ? 'text-green-500 animate-spin' : 'text-gray-400'}`} 
+                />
+                <span className="text-xs text-gray-400">
+                  {syncStatus.isRunning ? 'Live Sync' : 'Sync Off'}
+                  {syncStatus.isGameTime && syncStatus.isRunning && ' 🔴'}
+                </span>
+              </div>
+              
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-gray-400">Auto-Scroll</span>
+                <Switch
+                  checked={autoScroll}
+                  onCheckedChange={setAutoScroll}
+                />
+              </div>
             </div>
           </div>
           

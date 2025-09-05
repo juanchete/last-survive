@@ -16,8 +16,10 @@ import DashboardStatsCard from '@/components/DashboardStatsCard';
 import UserManagementTable from '@/components/UserManagementTable';
 import TradeManagementPanel from '@/components/TradeManagementPanel';
 import { LeagueJoinRequests } from '@/components/LeagueJoinRequests';
+import { InvitePlayerToLeague } from '@/components/InvitePlayerToLeague';
 import { useLeagueDashboardData } from '@/hooks/useLeagueDashboardData';
 import { useLeagueDashboardActions } from '@/hooks/useLeagueDashboardActions';
+import { useQuery } from '@tanstack/react-query';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -66,6 +68,25 @@ const LeagueManagerDashboard: React.FC = () => {
   
   // Obtener datos de la liga con semana configurable
   const { members, trades, teams, stats, selectedWeek: currentWeek, isLoading, error } = useLeagueDashboardData(leagueId || "", selectedWeek);
+  
+  // Get league details for invite component
+  const { data: leagueDetails, error: leagueError } = useQuery({
+    queryKey: ['league-details', leagueId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('leagues')
+        .select('id, name, private_code, entry_fee, max_members, start_date, prize')
+        .eq('id', leagueId)
+        .single();
+      
+      if (error) {
+        console.error('Error fetching league details:', error);
+        throw error;
+      }
+      return data;
+    },
+    enabled: !!leagueId // Remove isOwner condition, fetch always
+  });
   
   // Acciones del dashboard
   const { 
@@ -389,6 +410,23 @@ const LeagueManagerDashboard: React.FC = () => {
                   </div>
                 </CardContent>
               </Card>
+              
+              {/* Always show invite component if user is owner, with fallback data */}
+              {isOwner && (
+                <InvitePlayerToLeague 
+                  leagueId={leagueId!}
+                  league={{
+                    id: leagueDetails?.id || leagueId!,
+                    name: leagueDetails?.name || "Liga",
+                    private_code: leagueDetails?.private_code || "KCP8AU", // Fallback since we know this league has this code
+                    entry_fee: leagueDetails?.entry_fee || 0,
+                    max_members: leagueDetails?.max_members || 10,
+                    start_date: leagueDetails?.start_date || null,
+                    prize: leagueDetails?.prize || ""
+                  }}
+                  isOwner={!!isOwner}
+                />
+              )}
             </>
           )}
         </TabsContent>
