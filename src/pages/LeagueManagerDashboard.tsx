@@ -20,6 +20,7 @@ import { InvitePlayerToLeague } from '@/components/InvitePlayerToLeague';
 import { useLeagueDashboardData } from '@/hooks/useLeagueDashboardData';
 import { useLeagueDashboardActions } from '@/hooks/useLeagueDashboardActions';
 import { useQuery } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -70,9 +71,11 @@ const LeagueManagerDashboard: React.FC = () => {
   const { members, trades, teams, stats, selectedWeek: currentWeek, isLoading, error } = useLeagueDashboardData(leagueId || "", selectedWeek);
   
   // Get league details for invite component
-  const { data: leagueDetails, error: leagueError } = useQuery({
+  const { data: leagueDetails, error: leagueError, isLoading: leagueLoading } = useQuery({
     queryKey: ['league-details', leagueId],
     queryFn: async () => {
+      if (!leagueId) throw new Error('League ID is required');
+      
       const { data, error } = await supabase
         .from('leagues')
         .select('id, name, private_code, entry_fee, max_members, start_date, prize')
@@ -80,12 +83,20 @@ const LeagueManagerDashboard: React.FC = () => {
         .single();
       
       if (error) {
-        console.error('Error fetching league details:', error);
-        throw error;
+        console.error('Error fetching league details for', leagueId, ':', error);
+        throw new Error(`Failed to load league details: ${error.message}`);
       }
+      
+      if (!data) {
+        throw new Error('League not found');
+      }
+      
+      console.log('League details loaded successfully:', data);
       return data;
     },
-    enabled: !!leagueId // Remove isOwner condition, fetch always
+    enabled: !!leagueId,
+    retry: 3,
+    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000)
   });
   
   // Acciones del dashboard
@@ -411,21 +422,35 @@ const LeagueManagerDashboard: React.FC = () => {
                 </CardContent>
               </Card>
               
-              {/* Always show invite component if user is owner, with fallback data */}
-              {isOwner && (
+              {/* Only show invite component if we have real league details */}
+              {isOwner && leagueDetails && (
                 <InvitePlayerToLeague 
                   leagueId={leagueId!}
                   league={{
-                    id: leagueDetails?.id || leagueId!,
-                    name: leagueDetails?.name || "Liga",
-                    private_code: leagueDetails?.private_code || "KCP8AU", // Fallback since we know this league has this code
-                    entry_fee: leagueDetails?.entry_fee || 0,
-                    max_members: leagueDetails?.max_members || 10,
-                    start_date: leagueDetails?.start_date || null,
-                    prize: leagueDetails?.prize || ""
+                    id: leagueDetails.id,
+                    name: leagueDetails.name,
+                    private_code: leagueDetails.private_code, // Use real code, no fallback
+                    entry_fee: leagueDetails.entry_fee || 0,
+                    max_members: leagueDetails.max_members || 10,
+                    start_date: leagueDetails.start_date,
+                    prize: leagueDetails.prize || ""
                   }}
                   isOwner={!!isOwner}
                 />
+              )}
+              
+              {/* Show message if league details are loading or failed */}
+              {isOwner && !leagueDetails && (
+                <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-lg p-4">
+                  <p className="text-yellow-400 text-sm">
+                    ⏳ Cargando información de la liga...
+                  </p>
+                  {leagueError && (
+                    <p className="text-red-400 text-xs mt-2">
+                      Error: {leagueError.message}
+                    </p>
+                  )}
+                </div>
               )}
             </>
           )}
