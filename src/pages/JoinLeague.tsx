@@ -263,7 +263,7 @@ export default function JoinLeague() {
     // La query se ejecutará automáticamente al cambiar manualCode
   };
 
-  const canJoin = league && league.status === 'upcoming' && 
+  const canJoin = league && 
     (!league.max_members || !members || members.length < league.max_members);
 
   // Función para obtener mensaje de error específico
@@ -413,15 +413,8 @@ export default function JoinLeague() {
                   </p>
                 </div>
 
-                {league.status !== 'upcoming' && (
-                  <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-lg p-4">
-                    <p className="text-yellow-400 text-sm">
-                      ⚠️ Esta liga ya ha comenzado o ha finalizado. No es posible unirse.
-                    </p>
-                  </div>
-                )}
 
-                {!canJoin && league.status === 'upcoming' && (
+                {!canJoin && (
                   <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-4">
                     <p className="text-red-400 text-sm">
                       🚫 Esta liga ha alcanzado el límite máximo de participantes ({league.max_members}).
