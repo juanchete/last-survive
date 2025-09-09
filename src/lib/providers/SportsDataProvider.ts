@@ -167,6 +167,67 @@ export interface SportsDataProjection extends SportsDataStats {
   // but represent projected values instead of actual
 }
 
+export interface SportsDataDefenseStats {
+  GameKey: string;
+  SeasonType: number;
+  Season: number;
+  Week: number;
+  Date: string;
+  Team: string;
+  Opponent: string;
+  PointsAllowed: number;
+  TouchdownsScored: number;
+  SoloTackles: number;
+  AssistedTackles: number;
+  Sacks: number;
+  SackYards: number;
+  PassesDefended: number;
+  FumblesForced: number;
+  FumblesRecovered: number;
+  FumbleReturnYards: number;
+  FumbleReturnTouchdowns: number;
+  Interceptions: number;
+  InterceptionReturnYards: number;
+  InterceptionReturnTouchdowns: number;
+  BlockedKicks: number;
+  Safeties: number;
+  PuntReturns: number;
+  PuntReturnYards: number;
+  PuntReturnTouchdowns: number;
+  PuntReturnLong: number;
+  KickReturns: number;
+  KickReturnYards: number;
+  KickReturnTouchdowns: number;
+  KickReturnLong: number;
+  BlockedKickReturnTouchdowns: number;
+  FieldGoalReturnTouchdowns: number;
+  FantasyPoints: number;
+  FantasyPointsDraftKings: number;
+  FantasyPointsFanDuel: number;
+  FantasyPointsYahoo: number;
+  FantasyPointsFantasyDraft: number;
+  DefensiveTouchdowns: number;
+  SpecialTeamsTouchdowns: number;
+  IsGameOver: boolean;
+  Stadium: string;
+  Temperature: number;
+  Humidity: number;
+  WindSpeed: number;
+  ThirdDownAttempts: number;
+  ThirdDownConversions: number;
+  FourthDownAttempts: number;
+  FourthDownConversions: number;
+  PointsAllowedByDefenseSpecialTeams: number;
+  OffensiveYardsAllowed: number;
+  TeamID: number;
+  OpponentID: number;
+  GlobalGameID: number;
+  GlobalTeamID: number;
+  GlobalOpponentID: number;
+  FantasyDefenseID: number;
+  ScoreID: number;
+}
+
 export interface SportsDataCurrentWeek {
   Season: number;
   SeasonType: number;
@@ -379,6 +440,59 @@ export class SportsDataProvider extends BaseFantasyProvider {
           error instanceof Error
             ? error.message
             : "Failed to fetch projections",
+      };
+    }
+  }
+
+  /**
+   * Get defense stats for all teams or specific team
+   */
+  async getDefenseStats(
+    season: number,
+    week: number,
+    team?: string
+  ): Promise<ProviderResponse<Record<string, SportsDataDefenseStats>>> {
+    try {
+      const params: Record<string, string> = {
+        season: season.toString(),
+        week: week.toString(),
+      };
+      
+      if (team) {
+        params.team = team;
+      }
+
+      const result = await this.fetchFromEdgeFunction("/defense-stats", params);
+
+      if (!result) {
+        console.error("Invalid defense stats response:", result);
+        throw new Error("Invalid defense stats response from SportsData API");
+      }
+
+      // If single team requested, result will be an object, otherwise array
+      const defenseData: Record<string, SportsDataDefenseStats> = {};
+      
+      if (Array.isArray(result)) {
+        // Multiple teams
+        result.forEach((teamDefense: SportsDataDefenseStats) => {
+          defenseData[teamDefense.Team] = teamDefense;
+        });
+      } else if (result.Team) {
+        // Single team
+        defenseData[result.Team] = result as SportsDataDefenseStats;
+      }
+
+      return {
+        data: defenseData,
+        cached: false,
+        timestamp: new Date().toISOString(),
+      };
+    } catch (error) {
+      return {
+        error:
+          error instanceof Error
+            ? error.message
+            : "Failed to fetch defense stats",
       };
     }
   }

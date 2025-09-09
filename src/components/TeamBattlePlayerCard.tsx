@@ -23,6 +23,13 @@ interface TeamBattlePlayerCardProps {
       passing_td?: number;
       rushing_yards?: number;
       rushing_td?: number;
+      // Defense stats
+      sacks?: number;
+      interceptions?: number;
+      fumbles_recovered?: number;
+      defensive_touchdowns?: number;
+      points_allowed?: number;
+      safeties?: number;
     };
   };
   isDrafted?: boolean;
@@ -48,14 +55,35 @@ export function TeamBattlePlayerCard({ player, isDrafted = true }: TeamBattlePla
     if (!player.stats) return null;
     
     const stats = [];
-    if (player.stats.receptions !== undefined && player.stats.receiving_yards !== undefined) {
-      stats.push(`${player.stats.receptions} rec, ${player.stats.receiving_yards} yds`);
-    }
-    if (player.stats.passing_yards !== undefined) {
-      stats.push(`${player.stats.passing_yards} pass yds`);
-    }
-    if (player.stats.rushing_yards !== undefined) {
-      stats.push(`${player.stats.rushing_yards} rush yds`);
+    
+    // Defense stats
+    if (player.position === 'DEF' || player.slot === 'DEF') {
+      if (player.stats.sacks !== undefined) {
+        stats.push(`${player.stats.sacks} sacks`);
+      }
+      if (player.stats.interceptions !== undefined) {
+        stats.push(`${player.stats.interceptions} INT`);
+      }
+      if (player.stats.fumbles_recovered !== undefined) {
+        stats.push(`${player.stats.fumbles_recovered} FR`);
+      }
+      if (player.stats.defensive_touchdowns !== undefined && player.stats.defensive_touchdowns > 0) {
+        stats.push(`${player.stats.defensive_touchdowns} TD`);
+      }
+      if (player.stats.points_allowed !== undefined) {
+        stats.push(`${player.stats.points_allowed} PA`);
+      }
+    } else {
+      // Offensive stats
+      if (player.stats.receptions !== undefined && player.stats.receiving_yards !== undefined) {
+        stats.push(`${player.stats.receptions} rec, ${player.stats.receiving_yards} yds`);
+      }
+      if (player.stats.passing_yards !== undefined) {
+        stats.push(`${player.stats.passing_yards} pass yds`);
+      }
+      if (player.stats.rushing_yards !== undefined) {
+        stats.push(`${player.stats.rushing_yards} rush yds`);
+      }
     }
     
     return stats.join(" • ");
@@ -110,6 +138,12 @@ export function TeamBattlePlayerCard({ player, isDrafted = true }: TeamBattlePla
             )}
             <span>{player.team || 'FA'}</span>
           </div>
+          {/* Show stats if available */}
+          {formatStats() && (
+            <div className="text-xs text-gray-400 mt-1 truncate">
+              {formatStats()}
+            </div>
+          )}
         </div>
       </div>
 

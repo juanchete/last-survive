@@ -91,6 +91,19 @@ async function fetchFromSportsData(
     case "/teams":
       url = `${SPORTSDATA_API_BASE}/scores/json/Teams?key=${apiKey}`;
       break;
+    case "/defense-stats":
+      const defSeason = params?.get("season") || "2024";
+      const defWeek = params?.get("week") || "1";
+      const defTeam = params?.get("team");
+      
+      if (defTeam) {
+        // Get defense stats for specific team by game
+        url = `${SPORTSDATA_API_BASE}/stats/json/FantasyDefenseByGameByTeam/${defSeason}/${defWeek}/${defTeam}?key=${apiKey}`;
+      } else {
+        // Get all team defense stats for the week
+        url = `${SPORTSDATA_API_BASE}/stats/json/FantasyDefenseByWeek/${defSeason}REG/${defWeek}?key=${apiKey}`;
+      }
+      break;
     case "/health":
       // Health check endpoint - just test the current week endpoint
       url = `${SPORTSDATA_API_BASE}/scores/json/CurrentWeek?key=${apiKey}`;

@@ -2,6 +2,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { Player } from "@/types";
+import { sportsDataProvider } from "@/lib/providers/SportsDataProvider";
 
 export function useRosterWithPlayerDetails(fantasyTeamId: string, week: number) {
   return useQuery({
@@ -70,6 +71,54 @@ export function useRosterWithPlayerDetails(fantasyTeamId: string, week: number) 
       }));
       const statsMap = new Map(stats.map(stat => [stat.player_id, stat]));
       
+      // Get defense stats for DEF players and update their fantasy_points
+      const defenseTeams = players.filter(p => p.position === 'DEF').map(p => p.nfl_team?.abbreviation).filter(Boolean);
+      
+      if (defenseTeams.length > 0) {
+        try {
+          const defenseResponse = await sportsDataProvider.getDefenseStats(currentYear, week);
+          if (defenseResponse.data) {
+            // Update player_stats table with defense fantasy points
+            for (const [teamAbbr, defenseData] of Object.entries(defenseResponse.data)) {
+              const defensePlayer = players.find(p => p.position === 'DEF' && p.nfl_team?.abbreviation === teamAbbr);
+              
+              if (defensePlayer && defenseData.FantasyPointsDraftKings !== undefined) {
+                // Update or insert player stats with defense points
+                const { error } = await supabase
+                  .from('player_stats')
+                  .upsert({
+                    player_id: defensePlayer.id,
+                    season: currentYear,
+                    week: week,
+                    fantasy_points: defenseData.FantasyPointsDraftKings,
+                    updated_at: new Date().toISOString()
+                  });
+                
+                if (error) {
+                  console.warn(`Failed to update defense stats for ${teamAbbr}:`, error);
+                }
+              }
+            }
+            
+            // Re-fetch stats after updating
+            const { data: updatedStats } = await supabase
+              .from("player_stats")
+              .select("*")
+              .in("player_id", playerIds)
+              .eq("week", week)
+              .eq("season", currentYear);
+              
+            // Update statsMap with fresh data
+            if (updatedStats) {
+              statsMap.clear();
+              updatedStats.forEach(stat => statsMap.set(stat.player_id, stat));
+            }
+          }
+        } catch (error) {
+          console.warn('Failed to fetch defense stats:', error);
+        }
+      }
+
       // Create opponent lookup from schedule
       const getOpponent = (teamAbbr: string) => {
         const game = scheduleData.find(g => 
