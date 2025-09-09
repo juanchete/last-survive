@@ -186,7 +186,7 @@ export default function Standings() {
                   <TableHead className="text-gray-400 font-medium w-16">Pos</TableHead>
                   <TableHead className="text-gray-400 font-medium">Team</TableHead>
                   <TableHead className="text-gray-400 font-medium">Owner</TableHead>
-                  <TableHead className="text-gray-400 font-medium text-center">Top Performer</TableHead>
+                  <TableHead className="text-gray-400 font-medium text-center">1st Place Weeks</TableHead>
                   <TableHead className="text-gray-400 font-medium text-right">Points</TableHead>
                   <TableHead className="text-gray-400 font-medium text-right">Projected</TableHead>
                   <TableHead className="text-gray-400 font-medium text-right">Points to Safety</TableHead>
@@ -279,7 +279,7 @@ export default function Standings() {
                           {team.owner}
                         </TableCell>
                         <TableCell className="text-center text-white">
-                          {team.top_performers || Math.floor(Math.random() * 10)}
+                          {team.first_place_weeks || 0}
                         </TableCell>
                         <TableCell className="text-right font-medium text-nfl-accent">
                           {team.points.toFixed(1)}
@@ -342,13 +342,8 @@ export default function Standings() {
                 <div className="space-y-3">
                   {(() => {
                     const activeTeams = sortedTeams.filter(t => !t.eliminated);
-                    const bottomThree = activeTeams
-                      .sort((a, b) => {
-                        const aProjection = projections?.find(p => p.teamId === a.id)?.projectedPoints || 0;
-                        const bProjection = projections?.find(p => p.teamId === b.id)?.projectedPoints || 0;
-                        return aProjection - bProjection;
-                      })
-                      .slice(0, 3);
+                    // Get the last 3 teams from the already sorted list
+                    const bottomThree = activeTeams.slice(-3).reverse();
                     
                     return bottomThree.map((team, idx) => {
                       const teamProjection = projections?.find(p => p.teamId === team.id)?.projectedPoints || 0;
@@ -356,7 +351,9 @@ export default function Standings() {
                         <div key={team.id} className="flex items-center justify-between">
                           <span className="text-gray-300">{team.name}</span>
                           <div className="flex items-center gap-2">
-                            <span className="text-xs text-gray-400">Proj: {teamProjection.toFixed(1)}</span>
+                            <span className="text-xs text-gray-400">
+                              {sortingMode === 'projected' ? `Proj: ${teamProjection.toFixed(1)}` : `Pts: ${team.points.toFixed(1)}`}
+                            </span>
                             <Badge className={idx === 0 ? 
                               "bg-orange-500/20 text-orange-500 border-orange-500/30" :
                               "bg-nfl-red/20 text-nfl-red border-nfl-red/30"

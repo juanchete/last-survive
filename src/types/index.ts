@@ -36,12 +36,14 @@ export interface FantasyTeam {
   id: string;
   name: string;
   owner: string;
+  owner_id?: string;
   players: Player[];
   points: number;
   rank: number;
   eliminated: boolean;
   mvp_wins?: number;
   total_earnings?: number;
+  first_place_weeks?: number;
   user?: {
     full_name?: string;
     email?: string;

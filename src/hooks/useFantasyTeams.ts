@@ -17,12 +17,14 @@ export function useFantasyTeams(leagueId: string) {
         id: team.id,
         name: team.name,
         owner: team.user?.full_name || "",
+        owner_id: team.user_id,
         players: [], // Puedes poblar esto luego con un join a team_rosters si lo necesitas
         points: team.points,
         rank: team.rank,
         eliminated: team.eliminated,
         mvp_wins: team.mvp_wins || 0,
         total_earnings: team.total_earnings || 0,
+        first_place_weeks: team.first_place_weeks || 0,
       }));
     },
     enabled: !!leagueId,

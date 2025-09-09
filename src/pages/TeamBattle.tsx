@@ -9,6 +9,7 @@ import { LeagueTabs } from "@/components/LeagueTabs";
 import { RefreshCw, Trophy } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
+import { TeamBattlePlayerCard } from "@/components/TeamBattlePlayerCard";
 import { useAuth } from "@/hooks/useAuth";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -66,10 +67,14 @@ function TeamRosterDisplay({
       position: player.position || "POS",
       slot: player.slot || player.position || "POS", // Use slot from roster data
       fantasy_points: player.stats?.fantasy_points || 0,
-      opponent: "vs OPP", // This would need to come from schedule data
+      opponent: player.opponent || "BYE",
       game_time: "TBD",
       is_playing: true,
-      projected_points: 0, // This would need projection data
+      projected_points: player.projected_points || 0,
+      team: player.team || "FA",
+      team_logo: player.team_logo || "",
+      opponent_logo: "", // Would need to fetch opponent team logos
+      stats: player.receiving_stats || player.stats || undefined
     }))
     .sort((a, b) => {
       // Sort by slot order
@@ -92,12 +97,11 @@ function TeamRosterDisplay({
   return (
     <div
       className={`
-        bg-nfl-gray border rounded-lg overflow-hidden
+        bg-nfl-gray border rounded-lg overflow-hidden min-w-[420px] w-[420px]
         ${isUserTeam 
           ? 'border-nfl-blue ring-2 ring-nfl-blue/30' 
           : 'border-nfl-light-gray/20'
         }
-        ${index < 3 ? 'lg:col-span-1' : 'lg:col-span-1'}
       `}
     >
       {/* Team Header */}
@@ -146,7 +150,7 @@ function TeamRosterDisplay({
       </div>
 
       {/* Players List */}
-      <div className="p-2 space-y-2">
+      <div className="p-2 space-y-1">
         {isLoading ? (
           // Loading skeleton for players
           Array(10).fill(0).map((_, i) => (
@@ -161,41 +165,11 @@ function TeamRosterDisplay({
           </div>
         ) : (
           players.map((player) => (
-            <div
+            <TeamBattlePlayerCard
               key={player.player_id}
-              className={`
-                p-3 rounded-lg border
-                ${player.is_playing 
-                  ? 'bg-nfl-dark-gray border-nfl-light-gray/20' 
-                  : 'bg-nfl-dark-gray/50 border-nfl-light-gray/10'
-                }
-              `}
-            >
-              <div className="flex items-center justify-between mb-1">
-                <div className="flex items-center gap-2">
-                  <Badge 
-                    variant="outline" 
-                    className="text-xs border-gray-600 text-gray-300 min-w-[45px] text-center"
-                  >
-                    {player.slot}
-                  </Badge>
-                  <span className="text-sm font-medium text-white">
-                    {player.player_name}
-                  </span>
-                </div>
-                <span className="text-xl font-bold text-white">
-                  {player.fantasy_points.toFixed(1)}
-                </span>
-              </div>
-              <div className="flex items-center justify-between text-xs text-gray-400">
-                <span>
-                  {player.position} • {player.opponent}
-                </span>
-                <span>
-                  Proj: {player.projected_points.toFixed(1)}
-                </span>
-              </div>
-            </div>
+              player={player}
+              isDrafted={true}
+            />
           ))
         )}
       </div>
