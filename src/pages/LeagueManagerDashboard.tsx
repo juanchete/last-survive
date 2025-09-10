@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useParams, Navigate } from 'react-router-dom';
-import { Users, Trophy, TrendingUp, Settings, AlertCircle, Calculator, Trash2, Edit3, UserPlus } from 'lucide-react';
+import { Users, Trophy, TrendingUp, Settings, AlertCircle, Calculator, Trash2, Edit3, UserPlus, Clock, Zap } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
@@ -43,6 +43,8 @@ import {
 } from '@/components/ui/dialog';
 import { useIsLeagueOwner } from '@/hooks/useIsLeagueOwner';
 import { useAuth } from '@/hooks/useAuth';
+import LeagueWaiverManagement from '@/components/LeagueWaiverManagement';
+import WeeklyAutomationControl from '@/components/WeeklyAutomationControl';
 
 const LeagueManagerDashboard: React.FC = () => {
   const { leagueId } = useParams<{ leagueId: string }>();
@@ -327,7 +329,7 @@ const LeagueManagerDashboard: React.FC = () => {
 
       {/* Tabs Navigation */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className="grid w-full grid-cols-5">
+        <TabsList className="grid w-full grid-cols-7">
           <TabsTrigger value="overview" className="flex items-center gap-2">
             <TrendingUp className="h-4 w-4" />
             Resumen
@@ -347,6 +349,14 @@ const LeagueManagerDashboard: React.FC = () => {
           <TabsTrigger value="scoring" className="flex items-center gap-2">
             <Settings className="h-4 w-4" />
             Puntuación
+          </TabsTrigger>
+          <TabsTrigger value="waivers" className="flex items-center gap-2">
+            <Clock className="h-4 w-4" />
+            Waivers
+          </TabsTrigger>
+          <TabsTrigger value="automation" className="flex items-center gap-2">
+            <Zap className="h-4 w-4" />
+            Automatización
           </TabsTrigger>
         </TabsList>
 
@@ -620,6 +630,24 @@ const LeagueManagerDashboard: React.FC = () => {
                 </Card>
               ))}
             </div>
+          )}
+        </TabsContent>
+
+        {/* Waivers Tab */}
+        <TabsContent value="waivers" className="space-y-6">
+          {isLoading ? (
+            <Skeleton className="h-96 w-full" />
+          ) : (
+            <LeagueWaiverManagement leagueId={leagueId || ""} />
+          )}
+        </TabsContent>
+
+        {/* Automation Tab */}
+        <TabsContent value="automation" className="space-y-6">
+          {isLoading ? (
+            <Skeleton className="h-96 w-full" />
+          ) : (
+            <WeeklyAutomationControl />
           )}
         </TabsContent>
 
