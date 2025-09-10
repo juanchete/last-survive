@@ -11,7 +11,9 @@
     "preview": "vite preview",
     "test": "jest",
     "test:watch": "jest --watch",
-    "test:coverage": "jest --coverage"
+    "test:coverage": "jest --coverage",
+    "update-projections": "tsx src/scripts/daily-projections-update.ts",
+    "projections-status": "tsx src/scripts/daily-projections-update.ts -- --status"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.0",
