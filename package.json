@@ -13,7 +13,8 @@
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
     "update-projections": "tsx src/scripts/daily-projections-update.ts",
-    "projections-status": "tsx src/scripts/daily-projections-update.ts -- --status"
+    "projections-status": "tsx src/scripts/daily-projections-update.ts -- --status",
+    "test-weekly-reset": "tsx scripts/test-weekly-reset.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.0",

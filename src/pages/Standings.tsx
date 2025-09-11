@@ -13,6 +13,8 @@ import { SectionHeader } from "@/components/ui/section-header";
 import { StatCard } from "@/components/ui/stat-card";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useWeeklyPoints } from "@/hooks/useWeeklyPoints";
+import { useLeagueInfo } from "@/hooks/useLeagueInfo";
 
 export default function Standings() {
   const location = useLocation();
@@ -47,6 +49,10 @@ export default function Standings() {
   // Hooks for real data
   const { data: teams = [], isLoading: loadingTeams } = useFantasyTeams(leagueId);
   const { data: userTeam } = useUserFantasyTeam(leagueId);
+  const { data: leagueInfo } = useLeagueInfo(leagueId);
+
+  // Get teams with weekly points from the new view with real-time updates
+  const { weeklyStandings } = useWeeklyPoints(leagueId);
 
   // Get current week
   const { data: currentWeekData } = useQuery({
@@ -112,23 +118,45 @@ export default function Standings() {
     enabled: !!leagueId && !!currentWeek,
   });
   
-  // Sort teams based on current mode (projected vs actual points)
-  const sortedTeams = [...teams].sort((a, b) => {
+  // Merge weekly standings data with teams
+  const teamsWithWeeklyPoints = teams.map(team => {
+    const weeklyData = weeklyStandings?.find(ws => ws.id === team.id);
+    return {
+      ...team,
+      weekly_points: weeklyData?.weekly_points || 0,
+      weekly_rank: weeklyData?.weekly_rank || 999
+    };
+  });
+
+  // Separate active and eliminated teams
+  const activeTeams = teamsWithWeeklyPoints.filter(t => !t.eliminated);
+  const eliminatedTeams = teamsWithWeeklyPoints.filter(t => t.eliminated);
+
+  // Sort active teams based on current mode (projected vs actual points)
+  const sortedActiveTeams = [...activeTeams].sort((a, b) => {
     if (sortingMode === 'projected') {
       // Sort by projected points for non-game week
       const aProjection = projections?.find(p => p.teamId === a.id)?.projectedPoints || 0;
       const bProjection = projections?.find(p => p.teamId === b.id)?.projectedPoints || 0;
       return bProjection - aProjection; // Highest first
     } else {
-      // Sort by actual points for game week
-      return b.points - a.points; // Highest first
+      // Sort by weekly points for game week (resets each Tuesday)
+      return b.weekly_points - a.weekly_points; // Highest first
     }
   });
+
+  // Sort eliminated teams by their final ranking (when they were eliminated)
+  const sortedEliminatedTeams = [...eliminatedTeams].sort((a, b) => {
+    return (b.points || 0) - (a.points || 0); // Sort by total points when eliminated
+  });
   
-  // Update rankings based on sorted order
-  sortedTeams.forEach((team, index) => {
+  // Update rankings for active teams only
+  sortedActiveTeams.forEach((team, index) => {
     team.rank = index + 1;
   });
+
+  // Combined teams for certain calculations (like league leader)
+  const sortedTeams = [...sortedActiveTeams, ...sortedEliminatedTeams];
 
   return (
     <Layout>
@@ -153,9 +181,9 @@ export default function Standings() {
             <StatCard
               icon={Users}
               iconColor="text-nfl-blue"
-              label="Active Teams"
-              value={teams.filter(t => !t.eliminated).length}
-              subValue={`of ${teams.length} total`}
+              label="Teams Remaining"
+              value={`${teams.filter(t => !t.eliminated).length} of ${leagueInfo?.max_members || teams.length}`}
+              subValue="teams left in competition"
             />
             <StatCard
               icon={TrendingUp}
@@ -175,7 +203,7 @@ export default function Standings() {
 
           <SectionHeader
             title="Full League Standings"
-            subtitle={`Week ${currentWeek} Rankings - Sorting by ${sortingMode === 'projected' ? 'Projected' : 'Actual'} Points`}
+            subtitle={`Week ${currentWeek} Rankings - Sorting by ${sortingMode === 'projected' ? 'Projected' : 'Weekly'} Points ${sortingMode === 'actual' ? '(Resets Tuesday 3 AM)' : ''}`}
           />
           
           {/* Standings Table */}
@@ -187,8 +215,10 @@ export default function Standings() {
                   <TableHead className="text-gray-400 font-medium">Team</TableHead>
                   <TableHead className="text-gray-400 font-medium">Owner</TableHead>
                   <TableHead className="text-gray-400 font-medium text-center">1st Place Weeks</TableHead>
-                  <TableHead className="text-gray-400 font-medium text-right">Points</TableHead>
-                  <TableHead className="text-gray-400 font-medium text-right">Projected</TableHead>
+                  <TableHead className="text-gray-400 font-medium text-right">
+                    {sortingMode === 'projected' ? 'Projected Points' : 'Week Points'}
+                  </TableHead>
+                  <TableHead className="text-gray-400 font-medium text-right">Total Points</TableHead>
                   <TableHead className="text-gray-400 font-medium text-right">Points to Safety</TableHead>
                   <TableHead className="text-gray-400 font-medium text-right">Status</TableHead>
                 </TableRow>
@@ -210,13 +240,14 @@ export default function Standings() {
                     </TableCell>
                   </TableRow>
                 ) : (
-                  sortedTeams.map((team, index) => {
+                  // Active Teams Section
+                  <>
+                  {sortedActiveTeams.map((team, index) => {
                     const isUserTeam = team.owner_id === user?.id;
                     const isTopThree = index < 3;
                     
                     // Find the team in last place based on current sorting mode
-                    const activeTeams = sortedTeams.filter(t => !t.eliminated);
-                    const lastPlaceTeam = activeTeams.length > 0 ? activeTeams[activeTeams.length - 1] : null;
+                    const lastPlaceTeam = sortedActiveTeams.length > 0 ? sortedActiveTeams[sortedActiveTeams.length - 1] : null;
                     
                     const teamProjection = projections?.find(p => p.teamId === team.id)?.projectedPoints || 0;
                     
@@ -230,8 +261,8 @@ export default function Standings() {
                         pointsToSafety = Math.max(0, (lastPlaceProjection + 0.1) - teamProjection);
                         isInDanger = team.id === lastPlaceTeam.id;
                       } else {
-                        // For actual points mode, the team in danger is the one currently in last place
-                        pointsToSafety = Math.max(0, (lastPlaceTeam.points + 0.1) - team.points);
+                        // For actual points mode, use weekly points (reset each Tuesday)
+                        pointsToSafety = Math.max(0, (lastPlaceTeam.weekly_points + 0.1) - team.weekly_points);
                         isInDanger = team.id === lastPlaceTeam.id;
                       }
                     }
@@ -282,10 +313,10 @@ export default function Standings() {
                           {team.first_place_weeks || 0}
                         </TableCell>
                         <TableCell className="text-right font-medium text-nfl-accent">
-                          {team.points.toFixed(1)}
+                          {sortingMode === 'actual' ? team.weekly_points.toFixed(1) : teamProjection.toFixed(1)}
                         </TableCell>
-                        <TableCell className="text-right font-medium text-gray-400">
-                          {teamProjection.toFixed(1)}
+                        <TableCell className="text-right font-medium text-white">
+                          {team.points.toFixed(1)}
                         </TableCell>
                         <TableCell className="text-right font-medium">
                           {team.eliminated ? (
@@ -313,7 +344,76 @@ export default function Standings() {
                         </TableCell>
                       </TableRow>
                     );
-                  })
+                  })}
+                  
+                  {/* Eliminated Teams Section */}
+                  {sortedEliminatedTeams.length > 0 && (
+                    <>
+                      <TableRow>
+                        <TableCell colSpan={6} className="py-4 px-4 border-t-2 border-nfl-red/30">
+                          <div className="flex items-center gap-2 text-nfl-red font-semibold">
+                            <Shield className="w-4 h-4" />
+                            Eliminated Teams ({sortedEliminatedTeams.length})
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                      {sortedEliminatedTeams.map((team, index) => {
+                        const isUserTeam = team.owner_id === user?.id;
+                        const teamProjection = projections?.find(p => p.teamId === team.id)?.projectedPoints || 0;
+                        
+                        return (
+                          <TableRow 
+                            key={team.id} 
+                            className={`border-nfl-light-gray/20 hover:bg-nfl-light-gray/5 transition-colors opacity-60 ${
+                              isUserTeam ? 'bg-nfl-red/5' : ''
+                            }`}
+                          >
+                            <TableCell className="font-medium">
+                              <div className="flex items-center justify-center w-8 h-8 rounded-full bg-gray-600 text-gray-400">
+                                -
+                              </div>
+                            </TableCell>
+                            <TableCell className="font-medium">
+                              <div className="flex items-center gap-2">
+                                <span className="text-gray-400 line-through">
+                                  {team.name}
+                                </span>
+                                {isUserTeam && (
+                                  <Badge 
+                                    variant="outline" 
+                                    className="text-xs border-nfl-red text-nfl-red bg-nfl-red/10"
+                                  >
+                                    YOU
+                                  </Badge>
+                                )}
+                              </div>
+                            </TableCell>
+                            <TableCell className="text-gray-500">
+                              {team.owner}
+                            </TableCell>
+                            <TableCell className="text-center text-gray-500">
+                              {team.first_place_weeks || 0}
+                            </TableCell>
+                            <TableCell className="text-right font-medium text-gray-500">
+                              {sortingMode === 'actual' ? team.weekly_points?.toFixed(1) || '0.0' : teamProjection.toFixed(1)}
+                            </TableCell>
+                            <TableCell className="text-right font-medium text-gray-500">
+                              {team.points.toFixed(1)}
+                            </TableCell>
+                            <TableCell className="text-right font-medium">
+                              <span className="text-gray-500">-</span>
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <Badge className="bg-nfl-red/20 text-nfl-red border-nfl-red/30">
+                                Eliminated
+                              </Badge>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </>
+                  )}
+                  </>
                 )}
               </TableBody>
             </Table>
@@ -341,9 +441,8 @@ export default function Standings() {
                 </h3>
                 <div className="space-y-3">
                   {(() => {
-                    const activeTeams = sortedTeams.filter(t => !t.eliminated);
-                    // Get the last 3 teams from the already sorted list
-                    const bottomThree = activeTeams.slice(-3).reverse();
+                    // Get the last 3 teams from the active teams list
+                    const bottomThree = sortedActiveTeams.slice(-3).reverse();
                     
                     return bottomThree.map((team, idx) => {
                       const teamProjection = projections?.find(p => p.teamId === team.id)?.projectedPoints || 0;
@@ -352,7 +451,7 @@ export default function Standings() {
                           <span className="text-gray-300">{team.name}</span>
                           <div className="flex items-center gap-2">
                             <span className="text-xs text-gray-400">
-                              {sortingMode === 'projected' ? `Proj: ${teamProjection.toFixed(1)}` : `Pts: ${team.points.toFixed(1)}`}
+                              {sortingMode === 'projected' ? `Proj: ${teamProjection.toFixed(1)}` : `Week: ${team.weekly_points.toFixed(1)}`}
                             </span>
                             <Badge className={idx === 0 ? 
                               "bg-orange-500/20 text-orange-500 border-orange-500/30" :

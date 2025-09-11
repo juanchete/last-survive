@@ -118,14 +118,6 @@ export function TeamBattlePlayerCard({ player, isDrafted = true }: TeamBattlePla
             <span className="text-sm font-semibold text-white truncate flex-1" title={player.player_name}>
               {player.player_name}
             </span>
-            {isDrafted && (
-              <Badge 
-                variant="outline" 
-                className="text-[10px] px-1 py-0 h-4 border-green-500/50 text-green-400 flex-shrink-0"
-              >
-                Drafted
-              </Badge>
-            )}
           </div>
           <div className="flex items-center gap-2 text-xs text-gray-400">
             <span className="font-medium text-gray-300">{player.position}</span>

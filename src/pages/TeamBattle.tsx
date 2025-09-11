@@ -14,6 +14,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useRealtimeStats } from "@/hooks/useRealtimeStats";
+import { useWeeklyPoints } from "@/hooks/useWeeklyPoints";
 
 interface PlayerStats {
   player_id: number;
@@ -98,9 +99,11 @@ function TeamRosterDisplay({
     <div
       className={`
         bg-nfl-gray border rounded-lg overflow-hidden min-w-[420px] w-[420px]
-        ${isUserTeam 
-          ? 'border-nfl-blue ring-2 ring-nfl-blue/30' 
-          : 'border-nfl-light-gray/20'
+        ${team.eliminated 
+          ? 'border-nfl-red/30 opacity-75' 
+          : isUserTeam 
+            ? 'border-nfl-blue ring-2 ring-nfl-blue/30' 
+            : 'border-nfl-light-gray/20'
         }
       `}
     >
@@ -112,7 +115,9 @@ function TeamRosterDisplay({
               #{team.rank}
             </span>
             <div>
-              <h3 className="font-bold text-white">
+              <h3 className={`font-bold ${
+                team.eliminated ? 'text-gray-400 line-through' : 'text-white'
+              }`}>
                 {team.name}
               </h3>
               <p className="text-sm text-gray-400">{team.owner}</p>
@@ -130,21 +135,23 @@ function TeamRosterDisplay({
         <div className="flex items-center justify-between">
           <div className="flex flex-col">
             <span className="text-2xl font-bold text-nfl-green">
-              {team.points.toFixed(1)} PTS
+              {team.weekly_points?.toFixed(1) || team.points.toFixed(1)} PTS
             </span>
             <span className="text-sm text-gray-400">
-              Proj: {projection.toFixed(1)}
+              Proj: {projection.toFixed(1)} | Total: {team.points.toFixed(1)}
             </span>
           </div>
           <Badge 
             variant="default"
             className={`${
-              team.rank <= totalTeams - Math.floor(totalTeams / 4)
-                ? 'bg-nfl-green/20 text-nfl-green border-nfl-green/30'
-                : 'bg-red-500/20 text-red-500 border-red-500/30'
+              team.eliminated 
+                ? 'bg-nfl-red/20 text-nfl-red border-nfl-red/30'
+                : team.rank <= totalTeams - Math.floor(totalTeams / 4)
+                  ? 'bg-nfl-green/20 text-nfl-green border-nfl-green/30'
+                  : 'bg-red-500/20 text-red-500 border-red-500/30'
             }`}
           >
-            {team.rank <= totalTeams - Math.floor(totalTeams / 4) ? 'SAFE' : 'DANGER'}
+            {team.eliminated ? 'ELIMINATED' : team.rank <= totalTeams - Math.floor(totalTeams / 4) ? 'SAFE' : 'DANGER'}
           </Badge>
         </div>
       </div>
@@ -168,7 +175,6 @@ function TeamRosterDisplay({
             <TeamBattlePlayerCard
               key={player.player_id}
               player={player}
-              isDrafted={true}
             />
           ))
         )}
@@ -211,6 +217,9 @@ export default function TeamBattle() {
   // Hooks for real data
   const { data: teams = [], isLoading: loadingTeams } = useFantasyTeams(leagueId);
   const { data: userTeam } = useUserFantasyTeam(leagueId);
+  
+  // Get teams with weekly points from the new view with real-time updates
+  const { weeklyStandings } = useWeeklyPoints(leagueId);
   
   // Auto-start real-time stats sync during game time
   const { status: syncStatus, forceSync } = useRealtimeStats(true);
@@ -279,23 +288,45 @@ export default function TeamBattle() {
     enabled: !!leagueId && !!currentWeek?.number,
   });
   
-  // Sort teams based on current mode (projected vs actual points)
-  const sortedTeams = [...teams].sort((a, b) => {
+  // Merge weekly standings data with teams
+  const teamsWithWeeklyPoints = teams.map(team => {
+    const weeklyData = weeklyStandings?.find(ws => ws.id === team.id);
+    return {
+      ...team,
+      weekly_points: weeklyData?.weekly_points || 0,
+      weekly_rank: weeklyData?.weekly_rank || 999
+    };
+  });
+
+  // Separate active and eliminated teams
+  const activeTeams = teamsWithWeeklyPoints.filter(t => !t.eliminated);
+  const eliminatedTeams = teamsWithWeeklyPoints.filter(t => t.eliminated);
+
+  // Sort active teams based on current mode (projected vs actual points)
+  const sortedActiveTeams = [...activeTeams].sort((a, b) => {
     if (sortingMode === 'projected') {
       // Sort by projected points for non-game week
       const aProjection = projections?.find(p => p.teamId === a.id)?.projectedPoints || 0;
       const bProjection = projections?.find(p => p.teamId === b.id)?.projectedPoints || 0;
       return bProjection - aProjection; // Highest first
     } else {
-      // Sort by actual points for game week
-      return b.points - a.points; // Highest first
+      // Sort by weekly points for game week (resets each Tuesday)
+      return b.weekly_points - a.weekly_points; // Highest first
     }
   });
+
+  // Sort eliminated teams by their total points
+  const sortedEliminatedTeams = [...eliminatedTeams].sort((a, b) => {
+    return (b.points || 0) - (a.points || 0);
+  });
   
-  // Update rankings based on sorted order
-  sortedTeams.forEach((team, index) => {
+  // Update rankings for active teams only
+  sortedActiveTeams.forEach((team, index) => {
     team.rank = index + 1;
   });
+
+  // Combined for display (actives first, then eliminated)
+  const sortedTeams = [...sortedActiveTeams, ...sortedEliminatedTeams];
 
   return (
     <Layout>
@@ -316,7 +347,7 @@ export default function TeamBattle() {
                 League Battle View
               </h2>
               <span className="text-gray-400">
-                ({teams.filter(t => !t.eliminated).length} teams remaining - Sorting by {sortingMode === 'projected' ? 'Projected' : 'Actual'} Points)
+                ({activeTeams.length} active, {eliminatedTeams.length} eliminated - Sorting by {sortingMode === 'projected' ? 'Projected' : 'Weekly'} Points {sortingMode === 'actual' ? '(Resets Tue 3AM)' : ''})
               </span>
             </div>
             <div className="flex items-center gap-4">

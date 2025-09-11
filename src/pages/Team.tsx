@@ -11,6 +11,8 @@ import { useUserFantasyTeam } from "@/hooks/useUserFantasyTeam";
 import { useRosterWithPlayerDetails } from "@/hooks/useRosterWithPlayerDetails";
 import { useCurrentWeek } from "@/hooks/useCurrentWeek";
 import { useAuth } from "@/hooks/useAuth";
+import { useTeamAccess } from "@/hooks/useTeamAccess";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { User, Save, AlertTriangle, CheckCircle, XCircle, Clock, Shield } from "lucide-react";
@@ -52,6 +54,7 @@ export default function Team() {
   const leagueId = searchParams.get("league") || "";
   const { user } = useAuth();
   const queryClient = useQueryClient();
+  const { isEliminated, canMakeChanges, readOnlyMessage } = useTeamAccess(leagueId);
   
   const { data: currentWeekData } = useCurrentWeek(leagueId);
   const currentWeek = currentWeekData?.number || 1;
@@ -218,6 +221,15 @@ export default function Team() {
 
   // Move player to lineup slot
   const moveToLineup = (player: RosterPlayer, slotKey: string) => {
+    if (!canMakeChanges) {
+      toast({
+        title: "Unable to Move Player",
+        description: readOnlyMessage || "You cannot make changes to your roster.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
     if (!canPlaceInSlot(player, slotKey)) {
       toast({
         title: "Invalid Position",
@@ -259,6 +271,15 @@ export default function Team() {
 
   // Move player to bench
   const moveToBench = (player: RosterPlayer, slotKey: string) => {
+    if (!canMakeChanges) {
+      toast({
+        title: "Unable to Move Player",
+        description: readOnlyMessage || "You cannot make changes to your roster.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
     const newLineup = { ...lineup };
     const newBench = [...bench];
 
@@ -405,6 +426,18 @@ export default function Team() {
         <LeagueHeader leagueId={leagueId} />
         <LeagueTabs leagueId={leagueId} activeTab="team" />
 
+        {/* Eliminated Team Warning */}
+        {isEliminated && (
+          <div className="container mx-auto px-4 pt-4">
+            <Alert className="bg-red-500/20 border-red-500/30 text-red-400">
+              <AlertTriangle className="w-4 h-4" />
+              <AlertDescription className="font-medium">
+                {readOnlyMessage}
+              </AlertDescription>
+            </Alert>
+          </div>
+        )}
+
         <div className="container mx-auto px-4 py-6">
           <div className="flex items-center justify-between mb-6">
             <div>
@@ -413,7 +446,7 @@ export default function Team() {
                 Week {currentWeek} • Set your starting lineup
               </p>
             </div>
-            {hasChanges && (
+            {hasChanges && canMakeChanges && (
               <Button
                 onClick={saveLineup}
                 disabled={isSaving}
@@ -441,43 +474,49 @@ export default function Team() {
                       <p className="text-gray-400 mb-4">
                         No roster found for week {currentWeek}
                       </p>
-                      <Button
-                        onClick={async () => {
-                          try {
-                            const { data, error } = await supabase.rpc('admin_initialize_rosters', {
-                              p_league_id: leagueId,
-                              p_week: currentWeek
-                            });
-                            
-                            if (data?.success) {
-                              await queryClient.invalidateQueries({
-                                queryKey: ["rosterWithDetails", userTeam?.id, currentWeek]
+                      {canMakeChanges ? (
+                        <Button
+                          onClick={async () => {
+                            try {
+                              const { data, error } = await supabase.rpc('admin_initialize_rosters', {
+                                p_league_id: leagueId,
+                                p_week: currentWeek
                               });
                               
+                              if (data?.success) {
+                                await queryClient.invalidateQueries({
+                                  queryKey: ["rosterWithDetails", userTeam?.id, currentWeek]
+                                });
+                                
+                                toast({
+                                  title: "Roster Initialized",
+                                  description: `Your roster has been set up for week ${currentWeek}`,
+                                });
+                              } else {
+                                toast({
+                                  title: "Initialization Failed",
+                                  description: data?.message || "Could not initialize roster",
+                                  variant: "destructive",
+                                });
+                              }
+                            } catch (error) {
+                              console.error("Error initializing roster:", error);
                               toast({
-                                title: "Roster Initialized",
-                                description: `Your roster has been set up for week ${currentWeek}`,
-                              });
-                            } else {
-                              toast({
-                                title: "Initialization Failed",
-                                description: data?.message || "Could not initialize roster",
+                                title: "Error",
+                                description: "Failed to initialize roster",
                                 variant: "destructive",
                               });
                             }
-                          } catch (error) {
-                            console.error("Error initializing roster:", error);
-                            toast({
-                              title: "Error",
-                              description: "Failed to initialize roster",
-                              variant: "destructive",
-                            });
-                          }
-                        }}
-                        className="bg-nfl-blue hover:bg-nfl-blue/90"
-                      >
-                        Initialize Roster for Week {currentWeek}
-                      </Button>
+                          }}
+                          className="bg-nfl-blue hover:bg-nfl-blue/90"
+                        >
+                          Initialize Roster for Week {currentWeek}
+                        </Button>
+                      ) : (
+                        <div className="text-center text-gray-400">
+                          <p>Cannot initialize roster - team has been eliminated</p>
+                        </div>
+                      )}
                     </div>
                   ) : (
                     <div className="space-y-3">
@@ -494,8 +533,9 @@ export default function Team() {
                             label={slot.label}
                             position={slot.position}
                             player={player}
-                            onRemove={() => player && moveToBench(player, slotKey)}
-                            onDrop={(p) => moveToLineup(p, slotKey)}
+                            onRemove={canMakeChanges ? () => player && moveToBench(player, slotKey) : undefined}
+                            onDrop={canMakeChanges ? (p) => moveToLineup(p, slotKey) : undefined}
+                            disabled={!canMakeChanges}
                             positionColors={positionColors}
                           />
                         );
@@ -522,15 +562,17 @@ function LineupSlot({
   player, 
   onRemove, 
   onDrop,
-  positionColors 
+  positionColors,
+  disabled = false
 }: {
   slotKey: string;
   label: string;
   position: string;
   player: RosterPlayer | null;
-  onRemove: () => void;
-  onDrop: (player: RosterPlayer) => void;
+  onRemove?: () => void;
+  onDrop?: (player: RosterPlayer) => void;
   positionColors: Record<string, string>;
+  disabled?: boolean;
 }) {
   return (
     <div
@@ -538,7 +580,8 @@ function LineupSlot({
         "p-4 rounded-lg border-2 border-dashed transition-all",
         player 
           ? "bg-nfl-dark-gray border-nfl-light-gray/20" 
-          : "bg-nfl-dark-gray/50 border-nfl-light-gray/10 hover:border-nfl-light-gray/30"
+          : "bg-nfl-dark-gray/50 border-nfl-light-gray/10 hover:border-nfl-light-gray/30",
+        disabled && "opacity-60 cursor-not-allowed"
       )}
     >
       <div className="flex items-center justify-between mb-2">
@@ -548,7 +591,7 @@ function LineupSlot({
           </Badge>
           <span className="text-sm text-gray-400">{label}</span>
         </div>
-        {player && (
+        {player && onRemove && !disabled && (
           <Button
             size="sm"
             variant="ghost"
@@ -616,16 +659,22 @@ function LineupSlot({
 function BenchPlayer({ 
   player, 
   onSelect,
-  positionColors 
+  positionColors,
+  disabled = false
 }: {
   player: RosterPlayer;
-  onSelect: (player: RosterPlayer) => void;
+  onSelect?: (player: RosterPlayer) => void;
   positionColors: Record<string, string>;
+  disabled?: boolean;
 }) {
   return (
     <div
-      onClick={() => onSelect(player)}
-      className="p-3 rounded-lg bg-nfl-dark-gray border border-nfl-light-gray/20 hover:border-nfl-blue/50 cursor-pointer transition-all"
+      onClick={!disabled && onSelect ? () => onSelect(player) : undefined}
+      className={cn(
+        "p-3 rounded-lg bg-nfl-dark-gray border border-nfl-light-gray/20 transition-all",
+        !disabled && onSelect && "hover:border-nfl-blue/50 cursor-pointer",
+        disabled && "opacity-60 cursor-not-allowed"
+      )}
     >
       <div className="flex items-center gap-3">
         <Avatar className="h-10 w-10 border border-nfl-light-gray/20">
