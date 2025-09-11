@@ -135,10 +135,10 @@ function TeamRosterDisplay({
         <div className="flex items-center justify-between">
           <div className="flex flex-col">
             <span className="text-2xl font-bold text-nfl-green">
-              {team.weekly_points?.toFixed(1) || team.points.toFixed(1)} PTS
+              {(team.weekly_points || 0).toFixed(1)} PTS
             </span>
             <span className="text-sm text-gray-400">
-              Proj: {projection.toFixed(1)} | Total: {team.points.toFixed(1)}
+              Proj: {projection.toFixed(1)} | This Week: {(team.weekly_points || 0).toFixed(1)}
             </span>
           </div>
           <Badge 
@@ -315,9 +315,9 @@ export default function TeamBattle() {
     }
   });
 
-  // Sort eliminated teams by their total points
+  // Sort eliminated teams by their weekly points
   const sortedEliminatedTeams = [...eliminatedTeams].sort((a, b) => {
-    return (b.points || 0) - (a.points || 0);
+    return (b.weekly_points || 0) - (a.weekly_points || 0);
   });
   
   // Update rankings for active teams only

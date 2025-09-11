@@ -145,9 +145,9 @@ export default function Standings() {
     }
   });
 
-  // Sort eliminated teams by their final ranking (when they were eliminated)
+  // Sort eliminated teams by their weekly points
   const sortedEliminatedTeams = [...eliminatedTeams].sort((a, b) => {
-    return (b.points || 0) - (a.points || 0); // Sort by total points when eliminated
+    return (b.weekly_points || 0) - (a.weekly_points || 0); // Sort by weekly points when eliminated
   });
   
   // Update rankings for active teams only
@@ -176,7 +176,7 @@ export default function Standings() {
               iconColor="text-yellow-400"
               label="League Leader"
               value={sortedTeams[0]?.name || "TBD"}
-              subValue={sortedTeams[0] ? `${sortedTeams[0].points} points` : ""}
+              subValue={sortedTeams[0] ? `${(sortedTeams[0].weekly_points || 0).toFixed(1)} points this week` : ""}
             />
             <StatCard
               icon={Users}
@@ -189,7 +189,7 @@ export default function Standings() {
               icon={TrendingUp}
               iconColor="text-nfl-green"
               label="Avg Points/Week"
-              value={(teams.reduce((sum, t) => sum + t.points, 0) / teams.length / currentWeek).toFixed(1)}
+              value={(teams.reduce((sum, t) => sum + (t.weekly_points || 0), 0) / teams.length).toFixed(1)}
               subValue="League average"
             />
             <StatCard
@@ -218,7 +218,7 @@ export default function Standings() {
                   <TableHead className="text-gray-400 font-medium text-right">
                     {sortingMode === 'projected' ? 'Projected Points' : 'Week Points'}
                   </TableHead>
-                  <TableHead className="text-gray-400 font-medium text-right">Total Points</TableHead>
+                  <TableHead className="text-gray-400 font-medium text-right">Week Points</TableHead>
                   <TableHead className="text-gray-400 font-medium text-right">Points to Safety</TableHead>
                   <TableHead className="text-gray-400 font-medium text-right">Status</TableHead>
                 </TableRow>
@@ -316,7 +316,7 @@ export default function Standings() {
                           {sortingMode === 'actual' ? team.weekly_points.toFixed(1) : teamProjection.toFixed(1)}
                         </TableCell>
                         <TableCell className="text-right font-medium text-white">
-                          {team.points.toFixed(1)}
+                          {(team.weekly_points || 0).toFixed(1)}
                         </TableCell>
                         <TableCell className="text-right font-medium">
                           {team.eliminated ? (
@@ -398,7 +398,7 @@ export default function Standings() {
                               {sortingMode === 'actual' ? team.weekly_points?.toFixed(1) || '0.0' : teamProjection.toFixed(1)}
                             </TableCell>
                             <TableCell className="text-right font-medium text-gray-500">
-                              {team.points.toFixed(1)}
+                              {(team.weekly_points || 0).toFixed(1)}
                             </TableCell>
                             <TableCell className="text-right font-medium">
                               <span className="text-gray-500">-</span>
