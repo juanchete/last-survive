@@ -7,8 +7,8 @@
 ALTER TABLE public.leagues 
 ADD COLUMN IF NOT EXISTS waiver_process_day INTEGER DEFAULT 2, -- 0=Sunday, 1=Monday, 2=Tuesday, etc.
 ADD COLUMN IF NOT EXISTS waiver_process_hour INTEGER DEFAULT 3, -- Hour in 24h format (3 = 3 AM)
-ADD COLUMN IF NOT EXISTS free_agency_start_day INTEGER DEFAULT 3, -- Wednesday
-ADD COLUMN IF NOT EXISTS free_agency_start_hour INTEGER DEFAULT 10; -- 10 AM
+ADD COLUMN IF NOT EXISTS free_agency_start_day INTEGER DEFAULT 2, -- Tuesday (after processing)
+ADD COLUMN IF NOT EXISTS free_agency_start_hour INTEGER DEFAULT 3; -- 3 AM (after processing)
 
 -- 2. Crear tabla para tracking de prioridad dinámica durante el proceso
 CREATE TABLE IF NOT EXISTS public.waiver_priority_temp (
@@ -43,24 +43,26 @@ BEGIN
     v_current_day := EXTRACT(DOW FROM NOW())::INTEGER;
     v_current_hour := EXTRACT(HOUR FROM NOW())::INTEGER;
     
+    -- Nuevo horario de waivers y free agency:
+    -- DOMINGO (0), LUNES (1), MARTES hasta 3 AM (2) = Waivers
+    -- MARTES desde 3 AM hasta DOMINGO = Free Agency
+    
     -- Determinar si estamos en período de waivers
-    -- Waivers: Desde el día/hora configurado hasta free agency
-    IF v_current_day = v_league.waiver_process_day AND v_current_hour >= v_league.waiver_process_hour THEN
+    IF v_current_day = 0 THEN -- Domingo - todo el día waivers (juegos NFL)
         v_is_waiver_period := true;
-    ELSIF v_current_day > v_league.waiver_process_day AND v_current_day < v_league.free_agency_start_day THEN
+    ELSIF v_current_day = 1 THEN -- Lunes - todo el día waivers
         v_is_waiver_period := true;
-    ELSIF v_current_day = v_league.free_agency_start_day AND v_current_hour < v_league.free_agency_start_hour THEN
+    ELSIF v_current_day = 2 AND v_current_hour < 3 THEN -- Martes antes de 3 AM - waivers
         v_is_waiver_period := true;
     ELSE
         v_is_waiver_period := false;
     END IF;
     
     -- Determinar si estamos en free agency
-    IF v_current_day = v_league.free_agency_start_day AND v_current_hour >= v_league.free_agency_start_hour THEN
+    -- Free Agency: Martes desde 3 AM hasta Domingo
+    IF v_current_day = 2 AND v_current_hour >= 3 THEN -- Martes desde 3 AM
         v_is_free_agency := true;
-    ELSIF v_current_day > v_league.free_agency_start_day OR v_current_day < v_league.waiver_process_day THEN
-        v_is_free_agency := true;
-    ELSIF v_current_day = v_league.waiver_process_day AND v_current_hour < v_league.waiver_process_hour THEN
+    ELSIF v_current_day >= 3 AND v_current_day <= 6 THEN -- Miércoles a Sábado
         v_is_free_agency := true;
     ELSE
         v_is_free_agency := false;
