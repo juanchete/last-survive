@@ -301,25 +301,96 @@ export default function Waivers() {
     }
 
     try {
-      // Use the new multi-player function
-      const { data, error } = await supabase.rpc('create_waiver_request_multi', {
-        p_league_id: leagueId,
-        p_fantasy_team_id: userTeam.id,
-        p_week: weekNumber,
-        p_add_players: selectedPlayers.map(id => parseInt(id)),
-        p_drop_players: selectedDropPlayers.map(id => parseInt(id))
-      });
+      // Check if we're in free agency period
+      if (isFreeAgency && !isWaiverPeriod) {
+        // FREE AGENCY: Process immediately using claim_free_agent
+        if (selectedPlayers.length === 1) {
+          // Single player claim
+          const { data, error } = await supabase.rpc('claim_free_agent', {
+            p_league_id: leagueId,
+            p_fantasy_team_id: userTeam.id,
+            p_player_id: parseInt(selectedPlayers[0]),
+            p_drop_player_id: selectedDropPlayers.length > 0 ? parseInt(selectedDropPlayers[0]) : null,
+            p_week: weekNumber
+          });
 
-      if (error) throw error;
-      
-      if (!data.success) {
-        throw new Error(data.error || "Failed to create waiver request");
+          if (error) throw error;
+          
+          if (!data.success) {
+            throw new Error(data.error || "Failed to claim free agent");
+          }
+
+          toast({
+            title: "✅ Free Agent Claimed!",
+            description: "Player has been added to your roster immediately.",
+          });
+        } else {
+          // Multiple players - process each one
+          let successCount = 0;
+          let errors = [];
+          
+          for (let i = 0; i < selectedPlayers.length; i++) {
+            const playerId = selectedPlayers[i];
+            const dropPlayerId = selectedDropPlayers[i] || null;
+            
+            try {
+              const { data, error } = await supabase.rpc('claim_free_agent', {
+                p_league_id: leagueId,
+                p_fantasy_team_id: userTeam.id,
+                p_player_id: parseInt(playerId),
+                p_drop_player_id: dropPlayerId ? parseInt(dropPlayerId) : null,
+                p_week: weekNumber
+              });
+
+              if (error) throw error;
+              
+              if (!data.success) {
+                throw new Error(data.error || "Failed to claim free agent");
+              }
+              
+              successCount++;
+            } catch (error) {
+              errors.push(error);
+            }
+          }
+          
+          if (successCount > 0) {
+            toast({
+              title: "✅ Free Agents Claimed!",
+              description: `${successCount} player(s) added to your roster immediately.${errors.length > 0 ? ` ${errors.length} failed.` : ''}`,
+            });
+          }
+          
+          if (errors.length > 0 && successCount === 0) {
+            throw new Error("Failed to claim any free agents");
+          }
+        }
+        
+        // Refresh roster data
+        await queryClient.invalidateQueries({ 
+          queryKey: ["rosterWithDetails", userTeam.id, weekNumber] 
+        });
+      } else {
+        // WAIVER PERIOD: Use waiver request system
+        const { data, error } = await supabase.rpc('create_waiver_request_multi', {
+          p_league_id: leagueId,
+          p_fantasy_team_id: userTeam.id,
+          p_week: weekNumber,
+          p_add_players: selectedPlayers.map(id => parseInt(id)),
+          p_drop_players: selectedDropPlayers.map(id => parseInt(id))
+        });
+
+        if (error) throw error;
+        
+        if (!data.success) {
+          throw new Error(data.error || "Failed to create waiver request");
+        }
+
+        toast({
+          title: "Waiver Claim Submitted",
+          description: "Your waiver claim will be processed at the deadline.",
+        });
       }
-
-      toast({
-        title: "Waiver Claim Submitted",
-        description: data.message || "Your waiver claim has been submitted and will be processed at the deadline.",
-      });
 
       setIsClaimModalOpen(false);
       setSelectedPlayers([]);
@@ -334,11 +405,16 @@ export default function Waivers() {
       await queryClient.invalidateQueries({ 
         queryKey: ["waiverHistory", leagueId] 
       });
+      
+      // Invalidate waiver status to refresh UI
+      await queryClient.invalidateQueries({ 
+        queryKey: ["waiverStatus", leagueId] 
+      });
     } catch (error) {
-      console.error("Error submitting waiver claim:", error);
+      console.error("Error processing player claim:", error);
       toast({
         title: "Error",
-        description: "Failed to submit waiver claim. Please try again.",
+        description: error.message || "Failed to process player claim. Please try again.",
         variant: "destructive",
       });
     }
