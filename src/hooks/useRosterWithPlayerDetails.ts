@@ -33,7 +33,22 @@ export function useRosterWithPlayerDetails(fantasyTeamId: string, week: number) 
       if (playersError) throw playersError;
       
       // Get player stats for the week including projected points
-      const currentYear = new Date().getFullYear();
+      // Get current NFL season from API
+      const getCurrentNFLSeason = async (): Promise<number> => {
+        try {
+          const SPORTSDATA_API_KEY = 'f1826e4060774e56a6f56bae1d9eb76e';
+          const response = await fetch(`https://api.sportsdata.io/v3/nfl/scores/json/CurrentWeek?key=${SPORTSDATA_API_KEY}`);
+
+          if (response.ok) {
+            return new Date().getFullYear(); // Current year when API works
+          }
+        } catch (error) {
+          console.warn('Failed to fetch current week, using fallback season');
+        }
+        return 2025; // Fallback
+      };
+
+      const currentYear = await getCurrentNFLSeason();
       const { data: stats, error: statsError } = await supabase
         .from("player_stats")
         .select("*")
@@ -117,6 +132,76 @@ export function useRosterWithPlayerDetails(fantasyTeamId: string, week: number) 
           }
         } catch (error) {
           console.warn('Failed to fetch defense stats:', error);
+        }
+      }
+
+      // Check for missing player stats and fetch them
+      const playersWithoutStats = players.filter(p => p.position !== 'DEF' && !statsMap.has(p.id));
+
+      if (playersWithoutStats.length > 0) {
+        try {
+          const SPORTSDATA_API_KEY = 'f1826e4060774e56a6f56bae1d9eb76e';
+          const response = await fetch(`https://api.sportsdata.io/v3/nfl/stats/json/FantasyGameStatsByWeek/${currentYear}REG/${week}?key=${SPORTSDATA_API_KEY}`);
+
+          if (response.ok) {
+            const playerStats = await response.json();
+
+            for (const player of playersWithoutStats) {
+              const playerStat = playerStats.find((stat: any) => String(stat.PlayerID) === String(player.sportsdata_id));
+
+              if (playerStat) {
+                const fantasyPoints = playerStat.FantasyPointsPPR || playerStat.FantasyPoints || 0;
+
+                const { error } = await supabase
+                  .from("player_stats")
+                  .upsert({
+                    player_id: player.id,
+                    week: week,
+                    season: currentYear,
+                    fantasy_points: fantasyPoints,
+                    actual_points: fantasyPoints,
+                    passing_yards: playerStat.PassingYards || 0,
+                    passing_td: playerStat.PassingTouchdowns || 0,
+                    rushing_yards: playerStat.RushingYards || 0,
+                    rushing_td: playerStat.RushingTouchdowns || 0,
+                    receiving_yards: playerStat.ReceivingYards || 0,
+                    receiving_td: playerStat.ReceivingTouchdowns || 0,
+                    field_goals: playerStat.FieldGoalsMade || 0,
+                    tackles: playerStat.Tackles || 0,
+                    sacks: playerStat.Sacks || 0,
+                    interceptions: playerStat.Interceptions || 0,
+                    is_final: false,
+                    updated_at: new Date().toISOString()
+                  });
+
+                if (!error) {
+                  // Add to statsMap immediately
+                  statsMap.set(player.id, {
+                    player_id: player.id,
+                    week: week,
+                    season: currentYear,
+                    fantasy_points: fantasyPoints,
+                    actual_points: fantasyPoints,
+                    passing_yards: playerStat.PassingYards || 0,
+                    passing_td: playerStat.PassingTouchdowns || 0,
+                    rushing_yards: playerStat.RushingYards || 0,
+                    rushing_td: playerStat.RushingTouchdowns || 0,
+                    receiving_yards: playerStat.ReceivingYards || 0,
+                    receiving_td: playerStat.ReceivingTouchdowns || 0,
+                    field_goals: playerStat.FieldGoalsMade || 0,
+                    tackles: playerStat.Tackles || 0,
+                    sacks: playerStat.Sacks || 0,
+                    interceptions: playerStat.Interceptions || 0,
+                    is_final: false
+                  } as any);
+                } else {
+                  console.warn(`Failed to update player stats for ${player.name}:`, error);
+                }
+              }
+            }
+          }
+        } catch (error) {
+          console.warn('Failed to fetch player stats:', error);
         }
       }
 

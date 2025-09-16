@@ -89,23 +89,47 @@ export class RealtimeStatsSync {
   }
 
   /**
+   * Get current NFL week from SportsData API
+   */
+  private async getCurrentNFLWeek(): Promise<{ week: number; season: number }> {
+    try {
+      const SPORTSDATA_API_KEY = 'f1826e4060774e56a6f56bae1d9eb76e';
+      const response = await fetch(`https://api.sportsdata.io/v3/nfl/scores/json/CurrentWeek?key=${SPORTSDATA_API_KEY}`);
+
+      if (!response.ok) {
+        throw new Error(`CurrentWeek API error: ${response.status}`);
+      }
+
+      const currentWeek = await response.json();
+      const currentSeason = new Date().getFullYear();
+
+      console.log(`🏈 Retrieved from API: ${currentSeason} Week ${currentWeek}`);
+
+      return { week: currentWeek, season: currentSeason };
+    } catch (error) {
+      console.warn('Failed to fetch current week from API, using fallback:', error);
+      // Fallback to Week 2, 2025 if API fails
+      return { week: 2, season: 2025 };
+    }
+  }
+
+  /**
    * Sync current week's stats (players + defenses)
    */
   private async syncStats(): Promise<void> {
     try {
       console.log('Syncing real-time stats (players + defenses)...');
 
-      // Get current NFL state
-      const nflStateResponse = await providerManager.getNFLState();
-      if (nflStateResponse.error) {
-        throw new Error(nflStateResponse.error);
-      }
+      // Get current NFL week dynamically from API
+      const { week: currentWeek, season: currentYear } = await this.getCurrentNFLWeek();
+      console.log(`📅 Syncing for ${currentYear} Week ${currentWeek}`);
 
-      const nflState = nflStateResponse.data;
-      if (!nflState) {
-        console.error('No NFL state available');
-        return;
-      }
+      // Create nflState object for compatibility
+      const nflState = {
+        week: currentWeek,
+        season: currentYear.toString(),
+        season_type: 'REG'
+      };
 
       // Sync both player stats and defense stats in parallel
       const [playerUpdates, defenseUpdates] = await Promise.all([
@@ -138,67 +162,67 @@ export class RealtimeStatsSync {
    */
   private async syncPlayerStats(nflState: any): Promise<number> {
     try {
-      // Get current week's stats
-      const statsResponse = await providerManager.getWeeklyStats(
-        parseInt(nflState.season),
-        nflState.week,
-        nflState.season_type
-      );
+      const SPORTSDATA_API_KEY = 'f1826e4060774e56a6f56bae1d9eb76e';
 
-      if (statsResponse.error) {
-        throw new Error(statsResponse.error);
+      // Fetch stats directly from SportsData API
+      const response = await fetch(`https://api.sportsdata.io/v3/nfl/stats/json/FantasyGameStatsByWeek/${nflState.season}REG/${nflState.week}?key=${SPORTSDATA_API_KEY}`);
+
+      if (!response.ok) {
+        console.error('Error fetching stats:', response.status);
+        return 0;
       }
 
-      const weeklyStats = statsResponse.data || {};
+      const apiStats = await response.json();
+
+      if (!apiStats || !Array.isArray(apiStats)) {
+        console.error('Invalid stats response');
+        return 0;
+      }
+
+      console.log(`Found ${apiStats.length} stat records from SportsData`);
 
       // Get player mappings
       const { data: players } = await supabase
         .from('players')
-        .select('id, stats_id, sportsdata_id, name')
+        .select('id, sportsdata_id, name')
         .neq('position', 'DEF'); // Exclude defenses
 
-      // Create mapping strategies
-      const statsIdMap = new Map(
-        players?.map(p => [p.stats_id, p.id]).filter(([k]) => k) || []
-      );
-      const sportsDataIdMap = new Map(
-        players?.map(p => [p.sportsdata_id, p.id]).filter(([k]) => k) || []
-      );
-      const nameMap = new Map(
-        players?.map(p => [p.name?.toLowerCase(), p.id]).filter(([k]) => k) || []
+      if (!players) {
+        console.error('No players found in database');
+        return 0;
+      }
+
+      // Create mapping from sportsdata_id to database id
+      const playerMap = new Map(
+        players.map(p => [String(p.sportsdata_id), { id: p.id, name: p.name }])
       );
 
       // Prepare stats updates
       const statsToUpdate: any[] = [];
       let updatedCount = 0;
 
-      Object.entries(weeklyStats).forEach(([playerKey, stats]) => {
-        // Find player ID
-        let playerId = sportsDataIdMap.get(playerKey) ||
-                       statsIdMap.get(playerKey) ||
-                       nameMap.get(stats.player_name?.toLowerCase());
+      apiStats.forEach((stat: any) => {
+        const playerInfo = playerMap.get(String(stat.PlayerID));
 
-        if (playerId && stats.stats && Object.keys(stats.stats).length > 0) {
-          // Calculate fantasy points
-          const totalPoints = stats.points?.ppr || this.calculateFantasyPoints(stats.stats);
+        if (playerInfo) {
+          const fantasyPoints = stat.FantasyPointsPPR || stat.FantasyPoints || 0;
 
           statsToUpdate.push({
-            player_id: playerId,
+            player_id: playerInfo.id,
             week: nflState.week,
             season: parseInt(nflState.season),
-            // Update actual stats (don't overwrite projections)
-            passing_yards: stats.stats.pass_yd || 0,
-            passing_td: stats.stats.pass_td || 0,
-            rushing_yards: stats.stats.rush_yd || 0,
-            rushing_td: stats.stats.rush_td || 0,
-            receiving_yards: stats.stats.rec_yd || 0,
-            receiving_td: stats.stats.rec_td || 0,
-            field_goals: stats.stats.fgm || 0,
-            tackles: stats.stats.idp_tkl || 0,
-            sacks: stats.stats.idp_sack || 0,
-            interceptions: stats.stats.pass_int || stats.stats.idp_int || 0,
-            fantasy_points: totalPoints,
-            actual_points: totalPoints,
+            fantasy_points: fantasyPoints,
+            actual_points: fantasyPoints,
+            passing_yards: stat.PassingYards || 0,
+            passing_td: stat.PassingTouchdowns || 0,
+            rushing_yards: stat.RushingYards || 0,
+            rushing_td: stat.RushingTouchdowns || 0,
+            receiving_yards: stat.ReceivingYards || 0,
+            receiving_td: stat.ReceivingTouchdowns || 0,
+            field_goals: stat.FieldGoalsMade || 0,
+            tackles: stat.Tackles || 0,
+            sacks: stat.Sacks || 0,
+            interceptions: stat.Interceptions || 0,
             // Don't mark as final during live games
             is_final: false
           });
