@@ -89,24 +89,55 @@ export class RealtimeStatsSync {
   }
 
   /**
-   * Sync current week's stats
+   * Sync current week's stats (players + defenses)
    */
   private async syncStats(): Promise<void> {
     try {
-      console.log('Syncing real-time stats...');
-      
+      console.log('Syncing real-time stats (players + defenses)...');
+
       // Get current NFL state
       const nflStateResponse = await providerManager.getNFLState();
       if (nflStateResponse.error) {
         throw new Error(nflStateResponse.error);
       }
-      
+
       const nflState = nflStateResponse.data;
       if (!nflState) {
         console.error('No NFL state available');
         return;
       }
 
+      // Sync both player stats and defense stats in parallel
+      const [playerUpdates, defenseUpdates] = await Promise.all([
+        this.syncPlayerStats(nflState),
+        this.syncDefenseStats(nflState)
+      ]);
+
+      const totalUpdated = playerUpdates + defenseUpdates;
+      this.lastSyncTime = new Date();
+      console.log(`Real-time sync completed: ${playerUpdates} players + ${defenseUpdates} defenses = ${totalUpdated} total updated at ${this.lastSyncTime.toLocaleTimeString()}`);
+
+      // Emit event for UI updates
+      window.dispatchEvent(new CustomEvent('statsUpdated', {
+        detail: {
+          updatedCount: totalUpdated,
+          playerUpdates,
+          defenseUpdates,
+          week: nflState.week,
+          timestamp: this.lastSyncTime
+        }
+      }));
+
+    } catch (error) {
+      console.error('Error in real-time stats sync:', error);
+    }
+  }
+
+  /**
+   * Sync player stats
+   */
+  private async syncPlayerStats(nflState: any): Promise<number> {
+    try {
       // Get current week's stats
       const statsResponse = await providerManager.getWeeklyStats(
         parseInt(nflState.season),
@@ -119,11 +150,12 @@ export class RealtimeStatsSync {
       }
 
       const weeklyStats = statsResponse.data || {};
-      
+
       // Get player mappings
       const { data: players } = await supabase
         .from('players')
-        .select('id, stats_id, sportsdata_id, name');
+        .select('id, stats_id, sportsdata_id, name')
+        .neq('position', 'DEF'); // Exclude defenses
 
       // Create mapping strategies
       const statsIdMap = new Map(
@@ -139,17 +171,17 @@ export class RealtimeStatsSync {
       // Prepare stats updates
       const statsToUpdate: any[] = [];
       let updatedCount = 0;
-      
+
       Object.entries(weeklyStats).forEach(([playerKey, stats]) => {
         // Find player ID
-        let playerId = sportsDataIdMap.get(playerKey) || 
+        let playerId = sportsDataIdMap.get(playerKey) ||
                        statsIdMap.get(playerKey) ||
                        nameMap.get(stats.player_name?.toLowerCase());
-        
+
         if (playerId && stats.stats && Object.keys(stats.stats).length > 0) {
           // Calculate fantasy points
           const totalPoints = stats.points?.ppr || this.calculateFantasyPoints(stats.stats);
-          
+
           statsToUpdate.push({
             player_id: playerId,
             week: nflState.week,
@@ -179,7 +211,7 @@ export class RealtimeStatsSync {
         const chunkSize = 500;
         for (let i = 0; i < statsToUpdate.length; i += chunkSize) {
           const chunk = statsToUpdate.slice(i, i + chunkSize);
-          
+
           const { error } = await supabase
             .from('player_stats')
             .upsert(chunk, {
@@ -187,26 +219,119 @@ export class RealtimeStatsSync {
             });
 
           if (error) {
-            console.error('Error updating real-time stats:', error);
+            console.error('Error updating player stats:', error);
             throw error;
           }
         }
       }
 
-      this.lastSyncTime = new Date();
-      console.log(`Real-time sync completed: ${updatedCount} players updated at ${this.lastSyncTime.toLocaleTimeString()}`);
-      
-      // Emit event for UI updates
-      window.dispatchEvent(new CustomEvent('statsUpdated', { 
-        detail: { 
-          updatedCount, 
-          week: nflState.week,
-          timestamp: this.lastSyncTime 
-        } 
-      }));
-      
+      return updatedCount;
     } catch (error) {
-      console.error('Error in real-time stats sync:', error);
+      console.error('Error syncing player stats:', error);
+      return 0;
+    }
+  }
+
+  /**
+   * Sync defense stats using SportsData API
+   */
+  private async syncDefenseStats(nflState: any): Promise<number> {
+    try {
+      const SPORTSDATA_API_KEY = 'f1826e4060774e56a6f56bae1d9eb76e';
+
+      // Fetch defense stats from SportsData API
+      const response = await fetch(
+        `https://api.sportsdata.io/v3/nfl/stats/json/FantasyDefenseByGame/${nflState.season}REG/${nflState.week}?key=${SPORTSDATA_API_KEY}`
+      );
+
+      if (!response.ok) {
+        console.error(`Defense API error: ${response.status}`);
+        return 0;
+      }
+
+      const defenseData = await response.json();
+      console.log(`Found ${defenseData.length} defense records for real-time sync`);
+
+      // Get all defense players
+      const { data: defensePlayers } = await supabase
+        .from('players')
+        .select(`
+          id,
+          name,
+          nfl_teams!inner (abbreviation)
+        `)
+        .eq('position', 'DEF');
+
+      if (!defensePlayers || defensePlayers.length === 0) {
+        console.warn('No defense players found');
+        return 0;
+      }
+
+      // Create lookup maps
+      const defensePlayerMap = new Map();
+      defensePlayers.forEach((player: any) => {
+        const teamAbbr = player.nfl_teams?.abbreviation;
+        if (teamAbbr) {
+          defensePlayerMap.set(teamAbbr, player);
+        }
+      });
+
+      const defenseStatsMap = new Map();
+      defenseData.forEach((team: any) => {
+        defenseStatsMap.set(team.Team, team);
+      });
+
+      // Prepare defense stats updates
+      const defenseStatsToUpdate: any[] = [];
+      let updatedCount = 0;
+
+      for (const [teamAbbr, player] of defensePlayerMap.entries()) {
+        const teamStats = defenseStatsMap.get(teamAbbr);
+
+        if (teamStats) {
+          const fantasyPoints = teamStats.FantasyPointsDraftKings || 0;
+
+          defenseStatsToUpdate.push({
+            player_id: player.id,
+            week: nflState.week,
+            season: parseInt(nflState.season),
+            fantasy_points: fantasyPoints,
+            actual_points: fantasyPoints,
+            tackles: teamStats.Tackles || 0,
+            sacks: teamStats.Sacks || 0,
+            interceptions: teamStats.Interceptions || 0,
+            passing_yards: 0,
+            passing_td: 0,
+            rushing_yards: 0,
+            rushing_td: 0,
+            receiving_yards: 0,
+            receiving_td: 0,
+            field_goals: 0,
+            // Don't mark as final during live games
+            is_final: false
+          });
+          updatedCount++;
+        }
+      }
+
+      // Update defense stats
+      if (defenseStatsToUpdate.length > 0) {
+        const { error } = await supabase
+          .from('player_stats')
+          .upsert(defenseStatsToUpdate, {
+            onConflict: 'player_id,week,season'
+          });
+
+        if (error) {
+          console.error('Error updating defense stats:', error);
+          return 0;
+        }
+      }
+
+      return updatedCount;
+    } catch (error) {
+      console.error('Error syncing defense stats:', error);
+      return 0;
     }
   }
 

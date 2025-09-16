@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Layout } from "@/components/Layout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -10,9 +10,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { 
-  Users, Shield, AlertTriangle, Ban, 
-  UserCheck, Edit, Database, Trophy, Eye, Trash2, RotateCcw, Target, Settings, Zap, Activity
+import {
+  Users, Shield, AlertTriangle, Ban,
+  UserCheck, Edit, Database, Trophy, Eye, Trash2, RotateCcw, Target, Settings, Zap, Activity, Plus
 } from "lucide-react";
 import { ProviderSelector } from "@/components/ProviderSelector";
 import { DataSyncControl } from "@/components/DataSyncControl";
@@ -111,7 +111,35 @@ export default function AdminPanel() {
   const [showRosterDialog, setShowRosterDialog] = useState(false);
   const [showLeagueDetailsDialog, setShowLeagueDetailsDialog] = useState(false);
   const [teamRoster, setTeamRoster] = useState<RosterPlayer[]>([]);
-  const [currentWeek, setCurrentWeek] = useState(1);
+  // Get current active week dynamically like Team Battle does
+  const { data: currentWeekData } = useQuery({
+    queryKey: ["currentWeek", selectedLeague?.id],
+    queryFn: async () => {
+      if (!selectedLeague?.id) return { number: 1 };
+
+      const { data, error } = await supabase
+        .from("weeks")
+        .select("number")
+        .eq("league_id", selectedLeague.id)
+        .eq("status", "active")
+        .single();
+
+      if (error) return { number: 1 };
+      return data;
+    },
+    enabled: !!selectedLeague?.id,
+  });
+
+  // Local state for admin to manually select week for editing
+  const [selectedWeek, setSelectedWeek] = useState(1);
+  const currentWeek = currentWeekData?.number || 1;
+
+  // Update selectedWeek when currentWeek changes (initialize with active week)
+  useEffect(() => {
+    if (currentWeekData?.number) {
+      setSelectedWeek(currentWeekData.number);
+    }
+  }, [currentWeekData?.number]);
   const [activeTab, setActiveTab] = useState("data");
   const [banReason, setBanReason] = useState("");
   const [showBanDialog, setShowBanDialog] = useState(false);
@@ -426,10 +454,24 @@ export default function AdminPanel() {
           )
         `)
         .eq("fantasy_team_id", editingTeamPlayer.teamId)
-        .eq("is_active", true);
+        .eq("week", selectedWeek)
+        .eq("is_active", true)
+        .order("player_id")
+        .order("acquired_week", { ascending: false });
 
       if (error) throw error;
-      return data;
+
+      // Filtrar duplicados - mantener solo el registro más reciente de cada jugador
+      const uniquePlayers = new Map();
+      data?.forEach((roster: any) => {
+        const playerId = roster.player_id;
+        if (!uniquePlayers.has(playerId) ||
+            roster.acquired_week > uniquePlayers.get(playerId).acquired_week) {
+          uniquePlayers.set(playerId, roster);
+        }
+      });
+
+      return Array.from(uniquePlayers.values());
     },
     enabled: !!editingTeamPlayer?.teamId,
   });
@@ -495,6 +537,11 @@ export default function AdminPanel() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["adminTeamPlayers"] });
       queryClient.invalidateQueries({ queryKey: ["adminLeagueDetails"] });
+      // Invalidate Team Battle queries
+      queryClient.invalidateQueries({ queryKey: ["rosterWithDetails"] });
+      queryClient.invalidateQueries({ queryKey: ["fantasyTeams"] });
+      queryClient.invalidateQueries({ queryKey: ["weeklyStandings"] });
+      queryClient.invalidateQueries({ queryKey: ["teamProjections"] });
       toast({
         title: "Éxito",
         description: "Jugador eliminado del equipo",
@@ -511,46 +558,69 @@ export default function AdminPanel() {
 
   // Mutación para agregar jugador a un equipo
   const addTeamPlayerMutation = useMutation({
-    mutationFn: async ({ teamId, playerId, slot }: { teamId: string; playerId: number; slot: string }) => {
-      // First check if slot is occupied
-      const { data: existingPlayer } = await supabase
-        .from("team_rosters")
-        .select("player_id")
-        .eq("fantasy_team_id", teamId)
-        .eq("slot", slot)
-        .eq("is_active", true)
-        .single();
-
-      // If slot is occupied, deactivate the current player
-      if (existingPlayer) {
-        const { error: removeError } = await supabase
+    mutationFn: async ({ teamId, playerId, slot, isNewSlot }: { teamId: string; playerId: number; slot: string; isNewSlot?: boolean }) => {
+      if (isNewSlot) {
+        // Para slots nuevos (vacíos), simplemente agregar sin verificar/reemplazar
+        const { error } = await supabase
           .from("team_rosters")
-          .update({ is_active: false })
+          .insert({
+            fantasy_team_id: teamId,
+            player_id: playerId,
+            week: currentWeek || 1,
+            slot: slot,
+            acquired_week: currentWeek || 1,
+            acquired_type: "free_agent",
+            is_active: true
+          });
+
+        if (error) throw error;
+      } else {
+        // Lógica original para reemplazar slots existentes
+        // First check if slot is occupied
+        const { data: existingPlayer } = await supabase
+          .from("team_rosters")
+          .select("player_id")
           .eq("fantasy_team_id", teamId)
-          .eq("player_id", existingPlayer.player_id)
-          .eq("is_active", true);
-        
-        if (removeError) throw removeError;
+          .eq("slot", slot)
+          .eq("is_active", true)
+          .single();
+
+        // If slot is occupied, deactivate the current player
+        if (existingPlayer) {
+          const { error: removeError } = await supabase
+            .from("team_rosters")
+            .update({ is_active: false })
+            .eq("fantasy_team_id", teamId)
+            .eq("player_id", existingPlayer.player_id)
+            .eq("is_active", true);
+
+          if (removeError) throw removeError;
+        }
+
+        // Add the new player to the slot
+        const { error } = await supabase
+          .from("team_rosters")
+          .insert({
+            fantasy_team_id: teamId,
+            player_id: playerId,
+            week: currentWeek || 1,
+            slot: slot,
+            acquired_week: currentWeek || 1,
+            acquired_type: "free_agent",
+            is_active: true
+          });
+
+        if (error) throw error;
       }
-
-      // Add the new player to the slot
-      const { error } = await supabase
-        .from("team_rosters")
-        .insert({
-          fantasy_team_id: teamId,
-          player_id: playerId,
-          week: currentWeek || 1,
-          slot: slot,
-          acquired_week: currentWeek || 1,
-          acquired_type: "free_agent",
-          is_active: true
-        });
-
-      if (error) throw error;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["adminTeamPlayers"] });
       queryClient.invalidateQueries({ queryKey: ["adminLeagueDetails"] });
+      // Invalidate Team Battle queries
+      queryClient.invalidateQueries({ queryKey: ["rosterWithDetails"] });
+      queryClient.invalidateQueries({ queryKey: ["fantasyTeams"] });
+      queryClient.invalidateQueries({ queryKey: ["weeklyStandings"] });
+      queryClient.invalidateQueries({ queryKey: ["teamProjections"] });
       toast({
         title: "Éxito",
         description: "Jugador agregado al equipo",
@@ -594,9 +664,15 @@ export default function AdminPanel() {
     },
   });
 
-  // Búsqueda de jugadores disponibles
-  const searchAvailablePlayers = async (search: string) => {
-    const { data, error } = await supabase
+  // Búsqueda de jugadores disponibles con filtro por posición
+  const searchAvailablePlayers = async (search: string, positionFilter?: string) => {
+    // Si no hay posición seleccionada, no buscar
+    if (!positionFilter) {
+      setAvailablePlayers([]);
+      return;
+    }
+
+    let query = supabase
       .from("players")
       .select(`
         id,
@@ -607,6 +683,20 @@ export default function AdminPanel() {
       `)
       .ilike("name", `%${search}%`)
       .limit(20);
+
+    // Aplicar filtro por posición según el slot seleccionado
+    if (positionFilter === "FLEX") {
+      // Para FLEX, incluir RB, WR, TE
+      query = query.in("position", ["RB", "WR", "TE"]);
+    } else if (positionFilter === "DP") {
+      // Para DP, incluir posiciones defensivas
+      query = query.in("position", ["DP", "LB", "DB", "DL"]);
+    } else {
+      // Para posiciones específicas (QB, RB, WR, TE, K, DEF)
+      query = query.eq("position", positionFilter);
+    }
+
+    const { data, error } = await query;
 
     if (error) {
       toast({
@@ -1672,153 +1762,222 @@ export default function AdminPanel() {
                             </div>
                           </div>
 
-                          {/* Buscar y agregar jugador */}
-                          <div className="space-y-3 mb-4">
-                            <div className="flex gap-2">
-                              <Select value={selectedSlot} onValueChange={setSelectedSlot}>
-                                <SelectTrigger className="w-[180px] bg-nfl-dark border-nfl-light-gray/20">
-                                  <SelectValue placeholder="Seleccionar slot" />
-                                </SelectTrigger>
-                                <SelectContent className="bg-nfl-dark border-nfl-light-gray/20">
-                                  <SelectItem value="QB">QB - Quarterback</SelectItem>
-                                  <SelectItem value="RB">RB - Running Back</SelectItem>
-                                  <SelectItem value="WR">WR - Wide Receiver</SelectItem>
-                                  <SelectItem value="TE">TE - Tight End</SelectItem>
-                                  <SelectItem value="FLEX">FLEX - RB/WR/TE</SelectItem>
-                                  <SelectItem value="K">K - Kicker</SelectItem>
-                                  <SelectItem value="DEF">DEF - Defense</SelectItem>
-                                  <SelectItem value="DP">DP - Defensive Player</SelectItem>
-                                </SelectContent>
-                              </Select>
-                              <Input
-                                placeholder="Buscar jugador para agregar..."
-                                onChange={(e) => {
-                                  if (e.target.value.length > 2 && selectedSlot) {
-                                    searchAvailablePlayers(e.target.value);
-                                  }
-                                }}
-                                className="bg-nfl-dark border-nfl-light-gray/20 flex-1"
-                                disabled={!selectedSlot}
-                              />
-                            </div>
-                            {!selectedSlot && (
-                              <p className="text-sm text-yellow-400">Primero selecciona un slot para agregar el jugador</p>
-                            )}
-                          </div>
+                          {/* Roster organizado por slots */}
+                          <div className="space-y-4">
+                            <h4 className="text-lg font-semibold text-white mb-4">
+                              Roster del Equipo - Formato Team Battle
+                            </h4>
 
-                          {availablePlayers.length > 0 && (
-                            <div className="mb-4 p-4 border border-nfl-light-gray/20 rounded-lg">
-                              <p className="text-sm text-gray-400 mb-2">Jugadores disponibles:</p>
-                              <div className="space-y-2">
-                                {availablePlayers.map((player) => (
-                                  <div key={player.id} className="flex items-center justify-between">
-                                    <div>
-                                      <span className="text-white">{player.name}</span>
-                                      <span className="text-gray-400 ml-2">({player.position})</span>
-                                      {player.nfl_team && (
-                                        <span className="text-gray-500 ml-2">{player.nfl_team.abbreviation}</span>
-                                      )}
-                                    </div>
-                                    <Button
-                                      size="sm"
-                                      onClick={() => addTeamPlayerMutation.mutate({
-                                        teamId: editingTeamPlayer.teamId,
-                                        playerId: player.id,
-                                        slot: selectedSlot
-                                      })}
-                                      disabled={!selectedSlot}
-                                    >
-                                      Agregar a {selectedSlot}
-                                    </Button>
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
-                          )}
+                            {(() => {
+                              // Definir los slots en orden con múltiples posiciones
+                              const slotDefinitions = [
+                                { position: 'QB', count: 1 },
+                                { position: 'RB', count: 2 },
+                                { position: 'WR', count: 2 },
+                                { position: 'TE', count: 1 },
+                                { position: 'FLEX', count: 1 },
+                                { position: 'K', count: 1 },
+                                { position: 'DEF', count: 1 },
+                                { position: 'DP', count: 1 }
+                              ];
 
-                          {/* Lista de jugadores actuales */}
-                          <div className="space-y-2">
-                            {teamPlayers?.map((roster: any) => (
-                              <div key={roster.id} className="flex items-center justify-between p-3 border border-nfl-light-gray/20 rounded-lg">
-                                <div className="flex items-center gap-3">
-                                  <div className="w-10 h-10 bg-nfl-blue rounded-full flex items-center justify-center">
-                                    <span className="text-white text-xs font-bold">{roster.player?.position}</span>
-                                  </div>
-                                  <div>
-                                    <p className="text-white font-medium">{roster.player?.name}</p>
-                                    <div className="flex items-center gap-2">
-                                      <Badge variant="outline" className="text-xs">
-                                        {roster.slot}
-                                      </Badge>
-                                      <span className="text-xs text-gray-400">
-                                        {roster.player?.nfl_team?.abbreviation}
-                                      </span>
-                                    </div>
-                                  </div>
-                                </div>
-                                <div className="flex gap-2">
-                                  <Dialog>
-                                    <DialogTrigger asChild>
-                                      <Button variant="outline" size="sm">
-                                        <Edit className="h-4 w-4" />
-                                      </Button>
-                                    </DialogTrigger>
-                                    <DialogContent className="bg-nfl-gray border-nfl-light-gray/20">
-                                      <DialogHeader>
-                                        <DialogTitle className="text-white">Cambiar Jugador</DialogTitle>
-                                      </DialogHeader>
-                                      <div className="space-y-4">
-                                        <p className="text-gray-400">
-                                          Reemplazar a <strong className="text-white">{roster.player?.name}</strong>
-                                        </p>
-                                        <Input
-                                          placeholder="Buscar nuevo jugador..."
-                                          onChange={(e) => {
-                                            if (e.target.value.length > 2) {
-                                              searchAvailablePlayers(e.target.value);
-                                            }
-                                          }}
-                                          className="bg-nfl-dark border-nfl-light-gray/20"
-                                        />
-                                        {availablePlayers.length > 0 && (
-                                          <div className="space-y-2 max-h-60 overflow-y-auto">
-                                            {availablePlayers.map((player) => (
-                                              <div key={player.id} className="flex items-center justify-between p-2 hover:bg-nfl-dark rounded">
-                                                <div>
-                                                  <span className="text-white">{player.name}</span>
-                                                  <span className="text-gray-400 ml-2">({player.position})</span>
-                                                </div>
-                                                <Button
-                                                  size="sm"
-                                                  onClick={() => changeTeamPlayerMutation.mutate({
-                                                    teamId: editingTeamPlayer.teamId,
-                                                    oldPlayerId: roster.player_id,
-                                                    newPlayerId: player.id,
-                                                    slot: roster.slot
-                                                  })}
-                                                >
-                                                  Seleccionar
-                                                </Button>
-                                              </div>
-                                            ))}
+                              // Crear array de todos los slots individuales
+                              const allSlots: Array<{position: string, index: number, slotId: string}> = [];
+                              slotDefinitions.forEach(({ position, count }) => {
+                                for (let i = 0; i < count; i++) {
+                                  allSlots.push({
+                                    position,
+                                    index: i,
+                                    slotId: count > 1 ? `${position}_${i + 1}` : position
+                                  });
+                                }
+                              });
+
+                              // Agrupar jugadores por posición
+                              const playersByPosition = new Map();
+                              teamPlayers?.forEach((roster: any) => {
+                                const position = roster.slot;
+                                if (!playersByPosition.has(position)) {
+                                  playersByPosition.set(position, []);
+                                }
+                                playersByPosition.get(position).push(roster);
+                              });
+
+                              return allSlots.map((slotInfo) => {
+                                const { position, index, slotId } = slotInfo;
+                                const playersInPosition = playersByPosition.get(position) || [];
+                                const player = playersInPosition[index];
+
+                                return (
+                                  <div key={slotId} className="border border-nfl-light-gray/20 rounded-lg p-4">
+                                    <div className="flex items-center justify-between">
+                                      <div className="flex items-center gap-4">
+                                        <div className="w-12 h-12 bg-nfl-blue rounded-full flex items-center justify-center">
+                                          <span className="text-white text-sm font-bold">
+                                            {slotDefinitions.find(s => s.position === position)?.count > 1
+                                              ? `${position}${index + 1}`
+                                              : position}
+                                          </span>
+                                        </div>
+
+                                        {player ? (
+                                          // Jugador asignado
+                                          <div>
+                                            <p className="text-white font-medium">{player.player?.name}</p>
+                                            <div className="flex items-center gap-2">
+                                              <span className="text-xs text-gray-400">
+                                                {player.player?.position}
+                                              </span>
+                                              <span className="text-xs text-gray-400">
+                                                {player.player?.nfl_team?.abbreviation}
+                                              </span>
+                                            </div>
+                                          </div>
+                                        ) : (
+                                          // Slot vacío
+                                          <div>
+                                            <p className="text-gray-400 font-medium">Slot Vacío</p>
+                                            <p className="text-xs text-gray-500">
+                                              {position === 'FLEX' ? 'RB/WR/TE' : `Necesita ${position}`}
+                                            </p>
                                           </div>
                                         )}
                                       </div>
-                                    </DialogContent>
-                                  </Dialog>
-                                  <Button
-                                    variant="destructive"
-                                    size="sm"
-                                    onClick={() => removeTeamPlayerMutation.mutate({
-                                      teamId: editingTeamPlayer.teamId,
-                                      playerId: roster.player_id
-                                    })}
-                                  >
-                                    <Trash2 className="h-4 w-4" />
-                                  </Button>
-                                </div>
-                              </div>
-                            ))}
+
+                                      <div className="flex gap-2">
+                                        {player ? (
+                                          // Botones para jugador existente
+                                          <>
+                                            <Dialog>
+                                              <DialogTrigger asChild>
+                                                <Button variant="outline" size="sm">
+                                                  <Edit className="h-4 w-4 mr-1" />
+                                                  Cambiar
+                                                </Button>
+                                              </DialogTrigger>
+                                              <DialogContent className="bg-nfl-gray border-nfl-light-gray/20">
+                                                <DialogHeader>
+                                                  <DialogTitle className="text-white">Cambiar Jugador en {position}</DialogTitle>
+                                                </DialogHeader>
+                                                <div className="space-y-4">
+                                                  <p className="text-gray-400">
+                                                    Reemplazar a <strong className="text-white">{player.player?.name}</strong>
+                                                  </p>
+                                                  <Input
+                                                    placeholder={`Buscar nuevo ${position}...`}
+                                                    onChange={(e) => {
+                                                      if (e.target.value.length > 2) {
+                                                        searchAvailablePlayers(e.target.value, position);
+                                                      } else {
+                                                        setAvailablePlayers([]);
+                                                      }
+                                                    }}
+                                                    className="bg-nfl-dark border-nfl-light-gray/20"
+                                                  />
+                                                  {availablePlayers.length > 0 && (
+                                                    <div className="space-y-2 max-h-60 overflow-y-auto">
+                                                      {availablePlayers.map((availablePlayer) => (
+                                                        <div key={availablePlayer.id} className="flex items-center justify-between p-2 hover:bg-nfl-dark rounded">
+                                                          <div>
+                                                            <span className="text-white">{availablePlayer.name}</span>
+                                                            <span className="text-gray-400 ml-2">({availablePlayer.position})</span>
+                                                            {availablePlayer.nfl_team && (
+                                                              <span className="text-gray-500 ml-2">{availablePlayer.nfl_team.abbreviation}</span>
+                                                            )}
+                                                          </div>
+                                                          <Button
+                                                            size="sm"
+                                                            onClick={() => changeTeamPlayerMutation.mutate({
+                                                              teamId: editingTeamPlayer.teamId,
+                                                              oldPlayerId: player.player_id,
+                                                              newPlayerId: availablePlayer.id,
+                                                              slot: position
+                                                            })}
+                                                          >
+                                                            Seleccionar
+                                                          </Button>
+                                                        </div>
+                                                      ))}
+                                                    </div>
+                                                  )}
+                                                </div>
+                                              </DialogContent>
+                                            </Dialog>
+                                            <Button
+                                              variant="destructive"
+                                              size="sm"
+                                              onClick={() => removeTeamPlayerMutation.mutate({
+                                                teamId: editingTeamPlayer.teamId,
+                                                playerId: player.player_id
+                                              })}
+                                            >
+                                              <Trash2 className="h-4 w-4" />
+                                            </Button>
+                                          </>
+                                        ) : (
+                                          // Botón para slot vacío
+                                          <Dialog>
+                                            <DialogTrigger asChild>
+                                              <Button variant="outline" size="sm" className="text-green-400 border-green-400 hover:bg-green-400/10">
+                                                <Plus className="h-4 w-4 mr-1" />
+                                                Agregar {position}
+                                              </Button>
+                                            </DialogTrigger>
+                                            <DialogContent className="bg-nfl-gray border-nfl-light-gray/20">
+                                              <DialogHeader>
+                                                <DialogTitle className="text-white">Agregar Jugador a {position}</DialogTitle>
+                                              </DialogHeader>
+                                              <div className="space-y-4">
+                                                <p className="text-gray-400">
+                                                  Buscar jugador para el slot <strong className="text-white">{position}</strong>
+                                                </p>
+                                                <Input
+                                                  placeholder={`Buscar ${position}...`}
+                                                  onChange={(e) => {
+                                                    if (e.target.value.length > 2) {
+                                                      searchAvailablePlayers(e.target.value, position);
+                                                    } else {
+                                                      setAvailablePlayers([]);
+                                                    }
+                                                  }}
+                                                  className="bg-nfl-dark border-nfl-light-gray/20"
+                                                />
+                                                {availablePlayers.length > 0 && (
+                                                  <div className="space-y-2 max-h-60 overflow-y-auto">
+                                                    {availablePlayers.map((availablePlayer) => (
+                                                      <div key={availablePlayer.id} className="flex items-center justify-between p-2 hover:bg-nfl-dark rounded">
+                                                        <div>
+                                                          <span className="text-white">{availablePlayer.name}</span>
+                                                          <span className="text-gray-400 ml-2">({availablePlayer.position})</span>
+                                                          {availablePlayer.nfl_team && (
+                                                            <span className="text-gray-500 ml-2">{availablePlayer.nfl_team.abbreviation}</span>
+                                                          )}
+                                                        </div>
+                                                        <Button
+                                                          size="sm"
+                                                          onClick={() => addTeamPlayerMutation.mutate({
+                                                            teamId: editingTeamPlayer.teamId,
+                                                            playerId: availablePlayer.id,
+                                                            slot: position,
+                                                            isNewSlot: !player // Si no hay player en este slot, es un slot nuevo
+                                                          })}
+                                                        >
+                                                          Agregar a {position}
+                                                        </Button>
+                                                      </div>
+                                                    ))}
+                                                  </div>
+                                                )}
+                                              </div>
+                                            </DialogContent>
+                                          </Dialog>
+                                        )}
+                                      </div>
+                                    </div>
+                                  </div>
+                                );
+                              });
+                            })()}
                           </div>
                         </div>
                       ) : (
@@ -1923,9 +2082,9 @@ export default function AdminPanel() {
                 <div>
                   <Label className="text-gray-400">Semana</Label>
                   <Select
-                    value={currentWeek.toString()}
+                    value={selectedWeek.toString()}
                     onValueChange={(value) => {
-                      setCurrentWeek(parseInt(value));
+                      setSelectedWeek(parseInt(value));
                       if (selectedTeam) {
                         handleViewRoster(selectedTeam);
                       }

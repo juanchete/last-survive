@@ -440,46 +440,46 @@ async function syncADP() {
 
 async function syncStats(week: number = 1, season: number = 2025) {
   console.log(`\n📊 Starting Stats sync for ${season} Week ${week}...`);
-  
+
   try {
     // Fetch stats directly from SportsData API
     const response = await fetch(`https://api.sportsdata.io/v3/nfl/stats/json/FantasyGameStatsByWeek/${season}REG/${week}?key=f1826e4060774e56a6f56bae1d9eb76e`);
-    
+
     if (!response.ok) {
       console.error('Error fetching stats:', response.status);
       return false;
     }
-    
+
     const data = await response.json();
-    
+
     if (!data || !Array.isArray(data)) {
       console.error('Invalid stats response');
       return false;
     }
-    
+
     console.log(`Found ${data.length} stat records from SportsData`);
-    
+
     // Get all players with sportsdata_id
     const { data: players } = await supabase
       .from('players')
       .select('id, sportsdata_id');
-    
+
     if (!players) {
       console.error('No players found in database');
       return false;
     }
-    
+
     // Create mapping from sportsdata_id to database id
     const playerMap = new Map(
       players.map(p => [p.sportsdata_id, p.id])
     );
-    
+
     // Map stats to our database format
     const stats = data
       .map((stat: any) => {
         const playerId = playerMap.get(String(stat.PlayerID));
         if (!playerId) return null;
-        
+
         return {
           player_id: playerId,
           week: week,
@@ -500,30 +500,184 @@ async function syncStats(week: number = 1, season: number = 2025) {
         };
       })
       .filter(s => s !== null);
-    
+
     // Insert stats in batches
     const batchSize = 100;
     for (let i = 0; i < stats.length; i += batchSize) {
       const batch = stats.slice(i, i + batchSize);
-      
+
       const { error: insertError } = await supabase
         .from('player_stats')
         .upsert(batch, {
           onConflict: 'player_id,week,season'
         });
-      
+
       if (insertError) {
         console.error(`Error inserting stats batch ${i / batchSize + 1}:`, insertError);
       } else {
         console.log(`Inserted stats batch ${i / batchSize + 1} (${batch.length} records)`);
       }
     }
-    
+
     console.log(`✅ Successfully synced ${stats.length} stat records`);
     return true;
   } catch (err) {
     console.error('Error in syncStats:', err);
     return false;
+  }
+}
+
+async function syncDefenseStats(week: number = 1, season: number = 2025) {
+  console.log(`\n🛡️ Starting Defense Stats sync for ${season} Week ${week}...`);
+
+  try {
+    // Fetch defense stats from SportsData API
+    const response = await fetch(`https://api.sportsdata.io/v3/nfl/stats/json/FantasyDefenseByGame/${season}REG/${week}?key=f1826e4060774e56a6f56bae1d9eb76e`);
+
+    if (!response.ok) {
+      console.error('Error fetching defense stats:', response.status);
+      return false;
+    }
+
+    const data = await response.json();
+
+    if (!data || !Array.isArray(data)) {
+      console.error('Invalid defense stats response');
+      return false;
+    }
+
+    console.log(`Found ${data.length} defense records from SportsData`);
+
+    // Get all defense players
+    const { data: defensePlayers } = await supabase
+      .from('players')
+      .select(`
+        id,
+        name,
+        nfl_teams!inner (abbreviation)
+      `)
+      .eq('position', 'DEF');
+
+    if (!defensePlayers || defensePlayers.length === 0) {
+      console.error('No defense players found in database');
+      return false;
+    }
+
+    // Create lookup map from team abbreviation to defense player
+    const defensePlayerMap = new Map();
+    defensePlayers.forEach((player: any) => {
+      const teamAbbr = player.nfl_teams?.abbreviation;
+      if (teamAbbr) {
+        defensePlayerMap.set(teamAbbr, player);
+      }
+    });
+
+    // Create lookup map from API data
+    const defenseStatsMap = new Map();
+    data.forEach((team: any) => {
+      defenseStatsMap.set(team.Team, team);
+    });
+
+    console.log(`Mapping defense stats to ${defensePlayerMap.size} defense players`);
+
+    // Map defense stats to our database format
+    const defenseStats = [];
+    for (const [teamAbbr, player] of defensePlayerMap.entries()) {
+      const teamStats = defenseStatsMap.get(teamAbbr);
+
+      if (teamStats) {
+        const fantasyPoints = teamStats.FantasyPointsDraftKings || 0;
+        console.log(`📈 ${player.name} (${teamAbbr}): ${fantasyPoints} points`);
+
+        defenseStats.push({
+          player_id: player.id,
+          week: week,
+          season: season,
+          fantasy_points: fantasyPoints,
+          actual_points: fantasyPoints,
+          // Defense-specific stats (if available in API)
+          tackles: teamStats.Tackles || 0,
+          sacks: teamStats.Sacks || 0,
+          interceptions: teamStats.Interceptions || 0,
+          // Initialize other stats to 0 for defenses
+          passing_yards: 0,
+          passing_td: 0,
+          rushing_yards: 0,
+          rushing_td: 0,
+          receiving_yards: 0,
+          receiving_td: 0,
+          field_goals: 0,
+          is_final: true
+        });
+      } else {
+        console.warn(`⚠️ No stats found for ${player.name} (${teamAbbr})`);
+      }
+    }
+
+    if (defenseStats.length === 0) {
+      console.warn('No defense stats mapped to players');
+      return false;
+    }
+
+    // Insert defense stats
+    const { error: insertError } = await supabase
+      .from('player_stats')
+      .upsert(defenseStats, {
+        onConflict: 'player_id,week,season'
+      });
+
+    if (insertError) {
+      console.error('Error inserting defense stats:', insertError);
+      return false;
+    }
+
+    console.log(`✅ Successfully synced ${defenseStats.length} defense stat records`);
+    return true;
+  } catch (err) {
+    console.error('Error in syncDefenseStats:', err);
+    return false;
+  }
+}
+
+async function syncAllStats(week: number = 1, season: number = 2025) {
+  console.log(`\n📊 Starting complete stats sync (players + defenses) for ${season} Week ${week}...`);
+
+  // Step 1: Sync regular player stats
+  const statsSuccess = await syncStats(week, season);
+  if (!statsSuccess) {
+    console.error('❌ Failed to sync player stats');
+    return false;
+  }
+
+  // Step 2: Sync defense stats
+  const defenseSuccess = await syncDefenseStats(week, season);
+  if (!defenseSuccess) {
+    console.error('❌ Failed to sync defense stats');
+    return false;
+  }
+
+  console.log(`✅ Successfully synced all stats for Week ${week}`);
+  return true;
+}
+
+// Function specifically for weekly stats updates (for Edge Functions)
+async function syncWeeklyStats(week: number, season: number = 2025) {
+  console.log(`\n⚡ Starting weekly stats update for ${season} Week ${week}...`);
+
+  try {
+    const success = await syncAllStats(week, season);
+    if (success) {
+      console.log(`⚡ Weekly stats sync completed successfully for Week ${week}`);
+      return { success: true, message: `Successfully synced stats for Week ${week}` };
+    } else {
+      const errorMsg = `Failed to sync stats for Week ${week}`;
+      console.error(`❌ ${errorMsg}`);
+      return { success: false, error: errorMsg };
+    }
+  } catch (error) {
+    const errorMsg = `Error syncing weekly stats: ${error}`;
+    console.error(`❌ ${errorMsg}`);
+    return { success: false, error: errorMsg };
   }
 }
 
@@ -643,7 +797,7 @@ async function main() {
 }
 
 // Export functions for use in UI components
-export { syncNFLTeams, syncPlayers, syncTeamDefenses, syncProjections, syncStats, syncADP, verifySync };
+export { syncNFLTeams, syncPlayers, syncTeamDefenses, syncProjections, syncStats, syncDefenseStats, syncAllStats, syncWeeklyStats, syncADP, verifySync };
 
 // Run the script only if called directly (not when imported)
 if (typeof window === 'undefined') {

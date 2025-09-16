@@ -86,7 +86,48 @@ serve(async (req) => {
     let result: TuesdayProcessResult;
 
     if (action === "tuesday_3am_process") {
-      // Usar la nueva función SQL integrada
+      // 1. Final stats sync before elimination
+      console.log("📊 Performing final stats sync before elimination...");
+      try {
+        // Get current week to sync
+        const { data: currentWeekData } = await supabase
+          .from('weeks')
+          .select('number')
+          .eq('status', 'active')
+          .single();
+
+        const currentWeek = currentWeekData?.number || 1;
+
+        // Call our sync-weekly-stats Edge Function
+        const syncResponse = await fetch(`${supabaseUrl}/functions/v1/sync-weekly-stats?week=${currentWeek}&season=${season}`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${supabaseServiceKey}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            automated: true,
+            trigger: 'pre-elimination',
+            note: 'Final sync before Tuesday elimination process'
+          })
+        });
+
+        if (syncResponse.ok) {
+          const syncResult = await syncResponse.json();
+          console.log("✅ Final stats sync completed:", syncResult);
+        } else {
+          console.warn("⚠️ Final stats sync failed, continuing with elimination...");
+        }
+      } catch (syncError) {
+        console.warn("⚠️ Final stats sync error:", syncError);
+        // Continue with elimination even if sync fails
+      }
+
+      // 2. Wait a moment for any database triggers to complete
+      await new Promise(resolve => setTimeout(resolve, 2000));
+
+      // 3. Proceed with elimination process
+      console.log("🏈 Starting elimination process...");
       const { data, error } = await supabase.rpc("process_all_leagues_tuesday_3am", {
         season_year: season
       });

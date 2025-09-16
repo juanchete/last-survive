@@ -5,24 +5,24 @@
 
 import { supabase } from "@/integrations/supabase/client";
 
-// Manually fetch from SportsData API 
-async function fetchDefenseStats() {
+// Manually fetch from SportsData API
+async function fetchDefenseStats(week: number = 2) {
   const API_KEY = 'f1826e4060774e56a6f56bae1d9eb76e';
-  
+
   try {
-    // Test the exact endpoint from your original request
-    const url = `https://api.sportsdata.io/v3/nfl/stats/json/FantasyDefenseByWeek/2025REG/1?key=${API_KEY}`;
+    // Use the correct FantasyDefenseByGame endpoint
+    const url = `https://api.sportsdata.io/v3/nfl/stats/json/FantasyDefenseByGame/2025REG/${week}?key=${API_KEY}`;
     console.log('🔗 Fetching from:', url);
-    
+
     const response = await fetch(url);
-    
+
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}: ${response.statusText}`);
     }
-    
+
     const data = await response.json();
-    console.log(`📊 Received ${data.length} defense records`);
-    
+    console.log(`📊 Received ${data.length} defense records for week ${week}`);
+
     return data;
   } catch (error) {
     console.error('❌ Failed to fetch defense stats:', error);
@@ -30,11 +30,11 @@ async function fetchDefenseStats() {
   }
 }
 
-async function updateDefenseStats() {
-  console.log('🏈 Updating Defense Stats for OG LEAGUE...\n');
-  
+async function updateDefenseStats(week: number = 2) {
+  console.log(`🏈 Updating Defense Stats for OG LEAGUE - Week ${week}...\n`);
+
   // 1. Fetch defense stats from API
-  const defenseData = await fetchDefenseStats();
+  const defenseData = await fetchDefenseStats(week);
   if (!defenseData) {
     console.log('❌ No defense data received');
     return;
@@ -60,7 +60,7 @@ async function updateDefenseStats() {
         nfl_teams (abbreviation)
       )
     `)
-    .eq('week', 1)
+    .eq('week', week)
     .eq('players.position', 'DEF')
     .in('fantasy_team_id', [
       '08a1b542-4cd0-4d49-b22c-72b8311b34be',
@@ -98,9 +98,8 @@ async function updateDefenseStats() {
       updates.push({
         player_id: player.id,
         season: 2025,
-        week: 1,
-        fantasy_points: fantasyPoints,
-        updated_at: new Date().toISOString()
+        week: week,
+        fantasy_points: fantasyPoints
       });
     } else {
       console.warn(`⚠️  No stats found for ${player.name} (${teamAbbr})`);
@@ -124,7 +123,7 @@ async function updateDefenseStats() {
       const { data: verification } = await supabase
         .from('player_stats')
         .select('player_id, fantasy_points')
-        .eq('week', 1)
+        .eq('week', week)
         .eq('season', 2025)
         .in('player_id', updates.map(u => u.player_id));
       
@@ -143,6 +142,6 @@ async function updateDefenseStats() {
 export { updateDefenseStats };
 
 // Run if executed directly
-if (typeof window === 'undefined' && require.main === module) {
+if (typeof window === 'undefined' && import.meta.url === `file://${process.argv[1]}`) {
   updateDefenseStats();
 }

@@ -15,7 +15,8 @@ export function useRosterWithPlayerDetails(fantasyTeamId: string, week: number) 
         .from("team_rosters")
         .select("*")
         .eq("fantasy_team_id", fantasyTeamId)
-        .eq("week", week);
+        .eq("week", week)
+        .eq("is_active", true);
       
       if (rosterError) throw rosterError;
       if (!roster.length) return [];
