@@ -32,17 +32,42 @@ async function updateSportsDataIds() {
     
     console.log(`Found ${activePlayers.length} active players from SportsData`);
     
-    // Get all players from our database
+    // Get player mappings from database - need to get ALL players in batches
     console.log('Fetching players from database...');
-    const { data: dbPlayers, error: dbError } = await supabase
-      .from('players')
-      .select('id, name, sportsdata_id');
-    
-    if (dbError) {
-      console.error('Error fetching players from database:', dbError);
-      return;
+    const allPlayers: any[] = [];
+    const batchSize = 1000;
+    let offset = 0;
+    let hasMore = true;
+
+    console.log('🔄 Fetching all players from database in batches...');
+
+    while (hasMore) {
+      const { data: batch, error: playersError } = await supabase
+        .from('players')
+        .select('id, name, sportsdata_id')
+        .range(offset, offset + batchSize - 1);
+
+      if (playersError) {
+        console.error('❌ Error fetching players:', playersError);
+        return;
+      }
+
+      if (batch && batch.length > 0) {
+        allPlayers.push(...batch);
+        console.log(`   📦 Batch ${Math.floor(offset / batchSize) + 1}: ${batch.length} players (total: ${allPlayers.length})`);
+
+        if (batch.length < batchSize) {
+          hasMore = false; // Less than full batch means we've reached the end
+        } else {
+          offset += batchSize;
+        }
+      } else {
+        hasMore = false;
+      }
     }
-    
+
+    const dbPlayers = allPlayers;
+
     console.log(`Found ${dbPlayers?.length || 0} players in database`);
     
     // Create a map of database players by name (lowercase for matching)

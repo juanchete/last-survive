@@ -24,14 +24,40 @@ async function syncMissingWeek2Stats() {
     const statsData = await response.json();
     console.log(`📊 Found ${statsData.length} player stats for Week 2`);
 
-    // Get all players with sportsdata_id
-    const { data: players, error: playersError } = await supabase
-      .from('players')
-      .select('id, sportsdata_id, name');
+    // Get player mappings from database - need to get ALL players in batches
+    const allPlayers: any[] = [];
+    const batchSize = 1000;
+    let offset = 0;
+    let hasMore = true;
 
-    if (playersError) {
-      throw playersError;
+    console.log('🔄 Fetching all players from database in batches...');
+
+    while (hasMore) {
+      const { data: batch, error: playersError } = await supabase
+        .from('players')
+        .select('id, sportsdata_id, name')
+        .range(offset, offset + batchSize - 1);
+
+      if (playersError) {
+        console.error('❌ Error fetching players:', playersError);
+        throw playersError;
+      }
+
+      if (batch && batch.length > 0) {
+        allPlayers.push(...batch);
+        console.log(`   📦 Batch ${Math.floor(offset / batchSize) + 1}: ${batch.length} players (total: ${allPlayers.length})`);
+
+        if (batch.length < batchSize) {
+          hasMore = false; // Less than full batch means we've reached the end
+        } else {
+          offset += batchSize;
+        }
+      } else {
+        hasMore = false;
+      }
     }
+
+    const players = allPlayers;
 
     // Create mapping from sportsdata_id to database id
     const playerMap = new Map(

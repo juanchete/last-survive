@@ -459,15 +459,47 @@ async function syncStats(week: number = 1, season: number = 2025) {
 
     console.log(`Found ${data.length} stat records from SportsData`);
 
-    // Get all players with sportsdata_id
-    const { data: players } = await supabase
-      .from('players')
-      .select('id, sportsdata_id');
+    // Get all players with sportsdata_id - fetch ALL players in batches to handle 1800+ players
+    const allPlayers: any[] = [];
+    const batchSize = 1000;
+    let offset = 0;
+    let hasMore = true;
 
-    if (!players) {
+    console.log('🔄 Fetching all players from database in batches...');
+
+    while (hasMore) {
+      const { data: batch, error: playersError } = await supabase
+        .from('players')
+        .select('id, sportsdata_id')
+        .range(offset, offset + batchSize - 1);
+
+      if (playersError) {
+        console.error('❌ Error fetching players:', playersError);
+        return false;
+      }
+
+      if (batch && batch.length > 0) {
+        allPlayers.push(...batch);
+        console.log(`   📦 Batch ${Math.floor(offset / batchSize) + 1}: ${batch.length} players (total: ${allPlayers.length})`);
+
+        if (batch.length < batchSize) {
+          hasMore = false; // Less than full batch means we've reached the end
+        } else {
+          offset += batchSize;
+        }
+      } else {
+        hasMore = false;
+      }
+    }
+
+    const players = allPlayers;
+
+    if (!players || players.length === 0) {
       console.error('No players found in database');
       return false;
     }
+
+    console.log(`📊 Found ${players.length} total players for stats sync`)
 
     // Create mapping from sportsdata_id to database id
     const playerMap = new Map(
