@@ -742,14 +742,33 @@ export class SportsDataProvider extends BaseFantasyProvider {
     sportsDataProjections.forEach((playerProjection: SportsDataProjection) => {
       const playerId = String(playerProjection.PlayerID);
 
-      // Extract points for different scoring systems
+      // Debug log for Ja'Marr Chase specifically
+      if (playerProjection.Name && playerProjection.Name.toLowerCase().includes("ja'marr chase")) {
+        console.log(`🔍 [SportsDataProvider] RAW API data for Ja'Marr Chase:`, {
+          Name: playerProjection.Name,
+          PlayerID: playerProjection.PlayerID,
+          FantasyPoints: playerProjection.FantasyPoints,
+          FantasyPointsPPR: playerProjection.FantasyPointsPPR,
+          ReceivingYards: playerProjection.ReceivingYards,
+          Receptions: playerProjection.Receptions,
+          ReceivingTouchdowns: playerProjection.ReceivingTouchdowns
+        });
+      }
+
+      // Extract points - use PPR as the primary scoring system
       const points: any = {};
-      if (playerProjection.FantasyPointsPPR !== undefined)
+
+      // Use FantasyPointsPPR as the main projected points value
+      if (playerProjection.FantasyPointsPPR !== undefined) {
         points.ppr = playerProjection.FantasyPointsPPR;
-      if (playerProjection.FantasyPoints !== undefined)
-        points.half_ppr = playerProjection.FantasyPoints;
-      if (playerProjection.FantasyPoints !== undefined)
+        points.standard = playerProjection.FantasyPointsPPR; // Use PPR for all scoring types for simplicity
+        points.half_ppr = playerProjection.FantasyPointsPPR;
+      } else if (playerProjection.FantasyPoints !== undefined) {
+        // Fallback to standard if PPR not available
+        points.ppr = playerProjection.FantasyPoints;
         points.standard = playerProjection.FantasyPoints;
+        points.half_ppr = playerProjection.FantasyPoints;
+      }
 
       // Build projection stats object with all available stats
       const projectionData: any = {};
@@ -793,6 +812,16 @@ export class SportsDataProvider extends BaseFantasyProvider {
       // Add player metadata for mapping
       if (playerProjection.Name) projectionData.player_name = playerProjection.Name;
       if (playerProjection.Team) projectionData.team = playerProjection.Team;
+
+      // Debug log for Ja'Marr Chase final processed data
+      if (playerProjection.Name && playerProjection.Name.toLowerCase().includes("ja'marr chase")) {
+        console.log(`🎯 [SportsDataProvider] PROCESSED data for Ja'Marr Chase:`, {
+          player_id: playerId,
+          points: points,
+          stats: projectionData,
+          player_name: playerProjection.Name
+        });
+      }
 
       projections[playerId] = {
         player_id: playerId,

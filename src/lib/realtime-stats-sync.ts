@@ -108,8 +108,29 @@ export class RealtimeStatsSync {
       return { week: currentWeek, season: currentSeason };
     } catch (error) {
       console.warn('Failed to fetch current week from API, using fallback:', error);
-      // Fallback to Week 2, 2025 if API fails
-      return { week: 2, season: 2025 };
+
+      // Intelligent fallback based on current date
+      const currentDate = new Date();
+      const currentYear = currentDate.getFullYear();
+      const currentMonth = currentDate.getMonth() + 1;
+
+      // Estimate current week based on date (September = week 1)
+      let estimatedWeek = 1;
+      if (currentMonth === 9) {
+        const dayOfMonth = currentDate.getDate();
+        estimatedWeek = Math.ceil(dayOfMonth / 7);
+      } else if (currentMonth === 10) {
+        estimatedWeek = 4 + Math.ceil(currentDate.getDate() / 7);
+      } else if (currentMonth === 11) {
+        estimatedWeek = 8 + Math.ceil(currentDate.getDate() / 7);
+      } else if (currentMonth === 12) {
+        estimatedWeek = 12 + Math.ceil(currentDate.getDate() / 7);
+      } else if (currentMonth >= 1 && currentMonth <= 2) {
+        // Playoffs period - use week 18+
+        estimatedWeek = 18;
+      }
+
+      return { week: estimatedWeek, season: currentYear };
     }
   }
 

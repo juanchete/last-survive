@@ -94,12 +94,13 @@ export function DataSyncControl() {
         });
         addSyncMessage('✅ Weekly stats synced successfully');
         
-        // Step 4: Sync Projections (100%)
+        // Step 5: Sync Projections (100%)
+        // Use current week for projections
         addSyncMessage(`Syncing projections for ${nflState.season} Week ${nflState.week}...`);
         setSyncProgress(90);
         await syncWeeklyProjections.mutateAsync({
           season: parseInt(nflState.season),
-          week: nflState.week,
+          week: nflState.week, // Use current week, not next week
           seasonType: nflState.season_type
         });
         addSyncMessage('✅ Weekly projections synced successfully');
@@ -151,13 +152,22 @@ export function DataSyncControl() {
           
         case 'projections':
           if (nflState) {
-            addSyncMessage(`Syncing projections for ${nflState.season} Week ${nflState.week}...`);
+            // TEMPORARY: Force week 3 for projections
+            const projectionWeek = 3; // Hardcoded to week 3 temporarily
+            console.log('🎯 [DataSyncControl] Executing projections sync:', {
+              season: parseInt(nflState.season),
+              week: projectionWeek,
+              seasonType: nflState.season_type
+            });
+            addSyncMessage(`Syncing projections for ${nflState.season} Week ${projectionWeek}...`);
             await syncWeeklyProjections.mutateAsync({
               season: parseInt(nflState.season),
-              week: nflState.week,
+              week: projectionWeek, // Force week 3
               seasonType: nflState.season_type
             });
             addSyncMessage('✅ Projections synced');
+          } else {
+            console.error('❌ [DataSyncControl] No NFL state available for projections sync');
           }
           break;
           
@@ -341,12 +351,12 @@ export function DataSyncControl() {
             >
               Week {nflState?.week} Stats
             </Button>
-            <Button 
+            <Button
               onClick={() => handleSyncSpecific('projections')}
               variant="outline"
               disabled={isSyncing || !nflState}
             >
-              Week {nflState?.week} Projections
+              Week {nflState?.week || 0} Projections
             </Button>
           </div>
         </CardContent>

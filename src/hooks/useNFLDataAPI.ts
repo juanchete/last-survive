@@ -10,7 +10,7 @@ import { toast } from 'sonner';
 import { getActiveProvider } from '@/config/providers';
 import type { NFLState, PlayersMap, StatsMap, ProjectionsMap } from '@/lib/providers/FantasyProvider';
 import type { ProviderName } from '@/lib/providers/ProviderManager';
-import { syncNFLTeams, syncPlayers, syncTeamDefenses, syncProjections, syncStats, syncADP } from '@/scripts/sync-all-sportsdata';
+import { syncNFLTeams, syncPlayers, syncTeamDefenses, syncStats, syncADP } from '@/scripts/sync-all-sportsdata';
 
 /**
  * Hook to manage the active provider
@@ -303,19 +303,48 @@ export function useSyncWeeklyProjections() {
       week: number;
       seasonType?: 'pre' | 'regular' | 'post';
     }) => {
-      const result = await syncProjections(week, season);
-      if (!result) {
-        throw new Error('Failed to sync projections from SportsData.io');
+      console.log('🚀 [useSyncWeeklyProjections] Starting sync...');
+      console.log('📅 Parameters:', { season, week, seasonType });
+
+      try {
+        // Import the fixed daily projections sync
+        console.log('📦 Importing dailyProjectionsSync...');
+        const { dailyProjectionsSync } = await import('@/lib/daily-projections-sync');
+        console.log('✅ dailyProjectionsSync imported successfully');
+
+        // Use the fixed updateProjectionsForWeek method
+        console.log('🔄 Calling updateProjectionsForWeek...');
+        const result = await dailyProjectionsSync.updateProjectionsForWeek(season, week, seasonType);
+        console.log('📊 Sync result:', result);
+
+        if (!result.success) {
+          console.error('❌ Sync failed:', result.message);
+          throw new Error(result.message || 'Failed to sync projections');
+        }
+
+        console.log('✅ Sync completed successfully!');
+        console.log(`📈 Updated ${result.updatedPlayers} players`);
+
+        return {
+          success: true,
+          message: result.message,
+          updatedPlayers: result.updatedPlayers
+        };
+      } catch (error) {
+        console.error('💥 [useSyncWeeklyProjections] Error:', error);
+        throw error;
       }
-      return { success: true, message: 'Projections synced successfully' };
     },
     onSuccess: (data) => {
-      toast.success('Weekly projections synced successfully');
+      console.log('🎉 [useSyncWeeklyProjections] onSuccess called with:', data);
+      toast.success(`Weekly projections synced successfully! Updated ${data.updatedPlayers} players`);
       // Invalidate relevant queries
       queryClient.invalidateQueries({ queryKey: ['nfl', 'weekly-projections'] });
       queryClient.invalidateQueries({ queryKey: ['player-projections'] });
+      console.log('🔄 Cache invalidated');
     },
     onError: (error) => {
+      console.error('💥 [useSyncWeeklyProjections] onError called:', error);
       toast.error(`Failed to sync weekly projections: ${error.message}`);
     },
   });

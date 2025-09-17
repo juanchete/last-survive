@@ -10,8 +10,6 @@ async function syncWeek2Stats() {
   const week = 2;
   const season = 2025;
 
-  console.log(`📊 Starting Stats sync for ${season} Week ${week}...`);
-
   try {
     // Fetch stats directly from SportsData API
     const response = await fetch(`https://api.sportsdata.io/v3/nfl/stats/json/FantasyGameStatsByWeek/${season}REG/${week}?key=f1826e4060774e56a6f56bae1d9eb76e`);

@@ -2,7 +2,7 @@ import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { corsHeaders } from "../_shared/cors.ts";
 
 const SPORTSDATA_API_BASE = "https://api.sportsdata.io/v3/nfl";
-const CACHE_DURATION = 300; // 5 minutes in seconds
+const CACHE_DURATION = 0; // TEMPORARY: Disabled cache for debugging projections sync
 
 // Cache implementation
 const cache = new Map<string, { data: any; timestamp: number }>();
