@@ -152,17 +152,15 @@ export function DataSyncControl() {
           
         case 'projections':
           if (nflState) {
-            // TEMPORARY: Force week 3 for projections
-            const projectionWeek = 3; // Hardcoded to week 3 temporarily
             console.log('🎯 [DataSyncControl] Executing projections sync:', {
               season: parseInt(nflState.season),
-              week: projectionWeek,
+              week: nflState.week,
               seasonType: nflState.season_type
             });
-            addSyncMessage(`Syncing projections for ${nflState.season} Week ${projectionWeek}...`);
+            addSyncMessage(`Syncing projections for ${nflState.season} Week ${nflState.week}...`);
             await syncWeeklyProjections.mutateAsync({
               season: parseInt(nflState.season),
-              week: projectionWeek, // Force week 3
+              week: nflState.week,
               seasonType: nflState.season_type
             });
             addSyncMessage('✅ Projections synced');

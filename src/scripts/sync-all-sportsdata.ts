@@ -461,7 +461,7 @@ async function syncStats(week: number = 1, season: number = 2025) {
 
     // Get all players with sportsdata_id - fetch ALL players in batches to handle 1800+ players
     const allPlayers: any[] = [];
-    const batchSize = 1000;
+    const playerBatchSize = 1000;
     let offset = 0;
     let hasMore = true;
 
@@ -471,7 +471,7 @@ async function syncStats(week: number = 1, season: number = 2025) {
       const { data: batch, error: playersError } = await supabase
         .from('players')
         .select('id, sportsdata_id')
-        .range(offset, offset + batchSize - 1);
+        .range(offset, offset + playerBatchSize - 1);
 
       if (playersError) {
         console.error('❌ Error fetching players:', playersError);
@@ -480,12 +480,12 @@ async function syncStats(week: number = 1, season: number = 2025) {
 
       if (batch && batch.length > 0) {
         allPlayers.push(...batch);
-        console.log(`   📦 Batch ${Math.floor(offset / batchSize) + 1}: ${batch.length} players (total: ${allPlayers.length})`);
+        console.log(`   📦 Batch ${Math.floor(offset / playerBatchSize) + 1}: ${batch.length} players (total: ${allPlayers.length})`);
 
-        if (batch.length < batchSize) {
+        if (batch.length < playerBatchSize) {
           hasMore = false; // Less than full batch means we've reached the end
         } else {
-          offset += batchSize;
+          offset += playerBatchSize;
         }
       } else {
         hasMore = false;
