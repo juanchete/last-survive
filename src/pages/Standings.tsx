@@ -215,10 +215,8 @@ export default function Standings() {
                   <TableHead className="text-gray-400 font-medium">Team</TableHead>
                   <TableHead className="text-gray-400 font-medium">Owner</TableHead>
                   <TableHead className="text-gray-400 font-medium text-center">1st Place Weeks</TableHead>
-                  <TableHead className="text-gray-400 font-medium text-right">
-                    {sortingMode === 'projected' ? 'Projected Points' : 'Week Points'}
-                  </TableHead>
                   <TableHead className="text-gray-400 font-medium text-right">Week Points</TableHead>
+                  <TableHead className="text-gray-400 font-medium text-right">Projected Points</TableHead>
                   <TableHead className="text-gray-400 font-medium text-right">Points to Safety</TableHead>
                   <TableHead className="text-gray-400 font-medium text-right">Status</TableHead>
                 </TableRow>
@@ -312,11 +310,11 @@ export default function Standings() {
                         <TableCell className="text-center text-white">
                           {team.first_place_weeks || 0}
                         </TableCell>
-                        <TableCell className="text-right font-medium text-nfl-accent">
-                          {sortingMode === 'actual' ? team.weekly_points.toFixed(1) : teamProjection.toFixed(1)}
-                        </TableCell>
                         <TableCell className="text-right font-medium text-white">
                           {(team.weekly_points || 0).toFixed(1)}
+                        </TableCell>
+                        <TableCell className="text-right font-medium text-nfl-accent">
+                          {teamProjection.toFixed(1)}
                         </TableCell>
                         <TableCell className="text-right font-medium">
                           {team.eliminated ? (
@@ -395,10 +393,10 @@ export default function Standings() {
                               {team.first_place_weeks || 0}
                             </TableCell>
                             <TableCell className="text-right font-medium text-gray-500">
-                              {sortingMode === 'actual' ? team.weekly_points?.toFixed(1) || '0.0' : teamProjection.toFixed(1)}
+                              {(team.weekly_points || 0).toFixed(1)}
                             </TableCell>
                             <TableCell className="text-right font-medium text-gray-500">
-                              {(team.weekly_points || 0).toFixed(1)}
+                              {teamProjection.toFixed(1)}
                             </TableCell>
                             <TableCell className="text-right font-medium">
                               <span className="text-gray-500">-</span>
@@ -451,7 +449,7 @@ export default function Standings() {
                           <span className="text-gray-300">{team.name}</span>
                           <div className="flex items-center gap-2">
                             <span className="text-xs text-gray-400">
-                              {sortingMode === 'projected' ? `Proj: ${teamProjection.toFixed(1)}` : `Week: ${team.weekly_points.toFixed(1)}`}
+                              Week: {team.weekly_points.toFixed(1)} | Proj: {teamProjection.toFixed(1)}
                             </span>
                             <Badge className={idx === 0 ? 
                               "bg-orange-500/20 text-orange-500 border-orange-500/30" :

@@ -833,6 +833,35 @@ export default function AdminPanel() {
     },
   });
 
+  const advanceWeekMutation = useMutation({
+    mutationFn: async () => {
+      if (!selectedLeague?.id) throw new Error("No league selected");
+
+      const { data, error } = await supabase.functions.invoke('advance-week', {
+        body: { leagueId: selectedLeague.id }
+      });
+
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["adminLeagues"] });
+      queryClient.invalidateQueries({ queryKey: ["leagueDetails", selectedLeague?.id] });
+      queryClient.invalidateQueries({ queryKey: ["currentWeek", selectedLeague?.id] });
+      toast({
+        title: "Transición de semana completada",
+        description: `${data.eliminatedTeam.name} fue eliminado con ${data.eliminatedTeam.points} puntos. Ahora en semana ${data.currentWeek}.`,
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error al avanzar semana",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
   const handleEditPlayer = () => {
     if (!selectedPlayer) return;
     editPlayerMutation.mutate(selectedPlayer);
@@ -2052,16 +2081,37 @@ export default function AdminPanel() {
                         </AlertDescription>
                       </Alert>
 
-                      <Button
-                        onClick={() => {
-                          toast({
-                            title: "Función en desarrollo",
-                            description: "La actualización masiva de configuración estará disponible pronto",
-                          });
-                        }}
-                      >
-                        Guardar Configuración
-                      </Button>
+                      <div className="flex gap-4">
+                        <Button
+                          onClick={() => {
+                            toast({
+                              title: "Función en desarrollo",
+                              description: "La actualización masiva de configuración estará disponible pronto",
+                            });
+                          }}
+                        >
+                          Guardar Configuración
+                        </Button>
+
+                        <Button
+                          variant="destructive"
+                          onClick={() => advanceWeekMutation.mutate()}
+                          disabled={advanceWeekMutation.isPending}
+                          className="bg-red-600 hover:bg-red-700"
+                        >
+                          {advanceWeekMutation.isPending ? (
+                            <>
+                              <RotateCcw className="h-4 w-4 mr-2 animate-spin" />
+                              Procesando...
+                            </>
+                          ) : (
+                            <>
+                              <Zap className="h-4 w-4 mr-2" />
+                              Avanzar Semana
+                            </>
+                          )}
+                        </Button>
+                      </div>
                     </CardContent>
                   </Card>
                 </TabsContent>
