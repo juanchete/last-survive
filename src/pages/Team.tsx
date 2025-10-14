@@ -107,37 +107,6 @@ export default function Team() {
   const [hasChanges, setHasChanges] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
-  // Check if roster needs initialization for current week
-  useEffect(() => {
-    const checkAndInitializeRoster = async () => {
-      if (userTeam?.id && currentWeek && rosterData.length === 0 && !isLoading) {
-        // No roster data for current week, try to initialize
-        try {
-          const { data, error } = await supabase.rpc('admin_initialize_rosters', {
-            p_league_id: leagueId,
-            p_week: currentWeek
-          });
-          
-          if (data?.success) {
-            // Invalidate the query to refetch the newly created roster
-            await queryClient.invalidateQueries({
-              queryKey: ["rosterWithDetails", userTeam.id, currentWeek]
-            });
-            
-            toast({
-              title: "Roster Initialized",
-              description: `Your roster has been set up for week ${currentWeek}`,
-            });
-          }
-        } catch (error) {
-          console.error("Error initializing roster:", error);
-        }
-      }
-    };
-    
-    checkAndInitializeRoster();
-  }, [userTeam?.id, currentWeek, rosterData.length, isLoading, leagueId, queryClient]);
-
   // Convert roster data to our format
   useEffect(() => {
     if (rosterData.length > 0) {
@@ -471,51 +440,17 @@ export default function Team() {
                 <CardContent className="p-4">
                   {rosterData.length === 0 && !isLoading ? (
                     <div className="text-center py-12">
-                      <p className="text-gray-400 mb-4">
+                      <AlertTriangle className="w-12 h-12 mx-auto mb-4 text-yellow-500" />
+                      <p className="text-gray-400 text-lg mb-2">
                         No roster found for week {currentWeek}
                       </p>
-                      {canMakeChanges ? (
-                        <Button
-                          onClick={async () => {
-                            try {
-                              const { data, error } = await supabase.rpc('admin_initialize_rosters', {
-                                p_league_id: leagueId,
-                                p_week: currentWeek
-                              });
-                              
-                              if (data?.success) {
-                                await queryClient.invalidateQueries({
-                                  queryKey: ["rosterWithDetails", userTeam?.id, currentWeek]
-                                });
-                                
-                                toast({
-                                  title: "Roster Initialized",
-                                  description: `Your roster has been set up for week ${currentWeek}`,
-                                });
-                              } else {
-                                toast({
-                                  title: "Initialization Failed",
-                                  description: data?.message || "Could not initialize roster",
-                                  variant: "destructive",
-                                });
-                              }
-                            } catch (error) {
-                              console.error("Error initializing roster:", error);
-                              toast({
-                                title: "Error",
-                                description: "Failed to initialize roster",
-                                variant: "destructive",
-                              });
-                            }
-                          }}
-                          className="bg-nfl-blue hover:bg-nfl-blue/90"
-                        >
-                          Initialize Roster for Week {currentWeek}
-                        </Button>
-                      ) : (
-                        <div className="text-center text-gray-400">
-                          <p>Cannot initialize roster - team has been eliminated</p>
-                        </div>
+                      <p className="text-gray-500 text-sm">
+                        Your roster will be automatically created when the league advances to this week.
+                      </p>
+                      {isEliminated && (
+                        <p className="text-red-400 text-sm mt-2">
+                          Team has been eliminated
+                        </p>
                       )}
                     </div>
                   ) : (
