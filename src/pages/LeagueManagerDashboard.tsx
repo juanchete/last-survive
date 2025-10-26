@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useParams, Navigate } from 'react-router-dom';
-import { Users, Trophy, TrendingUp, Settings, AlertCircle, Calculator, Trash2, Edit3, UserPlus, Clock, Zap } from 'lucide-react';
+import { Users, Trophy, TrendingUp, Settings, AlertCircle, Calculator, Trash2, Edit3, UserPlus, Clock, Zap, Shield, RotateCcw } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
@@ -102,10 +102,10 @@ const LeagueManagerDashboard: React.FC = () => {
   });
   
   // Acciones del dashboard
-  const { 
-    banUser, 
-    unbanUser, 
-    vetoTrade, 
+  const {
+    banUser,
+    unbanUser,
+    vetoTrade,
     editPlayerPoints,
     removePlayerFromRoster,
     addPlayerToRoster,
@@ -114,7 +114,9 @@ const LeagueManagerDashboard: React.FC = () => {
     removeUserFromLeague,
     deleteLeague,
     editLeague,
-    isLoading: actionsLoading 
+    eliminateTeam,
+    restoreTeam,
+    isLoading: actionsLoading
   } = useLeagueDashboardActions(leagueId || "");
 
   // Si no hay user o leagueId, redireccionar
@@ -241,6 +243,19 @@ const LeagueManagerDashboard: React.FC = () => {
     setShowEditDialog(false);
   };
 
+  const handleEliminateTeam = (teamId: string, teamName: string) => {
+    const week = currentWeek || 1;
+    if (confirm(`¿Estás seguro de que quieres eliminar a "${teamName}" en la semana ${week}?\n\nEsta acción marcará al equipo como eliminado.`)) {
+      eliminateTeam({ teamId, week });
+    }
+  };
+
+  const handleRestoreTeam = (teamId: string, teamName: string) => {
+    if (confirm(`¿Estás seguro de que quieres restaurar a "${teamName}"?\n\nEsta acción quitará la marca de eliminado del equipo.`)) {
+      restoreTeam({ teamId });
+    }
+  };
+
   return (
     <div className="container mx-auto p-6 space-y-6">
       {/* Header */}
@@ -329,7 +344,7 @@ const LeagueManagerDashboard: React.FC = () => {
 
       {/* Tabs Navigation */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className="grid w-full grid-cols-7">
+        <TabsList className="grid w-full grid-cols-8">
           <TabsTrigger value="overview" className="flex items-center gap-2">
             <TrendingUp className="h-4 w-4" />
             Resumen
@@ -341,6 +356,10 @@ const LeagueManagerDashboard: React.FC = () => {
           <TabsTrigger value="users" className="flex items-center gap-2">
             <Users className="h-4 w-4" />
             Usuarios
+          </TabsTrigger>
+          <TabsTrigger value="teams" className="flex items-center gap-2">
+            <Shield className="h-4 w-4" />
+            Equipos
           </TabsTrigger>
           <TabsTrigger value="trades" className="flex items-center gap-2">
             <Trophy className="h-4 w-4" />
@@ -489,6 +508,166 @@ const LeagueManagerDashboard: React.FC = () => {
               isLoading={actionsLoading}
             />
           )}
+        </TabsContent>
+
+        {/* Teams Tab */}
+        <TabsContent value="teams" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Shield className="h-5 w-5" />
+                Gestión de Equipos
+              </CardTitle>
+              <CardDescription>
+                Elimina o restaura equipos de la liga manualmente
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {isLoading ? (
+                <Skeleton className="h-96 w-full" />
+              ) : (
+                <div className="space-y-4">
+                  {teams && teams.length > 0 ? (
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Posición</TableHead>
+                          <TableHead>Equipo</TableHead>
+                          <TableHead>Propietario</TableHead>
+                          <TableHead>Puntos</TableHead>
+                          <TableHead>Estado</TableHead>
+                          <TableHead className="text-right">Acciones</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {teams.map((team, index) => (
+                          <TableRow key={team.id}>
+                            <TableCell>
+                              <div className="flex items-center justify-center w-8 h-8 rounded-full bg-primary text-primary-foreground text-sm font-bold">
+                                {team.rank || index + 1}
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex items-center gap-3">
+                                <Avatar className="h-10 w-10">
+                                  <AvatarFallback>
+                                    {team.name.substring(0, 2).toUpperCase()}
+                                  </AvatarFallback>
+                                </Avatar>
+                                <div>
+                                  <p className="font-medium">{team.name}</p>
+                                  <p className="text-sm text-muted-foreground">
+                                    {team.wins || 0}W - {team.losses || 0}L
+                                  </p>
+                                </div>
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <p className="text-sm">{team.owner}</p>
+                            </TableCell>
+                            <TableCell>
+                              <p className="font-medium">{team.points} pts</p>
+                            </TableCell>
+                            <TableCell>
+                              {team.eliminated ? (
+                                <div className="space-y-1">
+                                  <Badge variant="destructive">Eliminado</Badge>
+                                  {team.eliminated_week && (
+                                    <p className="text-xs text-muted-foreground">
+                                      Semana {team.eliminated_week}
+                                    </p>
+                                  )}
+                                </div>
+                              ) : (
+                                <Badge variant="secondary" className="bg-green-500/10 text-green-500 border-green-500/20">
+                                  Activo
+                                </Badge>
+                              )}
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <div className="flex justify-end gap-2">
+                                {team.eliminated ? (
+                                  <AlertDialog>
+                                    <AlertDialogTrigger asChild>
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        className="gap-2"
+                                        disabled={actionsLoading}
+                                      >
+                                        <RotateCcw className="h-4 w-4" />
+                                        Restaurar
+                                      </Button>
+                                    </AlertDialogTrigger>
+                                    <AlertDialogContent>
+                                      <AlertDialogHeader>
+                                        <AlertDialogTitle>¿Restaurar equipo?</AlertDialogTitle>
+                                        <AlertDialogDescription>
+                                          ¿Estás seguro de que quieres restaurar a "{team.name}"?
+                                          Esta acción quitará la marca de eliminado del equipo y volverá a estar activo en la liga.
+                                        </AlertDialogDescription>
+                                      </AlertDialogHeader>
+                                      <AlertDialogFooter>
+                                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                        <AlertDialogAction
+                                          onClick={() => handleRestoreTeam(team.id, team.name)}
+                                        >
+                                          Restaurar
+                                        </AlertDialogAction>
+                                      </AlertDialogFooter>
+                                    </AlertDialogContent>
+                                  </AlertDialog>
+                                ) : (
+                                  <AlertDialog>
+                                    <AlertDialogTrigger asChild>
+                                      <Button
+                                        variant="destructive"
+                                        size="sm"
+                                        className="gap-2"
+                                        disabled={actionsLoading}
+                                      >
+                                        <Trash2 className="h-4 w-4" />
+                                        Eliminar
+                                      </Button>
+                                    </AlertDialogTrigger>
+                                    <AlertDialogContent>
+                                      <AlertDialogHeader>
+                                        <AlertDialogTitle>¿Eliminar equipo?</AlertDialogTitle>
+                                        <AlertDialogDescription>
+                                          ¿Estás seguro de que quieres eliminar a "{team.name}" en la semana {currentWeek}?
+                                          Esta acción marcará al equipo como eliminado de la liga.
+                                        </AlertDialogDescription>
+                                      </AlertDialogHeader>
+                                      <AlertDialogFooter>
+                                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                        <AlertDialogAction
+                                          onClick={() => handleEliminateTeam(team.id, team.name)}
+                                          className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                        >
+                                          Eliminar
+                                        </AlertDialogAction>
+                                      </AlertDialogFooter>
+                                    </AlertDialogContent>
+                                  </AlertDialog>
+                                )}
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  ) : (
+                    <Alert>
+                      <AlertCircle className="h-4 w-4" />
+                      <AlertDescription>
+                        No hay equipos en esta liga
+                      </AlertDescription>
+                    </Alert>
+                  )}
+                </div>
+              )}
+            </CardContent>
+          </Card>
         </TabsContent>
 
         {/* Trades Tab */}

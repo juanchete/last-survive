@@ -21,7 +21,7 @@ export function useWaiverPlayers(leagueId: string, week: number) {
       // Get unassigned players
       let query = supabase
         .from("players")
-        .select("*, nfl_team:nfl_teams(abbreviation)");
+        .select("*, nfl_team:nfl_teams(abbreviation, logo_url)");
       if (assignedIds.length > 0) {
         query = query.not("id", "in", `(${assignedIds.join(",")})`);
       }
@@ -54,11 +54,12 @@ export function useWaiverPlayers(leagueId: string, week: number) {
           name: player.name,
           position,
           team: player.nfl_team?.abbreviation || "",
+          nfl_team_logo: player.nfl_team?.logo_url || "",
           available: true, // Not in roster, so available
           eliminated: false, // This would need to be calculated from NFL team status
           points: pointsMap.get(player.id) || 0,
           photo: player.photo_url,
-        } as Player;
+        } as Player & { nfl_team_logo: string };
       });
       return result;
     },

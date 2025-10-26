@@ -737,6 +737,7 @@ export type Database = {
           interceptions: number | null
           is_final: boolean | null
           is_projection_updated: boolean | null
+          opponent: string | null
           passing_td: number | null
           passing_yards: number | null
           player_id: number | null
@@ -766,6 +767,7 @@ export type Database = {
           interceptions?: number | null
           is_final?: boolean | null
           is_projection_updated?: boolean | null
+          opponent?: string | null
           passing_td?: number | null
           passing_yards?: number | null
           player_id?: number | null
@@ -795,6 +797,7 @@ export type Database = {
           interceptions?: number | null
           is_final?: boolean | null
           is_projection_updated?: boolean | null
+          opponent?: string | null
           passing_td?: number | null
           passing_yards?: number | null
           player_id?: number | null

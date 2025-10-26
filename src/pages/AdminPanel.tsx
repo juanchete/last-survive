@@ -1733,7 +1733,7 @@ export default function AdminPanel() {
                                 size="sm"
                                 onClick={() => {
                                   setEditingTeamPlayer({ teamId: team.id, playerId: 0 });
-                                  setSelectedLeagueTab("players"); // Cambiar a la pestaña de jugadores
+                                  setSelectedLeagueTab("players");
                                 }}
                               >
                                 <Edit className="h-4 w-4 mr-1" />
@@ -1747,6 +1747,83 @@ export default function AdminPanel() {
                                 <Eye className="h-4 w-4 mr-1" />
                                 Ver Detalles
                               </Button>
+                              {team.eliminated ? (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="border-green-500 text-green-500 hover:bg-green-500/10"
+                                  onClick={async () => {
+                                    if (confirm(`¿Restaurar el equipo "${team.name}"? Esto lo devolverá a la competencia.`)) {
+                                      try {
+                                        const { error } = await supabase
+                                          .from("fantasy_teams")
+                                          .update({
+                                            eliminated: false,
+                                            eliminated_week: null
+                                          })
+                                          .eq("id", team.id);
+
+                                        if (error) throw error;
+
+                                        toast({
+                                          title: "✅ Equipo Restaurado",
+                                          description: `${team.name} ha sido restaurado exitosamente`,
+                                        });
+
+                                        queryClient.invalidateQueries({ queryKey: ["adminLeagueDetails"] });
+                                        queryClient.invalidateQueries({ queryKey: ["fantasyTeams"] });
+                                      } catch (error) {
+                                        toast({
+                                          title: "Error",
+                                          description: "No se pudo restaurar el equipo",
+                                          variant: "destructive",
+                                        });
+                                      }
+                                    }
+                                  }}
+                                >
+                                  <RotateCcw className="h-4 w-4 mr-1" />
+                                  Restaurar
+                                </Button>
+                              ) : (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="border-red-500 text-red-500 hover:bg-red-500/10"
+                                  onClick={async () => {
+                                    if (confirm(`¿Eliminar el equipo "${team.name}"? Esto lo sacará de la competencia.`)) {
+                                      try {
+                                        const { error } = await supabase
+                                          .from("fantasy_teams")
+                                          .update({
+                                            eliminated: true,
+                                            eliminated_week: currentWeek
+                                          })
+                                          .eq("id", team.id);
+
+                                        if (error) throw error;
+
+                                        toast({
+                                          title: "⚠️ Equipo Eliminado",
+                                          description: `${team.name} ha sido eliminado de la competencia`,
+                                        });
+
+                                        queryClient.invalidateQueries({ queryKey: ["adminLeagueDetails"] });
+                                        queryClient.invalidateQueries({ queryKey: ["fantasyTeams"] });
+                                      } catch (error) {
+                                        toast({
+                                          title: "Error",
+                                          description: "No se pudo eliminar el equipo",
+                                          variant: "destructive",
+                                        });
+                                      }
+                                    }
+                                  }}
+                                >
+                                  <Ban className="h-4 w-4 mr-1" />
+                                  Eliminar
+                                </Button>
+                              )}
                             </div>
                           </div>
                         ))}

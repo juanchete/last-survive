@@ -1,15 +1,16 @@
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { 
-  LayoutGrid, 
-  Trophy, 
-  Swords, 
-  ArrowLeftRight, 
-  FileText, 
+import {
+  LayoutGrid,
+  Trophy,
+  Swords,
+  ArrowLeftRight,
+  FileText,
   MessageSquare,
   Settings,
   Users,
-  UserPlus
+  UserPlus,
+  UserCheck
 } from "lucide-react";
 
 interface LeagueTabsProps {
@@ -29,6 +30,7 @@ export function LeagueTabs({ leagueId, activeTab }: LeagueTabsProps) {
     { id: "team-battle", label: "Team Battle", icon: Swords, path: `/team-battle?league=${leagueId}` },
     { id: "trades", label: "Trades", icon: ArrowLeftRight, path: `/trades?league=${leagueId}` },
     { id: "waivers", label: "Waivers", icon: FileText, path: `/waivers?league=${leagueId}` },
+    { id: "free-agency", label: "Free Agency", icon: UserCheck, path: `/free-agency?league=${leagueId}` },
   ];
 
   return (

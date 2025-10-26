@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useUserFantasyTeam } from "@/hooks/useUserFantasyTeam";
 import { useRosterWithPlayerDetails } from "@/hooks/useRosterWithPlayerDetails";
 import { useCurrentWeek } from "@/hooks/useCurrentWeek";
@@ -106,6 +107,8 @@ export default function Team() {
   const [bench, setBench] = useState<RosterPlayer[]>([]);
   const [hasChanges, setHasChanges] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [selectedBenchPlayer, setSelectedBenchPlayer] = useState<RosterPlayer | null>(null);
+  const [showSlotDialog, setShowSlotDialog] = useState(false);
 
   // Convert roster data to our format
   useEffect(() => {
@@ -248,7 +251,7 @@ export default function Team() {
       });
       return;
     }
-    
+
     const newLineup = { ...lineup };
     const newBench = [...bench];
 
@@ -258,6 +261,29 @@ export default function Team() {
     setLineup(newLineup);
     setBench(newBench);
     setHasChanges(true);
+  };
+
+  // Handle bench player selection
+  const handleBenchPlayerClick = (player: RosterPlayer) => {
+    if (!canMakeChanges) {
+      toast({
+        title: "No puedes hacer cambios",
+        description: readOnlyMessage || "No puedes modificar tu roster en este momento.",
+        variant: "destructive",
+      });
+      return;
+    }
+    setSelectedBenchPlayer(player);
+    setShowSlotDialog(true);
+  };
+
+  // Move bench player to specific slot
+  const moveBenchPlayerToSlot = (slotKey: string) => {
+    if (!selectedBenchPlayer) return;
+
+    moveToLineup(selectedBenchPlayer, slotKey);
+    setShowSlotDialog(false);
+    setSelectedBenchPlayer(null);
   };
 
   // Save lineup changes
@@ -460,7 +486,7 @@ export default function Team() {
                       for (let i = 0; i < slot.count; i++) {
                         const slotKey = slot.count > 1 ? `${slot.position}_${i + 1}` : slot.position;
                         const player = lineup[slotKey];
-                        
+
                         slots.push(
                           <LineupSlot
                             key={slotKey}
@@ -482,9 +508,103 @@ export default function Team() {
                 </CardContent>
               </Card>
             </div>
+
+            {/* Bench Section */}
+            <div className="lg:col-span-2">
+              <Card className="bg-nfl-gray border-nfl-light-gray/20">
+                <CardHeader className="border-b border-nfl-light-gray/20">
+                  <CardTitle className="text-white flex items-center gap-2">
+                    <User className="w-5 h-5" />
+                    Banca ({bench.length} jugadores)
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="p-4">
+                  {bench.length === 0 ? (
+                    <div className="text-center py-8">
+                      <Clock className="w-10 h-10 mx-auto mb-3 text-gray-500" />
+                      <p className="text-gray-400">No hay jugadores en la banca</p>
+                      <p className="text-gray-500 text-sm mt-1">
+                        Agrega jugadores desde Free Agency o mueve jugadores aquí desde el lineup
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {bench.map(player => (
+                        <BenchPlayer
+                          key={player.id}
+                          player={player}
+                          onSelect={canMakeChanges ? handleBenchPlayerClick : undefined}
+                          positionColors={positionColors}
+                          disabled={!canMakeChanges}
+                        />
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
           </div>
         </div>
       </div>
+
+      {/* Slot Selection Dialog */}
+      <Dialog open={showSlotDialog} onOpenChange={setShowSlotDialog}>
+        <DialogContent className="bg-nfl-gray border-nfl-light-gray/20 max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-white">Selecciona un Slot</DialogTitle>
+            <DialogDescription className="text-gray-400">
+              ¿En qué posición quieres colocar a {selectedBenchPlayer?.name}?
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2 mt-4">
+            {selectedBenchPlayer && LINEUP_SLOTS.map(slot => {
+              // Check if this player can play in this position
+              const canPlay = canPlaceInSlot(selectedBenchPlayer, slot.position);
+              if (!canPlay) return null;
+
+              // Get all slots for this position
+              const slotsForPosition = [];
+              for (let i = 0; i < slot.count; i++) {
+                const slotKey = slot.count > 1 ? `${slot.position}_${i + 1}` : slot.position;
+                const currentPlayer = lineup[slotKey];
+
+                slotsForPosition.push(
+                  <Button
+                    key={slotKey}
+                    onClick={() => moveBenchPlayerToSlot(slotKey)}
+                    variant="outline"
+                    className="w-full justify-between border-nfl-light-gray/20 text-white hover:bg-nfl-light-gray/10"
+                  >
+                    <div className="flex items-center gap-2">
+                      <Badge className={cn(positionColors[slot.position], "text-white")}>
+                        {slot.position}
+                      </Badge>
+                      <span>{slot.label} {slot.count > 1 ? `#${i + 1}` : ''}</span>
+                    </div>
+                    <span className="text-sm text-gray-400">
+                      {currentPlayer ? `Reemplazar a ${currentPlayer.name}` : 'Vacío'}
+                    </span>
+                  </Button>
+                );
+              }
+
+              return slotsForPosition;
+            })}
+          </div>
+          <div className="flex justify-end gap-2 mt-4">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowSlotDialog(false);
+                setSelectedBenchPlayer(null);
+              }}
+              className="border-nfl-light-gray/20 text-gray-300 hover:bg-nfl-light-gray/10"
+            >
+              Cancelar
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </Layout>
   );
 }

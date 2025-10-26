@@ -16,6 +16,7 @@ import EliminationControl from "./pages/EliminationControl";
 import Standings from "./pages/Standings";
 import Picks from "./pages/Picks";
 import Waivers from "./pages/Waivers";
+import FreeAgency from "./pages/FreeAgency";
 import WaiverProcessing from "./pages/WaiverProcessing";
 import HowItWorks from "./pages/HowItWorks";
 import Login from "./pages/Login";
@@ -72,6 +73,7 @@ const App = () => (
             <Route path="/standings" element={<Standings />} />
             <Route path="/picks" element={<Picks />} />
             <Route path="/waivers" element={<Waivers />} />
+            <Route path="/free-agency" element={<FreeAgency />} />
             <Route path="/trades" element={<Trades />} />
             <Route path="/league/:leagueId/manage" element={<LeagueManagerDashboard />} />
             <Route path="/waiver-processing" element={<WaiverProcessing />} />

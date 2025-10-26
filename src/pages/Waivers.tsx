@@ -4,9 +4,12 @@ import { useLocation } from "react-router-dom";
 import { LeagueHeader } from "@/components/LeagueHeader";
 import { LeagueTabs } from "@/components/LeagueTabs";
 import { Button } from "@/components/ui/button";
-import { AlertTriangle, Clock, Trophy, Timer, UserPlus, Shield, Plus } from "lucide-react";
+import { AlertTriangle, Clock, Trophy, Timer, UserPlus, Shield, Plus, Search, ChevronLeft, ChevronRight } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Input } from "@/components/ui/input";
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
+import { cn } from "@/lib/utils";
 import {
   Dialog,
   DialogContent,
@@ -39,24 +42,17 @@ import { useWaiverPlayers } from "@/hooks/useWaiverPlayers";
 import { useRosterWithPlayerDetails } from "@/hooks/useRosterWithPlayerDetails";
 import { useWaiverHistory } from "@/hooks/useWaiverHistory";
 import { WaiverPlayerCard } from "@/components/WaiverPlayerCard";
-import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { WaiverStatusBadge, WaiverPriorityList } from "@/components/WaiverStatusBadge";
 import { useWaiverStatus } from "@/hooks/useWaiverStatus";
 
-interface WaiverPriority {
+interface IWaiverPriority {
   priority: number;
   team_id: string;
   team_name: string;
   owner_name: string;
   weekly_points: number;
   projected_points: number;
-  available_player?: {
-    name: string;
-    position: string;
-    team: string;
-    status?: string;
-  };
 }
 
 export default function Waivers() {
@@ -64,12 +60,14 @@ export default function Waivers() {
   const searchParams = new URLSearchParams(location.search);
   const leagueId = searchParams.get("league") || "";
   const { user } = useAuth();
-  const [selectedPlayers, setSelectedPlayers] = useState<string[]>([]);
-  const [selectedDropPlayers, setSelectedDropPlayers] = useState<string[]>([]);
-  const [isClaimModalOpen, setIsClaimModalOpen] = useState(false);
+  const [selectedPlayer, setSelectedPlayer] = useState<string | null>(null);
+  const [selectedDropPlayer, setSelectedDropPlayer] = useState<string>("");
+  const [showClaimDialog, setShowClaimDialog] = useState(false);
   const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
   const [playerSearch, setPlayerSearch] = useState("");
   const [positionFilter, setPositionFilter] = useState<string>("ALL");
+  const [page, setPage] = useState(1);
+  const pageSize = 25;
 
   const { data: teams = [] } = useFantasyTeams(leagueId);
   const { data: userTeam } = useUserFantasyTeam(leagueId);
@@ -112,18 +110,19 @@ export default function Waivers() {
   // Get waiver deadline info
   const { data: waiverDeadline } = useWaiverDeadline(leagueId);
 
-  // Get team weekly points
-  const { data: teamWeeklyPoints = [] } = useTeamWeeklyPoints(leagueId, weekNumber);
+  // Get team weekly points from PREVIOUS week for waiver priority
+  const previousWeek = weekNumber > 1 ? weekNumber - 1 : 1;
+  const { data: teamWeeklyPoints = [] } = useTeamWeeklyPoints(leagueId, previousWeek);
 
   // Get available players on waivers
   const { data: waiverPlayers = [] } = useWaiverPlayers(leagueId, weekNumber);
 
   // Define the slot order for consistent display
   const slotOrder = ['QB', 'RB', 'WR', 'TE', 'FLEX', 'K', 'DEF', 'DP'];
-  
+
   // Get user's current roster with slot information
   const { data: userRosterData = [] } = useRosterWithPlayerDetails(userTeam?.id || "", weekNumber);
-  
+
   // Sort roster by slot order
   const userRoster = [...userRosterData].sort((a, b) => {
     const aSlot = a.slot || a.position;
@@ -147,17 +146,22 @@ export default function Waivers() {
     return matchesSearch && matchesPosition;
   }).sort((a, b) => (b.points || 0) - (a.points || 0));
 
-  // Get top available players sorted by points
-  const topAvailablePlayers = [...waiverPlayers]
-    .sort((a, b) => (b.points || 0) - (a.points || 0))
-    .slice(0, 5);
+  // Pagination
+  const totalPages = Math.ceil(filteredWaiverPlayers.length / pageSize);
+  const paginatedPlayers = filteredWaiverPlayers.slice(
+    (page - 1) * pageSize,
+    page * pageSize
+  );
+
+  // Filter only alive teams (not eliminated)
+  const aliveTeams = teams.filter(team => !team.eliminated);
 
   // Combine all data to create waiver priority display
-  const waiverPriorities: WaiverPriority[] = waiverPriorityData
+  const waiverPriorities: IWaiverPriority[] = waiverPriorityData
     .map(wp => {
-      const team = teams.find(t => t.id === wp.fantasy_team_id);
+      const team = aliveTeams.find(t => t.id === wp.fantasy_team_id);
       const weeklyPoints = teamWeeklyPoints.find(twp => twp.fantasy_team_id === wp.fantasy_team_id);
-      
+
       if (!team) return null;
 
       return {
@@ -166,36 +170,45 @@ export default function Waivers() {
         team_name: team.name,
         owner_name: team.owner,
         weekly_points: weeklyPoints?.total_points || 0,
-        projected_points: weeklyPoints?.projected_points || 0,
-        available_player: undefined // Will be populated when we integrate waiver players
+        projected_points: weeklyPoints?.projected_points || 0
       };
     })
-    .filter(Boolean) as WaiverPriority[];
+    .filter(Boolean) as IWaiverPriority[];
 
-  // If no waiver priority data exists, fall back to sorting by points
-  const displayPriorities = waiverPriorities.length > 0 
-    ? waiverPriorities 
-    : teams
-        .sort((a, b) => a.points - b.points) // Lower points = higher priority
-        .map((team, index) => {
+  // If no waiver priority data exists, fall back to sorting by previous week points
+  const displayPriorities = waiverPriorities.length > 0
+    ? waiverPriorities
+    : aliveTeams
+        .map(team => {
           const weeklyPoints = teamWeeklyPoints.find(twp => twp.fantasy_team_id === team.id);
-          
+          return {
+            team,
+            weeklyPoints: weeklyPoints?.total_points || 0
+          };
+        })
+        .sort((a, b) => a.weeklyPoints - b.weeklyPoints)
+        .map((item, index) => {
           return {
             priority: index + 1,
-            team_id: team.id,
-            team_name: team.name,
-            owner_name: team.owner,
-            weekly_points: weeklyPoints?.total_points || 0,
-            projected_points: weeklyPoints?.projected_points || 0,
+            team_id: item.team.id,
+            team_name: item.team.name,
+            owner_name: item.team.owner,
+            weekly_points: item.weeklyPoints,
+            projected_points: 0,
             available_player: undefined
           };
         });
 
+  const handlePlayerClick = (playerId: string) => {
+    setSelectedPlayer(playerId);
+    setShowClaimDialog(true);
+  };
+
   const handleClaim = async () => {
-    if (selectedPlayers.length === 0 || !userTeam) {
+    if (!selectedPlayer || !userTeam) {
       toast({
         title: "Error",
-        description: "Please select at least one player to claim",
+        description: "Por favor selecciona un jugador",
         variant: "destructive",
       });
       return;
@@ -203,172 +216,43 @@ export default function Waivers() {
 
     // Validate roster size
     const currentRosterSize = userRoster.length;
-    const finalSize = currentRosterSize - selectedDropPlayers.length + selectedPlayers.length;
+    const finalSize = currentRosterSize - (selectedDropPlayer ? 1 : 0) + 1;
     
-    if (finalSize > 10) {
+    if (currentRosterSize >= 10 && !selectedDropPlayer) {
       toast({
         title: "Error",
-        description: `Your roster would have ${finalSize} players (maximum is 10)`,
+        description: "Tu roster está lleno. Debes soltar un jugador primero.",
         variant: "destructive",
       });
       return;
-    }
-
-    // Position validation: When both adding and dropping, positions must match
-    if (selectedPlayers.length > 0 && selectedDropPlayers.length > 0) {
-      // Helper function to check if positions are compatible
-      const arePositionsCompatible = (addPos: string, dropSlot: string) => {
-        // Direct match
-        if (addPos === dropSlot) return true;
-        
-        // FLEX can be filled by RB or WR
-        if (dropSlot === 'FLEX' && (addPos === 'RB' || addPos === 'WR')) return true;
-        
-        // RB or WR can replace a FLEX player
-        if ((dropSlot === 'RB' || dropSlot === 'WR') && addPos === dropSlot) return true;
-        
-        return false;
-      };
-
-      // Get positions/slots of players to add
-      const addPositions = selectedPlayers.map(playerId => {
-        const player = waiverPlayers.find(p => p.id === playerId);
-        return player?.position || '';
-      });
-
-      // Get slots of players to drop (use slot if available, otherwise position)
-      const dropSlots = selectedDropPlayers.map(playerId => {
-        const player = userRoster.find(p => p.id === playerId);
-        return player?.slot || player?.position || '';
-      });
-
-      // Check if we have same number of adds and drops
-      if (selectedPlayers.length !== selectedDropPlayers.length) {
-        toast({
-          title: "Position Mismatch",
-          description: `When trading players, you must add and drop the same number of players. Adding ${selectedPlayers.length}, Dropping ${selectedDropPlayers.length}`,
-          variant: "destructive",
-        });
-        return;
-      }
-
-      // For single player swaps, check compatibility
-      if (selectedPlayers.length === 1 && selectedDropPlayers.length === 1) {
-        const addPos = addPositions[0];
-        const dropSlot = dropSlots[0];
-        
-        if (!arePositionsCompatible(addPos, dropSlot)) {
-          const addPlayer = waiverPlayers.find(p => p.id === selectedPlayers[0]);
-          const dropPlayer = userRoster.find(p => p.id === selectedDropPlayers[0]);
-          
-          // Provide specific message for FLEX
-          if (dropSlot === 'FLEX') {
-            toast({
-              title: "Position Mismatch",
-              description: `Cannot add ${addPlayer?.name} (${addPos}) to FLEX slot. FLEX can only be filled by RB or WR players.`,
-              variant: "destructive",
-            });
-          } else {
-            toast({
-              title: "Position Mismatch",
-              description: `Cannot trade ${addPlayer?.name} (${addPos}) for ${dropPlayer?.name} in ${dropSlot} slot.`,
-              variant: "destructive",
-            });
-          }
-          return;
-        }
-      } else {
-        // For multiple players, we need more complex matching
-        // Sort positions to check if they match
-        const sortedAddPositions = [...addPositions].sort();
-        const sortedDropSlots = [...dropSlots].sort();
-        
-        // Simple check: positions must match exactly (ignoring FLEX for now in multi-player)
-        const positionsMatch = sortedAddPositions.every((pos, index) => {
-          const dropSlot = sortedDropSlots[index];
-          return arePositionsCompatible(pos, dropSlot);
-        });
-
-        if (!positionsMatch) {
-          toast({
-            title: "Position Mismatch",
-            description: `Position requirements don't match. Adding: ${sortedAddPositions.join(', ')}, Dropping from slots: ${sortedDropSlots.join(', ')}`,
-            variant: "destructive",
-          });
-          return;
-        }
-      }
     }
 
     try {
       // Check if we're in free agency period
       if (isFreeAgency && !isWaiverPeriod) {
         // FREE AGENCY: Process immediately using claim_free_agent
-        if (selectedPlayers.length === 1) {
-          // Single player claim
-          const { data, error } = await supabase.rpc('claim_free_agent', {
-            p_league_id: leagueId,
-            p_fantasy_team_id: userTeam.id,
-            p_player_id: parseInt(selectedPlayers[0]),
-            p_drop_player_id: selectedDropPlayers.length > 0 ? parseInt(selectedDropPlayers[0]) : null,
-            p_week: weekNumber
-          });
+        const { data, error } = await supabase.rpc('claim_free_agent', {
+          p_league_id: leagueId,
+          p_fantasy_team_id: userTeam.id,
+          p_player_id: parseInt(selectedPlayer),
+          p_drop_player_id: selectedDropPlayer ? parseInt(selectedDropPlayer) : null,
+          p_week: weekNumber
+        });
 
-          if (error) throw error;
-          
-          if (!data.success) {
-            throw new Error(data.error || "Failed to claim free agent");
-          }
+        if (error) throw error;
 
-          toast({
-            title: "✅ Free Agent Claimed!",
-            description: "Player has been added to your roster immediately.",
-          });
-        } else {
-          // Multiple players - process each one
-          let successCount = 0;
-          let errors = [];
-          
-          for (let i = 0; i < selectedPlayers.length; i++) {
-            const playerId = selectedPlayers[i];
-            const dropPlayerId = selectedDropPlayers[i] || null;
-            
-            try {
-              const { data, error } = await supabase.rpc('claim_free_agent', {
-                p_league_id: leagueId,
-                p_fantasy_team_id: userTeam.id,
-                p_player_id: parseInt(playerId),
-                p_drop_player_id: dropPlayerId ? parseInt(dropPlayerId) : null,
-                p_week: weekNumber
-              });
-
-              if (error) throw error;
-              
-              if (!data.success) {
-                throw new Error(data.error || "Failed to claim free agent");
-              }
-              
-              successCount++;
-            } catch (error) {
-              errors.push(error);
-            }
-          }
-          
-          if (successCount > 0) {
-            toast({
-              title: "✅ Free Agents Claimed!",
-              description: `${successCount} player(s) added to your roster immediately.${errors.length > 0 ? ` ${errors.length} failed.` : ''}`,
-            });
-          }
-          
-          if (errors.length > 0 && successCount === 0) {
-            throw new Error("Failed to claim any free agents");
-          }
+        if (!data.success) {
+          throw new Error(data.error || "Failed to claim free agent");
         }
-        
+
+        toast({
+          title: "✅ Agente Libre Reclamado",
+          description: "El jugador ha sido añadido a tu roster inmediatamente.",
+        });
+
         // Refresh roster data
-        await queryClient.invalidateQueries({ 
-          queryKey: ["rosterWithDetails", userTeam.id, weekNumber] 
+        await queryClient.invalidateQueries({
+          queryKey: ["rosterWithDetails", userTeam.id, weekNumber]
         });
       } else {
         // WAIVER PERIOD: Use waiver request system
@@ -376,25 +260,25 @@ export default function Waivers() {
           p_league_id: leagueId,
           p_fantasy_team_id: userTeam.id,
           p_week: weekNumber,
-          p_add_players: selectedPlayers.map(id => parseInt(id)),
-          p_drop_players: selectedDropPlayers.map(id => parseInt(id))
+          p_add_players: [parseInt(selectedPlayer)],
+          p_drop_players: selectedDropPlayer ? [parseInt(selectedDropPlayer)] : []
         });
 
         if (error) throw error;
-        
+
         if (!data.success) {
           throw new Error(data.error || "Failed to create waiver request");
         }
 
         toast({
-          title: "Waiver Claim Submitted",
-          description: "Your waiver claim will be processed at the deadline.",
+          title: "Solicitud de Waiver Enviada",
+          description: "Tu solicitud será procesada en el deadline.",
         });
       }
 
-      setIsClaimModalOpen(false);
-      setSelectedPlayers([]);
-      setSelectedDropPlayers([]);
+      setShowClaimDialog(false);
+      setSelectedPlayer(null);
+      setSelectedDropPlayer("");
 
       // Invalidate queries to refresh the waiver requests
       await queryClient.invalidateQueries({ 
@@ -470,303 +354,278 @@ export default function Waivers() {
             />
           </div>
 
-          <SectionHeader
-            title="Waiver Wire Priority"
-            subtitle="Waiver priority is based on inverse order of weekly standings. Teams with lower points have higher priority."
-            action={
-              <div className="flex gap-2">
-                <Dialog open={isClaimModalOpen} onOpenChange={(open) => {
-                  setIsClaimModalOpen(open);
-                  if (!open) {
-                    setPlayerSearch("");
-                    setPositionFilter("ALL");
-                    setSelectedPlayers([]);
-                    setSelectedDropPlayers([]);
-                  }
+          {/* Available Players Section */}
+          <Card className="bg-nfl-gray border-nfl-light-gray/20 p-6 mb-8">
+            <div className="space-y-4 mb-6">
+              <div>
+                <h2 className="text-xl font-bold text-white mb-2">
+                  {isFreeAgency ? 'Agentes Libres Disponibles' : 'Jugadores en Waivers'}
+                </h2>
+                <p className="text-sm text-gray-400">
+                  {isFreeAgency
+                    ? 'Haz clic en un jugador para agregarlo inmediatamente a tu roster'
+                    : 'Haz clic en un jugador para enviar una solicitud de waiver'}
+                </p>
+              </div>
+
+              <div className="flex gap-4">
+                <div className="flex-1 relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                  <Input
+                    placeholder="Buscar jugador por nombre..."
+                    value={playerSearch}
+                    onChange={(e) => {
+                      setPlayerSearch(e.target.value);
+                      setPage(1);
+                    }}
+                    className="pl-9 bg-nfl-dark-gray border-nfl-light-gray/20 text-white"
+                  />
+                </div>
+                <Select value={positionFilter} onValueChange={(val) => {
+                  setPositionFilter(val);
+                  setPage(1);
                 }}>
-                  <DialogTrigger asChild>
-                    <Button 
-                      className="bg-nfl-accent hover:bg-nfl-accent/90 text-black"
-                      disabled={!isWaiverPeriod && !isFreeAgency}
+                  <SelectTrigger className="w-[180px] bg-nfl-dark-gray border-nfl-light-gray/20 text-white">
+                    <SelectValue placeholder="Todas las posiciones" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-nfl-gray border-nfl-light-gray/20">
+                    <SelectItem value="ALL" className="text-white">Todas las posiciones</SelectItem>
+                    <SelectItem value="QB" className="text-white">QB - Quarterback</SelectItem>
+                    <SelectItem value="RB" className="text-white">RB - Running Back</SelectItem>
+                    <SelectItem value="WR" className="text-white">WR - Wide Receiver</SelectItem>
+                    <SelectItem value="TE" className="text-white">TE - Tight End</SelectItem>
+                    <SelectItem value="K" className="text-white">K - Kicker</SelectItem>
+                    <SelectItem value="DEF" className="text-white">DEF - Defensa</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="flex justify-between items-center">
+                <p className="text-sm text-gray-400">
+                  {filteredWaiverPlayers.length} jugadores disponibles
+                </p>
+                {totalPages > 1 && (
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setPage(Math.max(1, page - 1))}
+                      disabled={page === 1}
+                      className="border-nfl-light-gray/20 text-gray-300 hover:bg-nfl-light-gray/10"
                     >
-                      <Plus className="w-4 h-4 mr-2" />
-                      {isFreeAgency ? 'Add Free Agent' : 'Claim Player'}
+                      <ChevronLeft className="h-4 w-4" />
                     </Button>
-                  </DialogTrigger>
-                  <DialogContent className="bg-nfl-gray border-nfl-light-gray/20 max-w-3xl max-h-[90vh] overflow-y-auto">
-                    <DialogHeader>
-                      <DialogTitle className="text-white">
-                        {isFreeAgency ? 'Add Free Agent' : 'Submit Waiver Claim'}
-                      </DialogTitle>
-                      <DialogDescription className="text-gray-400">
-                        {isFreeAgency 
-                          ? 'Free Agency is open - first come, first served! Add players immediately to your roster.'
-                          : 'Select players to claim from waivers. Claims will be processed in priority order at the deadline.'
-                        }
-                        Current roster: {userRoster.length}/10 players
-                        {selectedPlayers.length > 0 && selectedDropPlayers.length > 0 && (
-                          <div className="mt-2 p-2 bg-yellow-500/10 border border-yellow-500/30 rounded text-yellow-300 text-sm">
-                            ⚠️ When trading players, you must drop players of the same positions as those you're adding (e.g., WR for WR, QB for QB)
-                          </div>
-                        )}
-                      </DialogDescription>
-                    </DialogHeader>
-                    <div className="space-y-4 mt-4 pb-4">
-                      <div>
-                        <label className="text-sm font-medium text-gray-300 mb-2 block">
-                          Players to Claim ({selectedPlayers.length} selected)
-                        </label>
-                        
-                        {/* Search and Filters */}
-                        <div className="space-y-3 mb-4">
-                          <Input
-                            placeholder="Search players..."
-                            value={playerSearch}
-                            onChange={(e) => setPlayerSearch(e.target.value)}
-                            className="bg-nfl-dark-gray border-nfl-light-gray/20 text-white"
-                          />
-                          <div className="flex gap-2 flex-wrap">
-                            {["ALL", "QB", "RB", "WR", "TE", "K", "DEF"].map((pos) => (
-                              <Button
-                                key={pos}
-                                size="sm"
-                                variant={positionFilter === pos ? "default" : "outline"}
-                                onClick={() => setPositionFilter(pos)}
-                                className={positionFilter === pos 
-                                  ? "bg-nfl-blue hover:bg-nfl-blue/90" 
-                                  : "border-nfl-light-gray/20 text-gray-300 hover:bg-nfl-light-gray/10"
-                                }
-                              >
-                                {pos}
-                              </Button>
-                            ))}
-                          </div>
-                        </div>
+                    <span className="text-sm text-gray-400">
+                      Página {page} de {totalPages}
+                    </span>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setPage(Math.min(totalPages, page + 1))}
+                      disabled={page === totalPages}
+                      className="border-nfl-light-gray/20 text-gray-300 hover:bg-nfl-light-gray/10"
+                    >
+                      <ChevronRight className="h-4 w-4" />
+                    </Button>
+                  </div>
+                )}
+              </div>
+            </div>
 
-                        {/* Player List */}
-                        <ScrollArea className="h-[300px] pr-4">
-                          <div className="space-y-2">
-                            {filteredWaiverPlayers.length === 0 ? (
-                              <div className="text-center py-8 text-gray-400">
-                                No players found matching your criteria
-                              </div>
-                            ) : (
-                              filteredWaiverPlayers.map((player) => (
-                                <WaiverPlayerCard
-                                  key={player.id}
-                                  player={player}
-                                  isSelected={selectedPlayers.includes(player.id)}
-                                  onSelect={(playerId) => {
-                                    setSelectedPlayers(prev => 
-                                      prev.includes(playerId) 
-                                        ? prev.filter(id => id !== playerId)
-                                        : [...prev, playerId]
-                                    );
-                                  }}
-                                  matchup={`vs ${["KC", "BUF", "SF", "DAL", "GB"][Math.floor(Math.random() * 5)]}`}
-                                  status={
-                                    Math.random() > 0.8 ? "questionable" :
-                                    Math.random() > 0.95 ? "out" :
-                                    "healthy"
-                                  }
-                                />
-                              ))
+            {/* Players Table */}
+            <div className="rounded-lg border border-nfl-light-gray/20 overflow-hidden">
+              <Table>
+                <TableHeader>
+                  <TableRow className="hover:bg-transparent border-nfl-light-gray/20">
+                    <TableHead className="w-[50px]"></TableHead>
+                    <TableHead className="text-gray-300">Jugador</TableHead>
+                    <TableHead className="text-gray-300">Pos</TableHead>
+                    <TableHead className="text-gray-300">Equipo</TableHead>
+                    <TableHead className="text-gray-300 text-right">Puntos</TableHead>
+                    <TableHead className="text-gray-300 text-right">Proyección</TableHead>
+                    <TableHead className="text-gray-300 text-center">Acción</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {paginatedPlayers.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={7} className="text-center py-12 text-gray-400">
+                        No se encontraron jugadores
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    paginatedPlayers.map((player) => (
+                      <TableRow
+                        key={player.id}
+                        className="hover:bg-nfl-light-gray/10 border-nfl-light-gray/20 cursor-pointer"
+                        onClick={() => handlePlayerClick(player.id)}
+                      >
+                        <TableCell>
+                          <Avatar className="h-10 w-10">
+                            <AvatarImage src={player.photo} alt={player.name} />
+                            <AvatarFallback className="bg-nfl-blue text-white text-xs">
+                              {player.name.substring(0, 2).toUpperCase()}
+                            </AvatarFallback>
+                          </Avatar>
+                        </TableCell>
+                        <TableCell className="font-medium text-white">
+                          {player.name}
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="outline" className={cn(
+                            'text-xs',
+                            player.position === 'QB' && 'bg-red-500/10 text-red-500 border-red-500/20',
+                            player.position === 'RB' && 'bg-green-500/10 text-green-500 border-green-500/20',
+                            player.position === 'WR' && 'bg-blue-500/10 text-blue-500 border-blue-500/20',
+                            player.position === 'TE' && 'bg-yellow-500/10 text-yellow-500 border-yellow-500/20',
+                            player.position === 'K' && 'bg-purple-500/10 text-purple-500 border-purple-500/20',
+                            player.position === 'DEF' && 'bg-orange-500/10 text-orange-500 border-orange-500/20'
+                          )}>
+                            {player.position}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            {(player as any).nfl_team_logo && (
+                              <img
+                                src={(player as any).nfl_team_logo}
+                                alt={player.team}
+                                className="h-6 w-6 object-contain"
+                              />
                             )}
+                            <span className="text-sm font-medium text-gray-300">{player.team}</span>
                           </div>
-                        </ScrollArea>
-                      </div>
+                        </TableCell>
+                        <TableCell className="text-right text-gray-300">
+                          {player.points?.toFixed(1) || '0.0'}
+                        </TableCell>
+                        <TableCell className="text-right text-nfl-accent">
+                          {player.projected_points?.toFixed(1) || '0.0'}
+                        </TableCell>
+                        <TableCell className="text-center">
+                          <Button
+                            size="sm"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handlePlayerClick(player.id);
+                            }}
+                            className="bg-nfl-accent hover:bg-nfl-accent/90 text-black"
+                          >
+                            {isFreeAgency ? 'Agregar' : 'Reclamar'}
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+          </Card>
 
-                      <div>
-                        <label className="text-sm font-medium text-gray-300 mb-2 block">
-                          Players to Drop ({selectedDropPlayers.length} selected)
-                          {userRoster.length - selectedDropPlayers.length + selectedPlayers.length > 10 && (
-                            <span className="text-red-400 ml-2">
-                              (Must drop {userRoster.length - selectedDropPlayers.length + selectedPlayers.length - 10} more)
-                            </span>
-                          )}
-                          {(() => {
-                            // Show position requirements if players are selected to add
-                            if (selectedPlayers.length > 0) {
-                              const addPositions = selectedPlayers.map(playerId => {
-                                const player = waiverPlayers.find(p => p.id === playerId);
-                                return player?.position || '';
-                              }).reduce((acc, pos) => {
-                                acc[pos] = (acc[pos] || 0) + 1;
-                                return acc;
-                              }, {} as Record<string, number>);
-                              
-                              const positionList = Object.entries(addPositions)
-                                .map(([pos, count]) => count > 1 ? `${count} ${pos}s` : `1 ${pos}`)
-                                .join(', ');
-                              
-                              return (
-                                <span className="text-yellow-300 ml-2">
-                                  (Must match positions: {positionList})
-                                </span>
-                              );
-                            }
-                            return null;
-                          })()}
-                        </label>
-                        <div className="space-y-2 max-h-48 overflow-y-auto border border-nfl-light-gray/20 rounded-lg p-2">
-                          {userRoster.map((player) => {
-                            // Check if this player's position matches what we need to drop
-                            const requiredPositions = selectedPlayers.map(playerId => {
-                              const p = waiverPlayers.find(wp => wp.id === playerId);
-                              return p?.position || '';
-                            });
-                            
-                            // Get the display slot (use slot if available, otherwise position)
-                            const displaySlot = player.slot || player.position;
-                            
-                            // Check if position is valid for replacement
-                            const isValidPosition = selectedPlayers.length === 0 || 
-                              requiredPositions.some(reqPos => {
-                                // Direct match
-                                if (reqPos === displaySlot) return true;
-                                // FLEX can be replaced by RB or WR
-                                if (displaySlot === 'FLEX' && (reqPos === 'RB' || reqPos === 'WR')) return true;
-                                // Regular position must match
-                                if (displaySlot === player.position && reqPos === player.position) return true;
-                                return false;
-                              });
-                            
-                            return (
-                              <div
-                                key={player.id}
-                                className={`flex items-center justify-between p-2 rounded cursor-pointer transition-colors ${
-                                  selectedDropPlayers.includes(player.id)
-                                    ? 'bg-red-900/30 border border-red-500/30'
-                                    : !isValidPosition && selectedPlayers.length > 0
-                                    ? 'opacity-50 hover:bg-nfl-light-gray/5'
-                                    : 'hover:bg-nfl-light-gray/10'
-                                }`}
-                                onClick={() => {
-                                  // Only allow selection if position is valid or no players selected to add
-                                  if (isValidPosition || selectedPlayers.length === 0) {
-                                    setSelectedDropPlayers(prev =>
-                                      prev.includes(player.id)
-                                        ? prev.filter(id => id !== player.id)
-                                        : [...prev, player.id]
-                                    );
-                                  } else {
-                                    toast({
-                                      title: "Position Mismatch",
-                                      description: displaySlot === 'FLEX' 
-                                        ? `FLEX slot can only be replaced by RB or WR players`
-                                        : `You need to drop a ${requiredPositions.join(' or ')} to match your selections`,
-                                      variant: "destructive",
-                                    });
-                                  }
-                                }}
-                              >
-                                <div className="flex items-center gap-2">
-                                  <input
-                                    type="checkbox"
-                                    checked={selectedDropPlayers.includes(player.id)}
-                                    onChange={() => {}}
-                                    className="rounded border-gray-600"
-                                    disabled={!isValidPosition && selectedPlayers.length > 0}
-                                  />
-                                  <span className="text-white">{player.name}</span>
-                                </div>
-                                <div className="flex items-center gap-2">
-                                  <Badge 
-                                    variant="outline" 
-                                    className={`text-xs ${
-                                      !isValidPosition && selectedPlayers.length > 0
-                                        ? 'border-gray-600 text-gray-500'
-                                        : selectedPlayers.length > 0 && isValidPosition
-                                        ? 'border-green-500/50 text-green-400'
-                                        : displaySlot === 'FLEX'
-                                        ? 'border-purple-500/50 text-purple-400'
-                                        : ''
-                                    }`}
-                                  >
-                                    {displaySlot}
-                                  </Badge>
-                                  {displaySlot === 'FLEX' && (
-                                    <span className="text-xs text-gray-500">({player.position})</span>
-                                  )}
-                                  <span className="text-gray-400 text-sm">{player.team}</span>
-                                </div>
-                              </div>
-                            );
-                          })}
+          {/* Drop Player Dialog */}
+          <Dialog open={showClaimDialog} onOpenChange={setShowClaimDialog}>
+            <DialogContent className="bg-nfl-gray border-nfl-light-gray/20 max-w-md">
+              <DialogHeader>
+                <DialogTitle className="text-white">
+                  {isFreeAgency ? 'Agregar Agente Libre' : 'Reclamar Jugador'}
+                </DialogTitle>
+                <DialogDescription className="text-gray-400">
+                  {(() => {
+                    const player = waiverPlayers.find(p => p.id === selectedPlayer);
+                    if (!player) return null;
+
+                    return (
+                      <div className="mt-2">
+                        <div className="flex items-center gap-2 mb-3">
+                          <span className="text-white font-medium text-lg">{player.name}</span>
+                          <Badge variant="outline">{player.position}</Badge>
                         </div>
+                        {userRoster.length < 10 ? (
+                          <>
+                            El jugador se agregará a tu banca (BENCH). Roster actual: {userRoster.length}/10 jugadores
+                            <br />
+                            <span className="text-nfl-accent">✓ Tienes {10 - userRoster.length} espacio{10 - userRoster.length !== 1 ? 's' : ''} disponible{10 - userRoster.length !== 1 ? 's' : ''}</span>
+                          </>
+                        ) : (
+                          <>
+                            Tu roster está lleno ({userRoster.length}/10). Debes liberar un jugador primero.
+                            <br />
+                            <span className="text-red-400">⚠️ Roster completo - selecciona un jugador para soltar</span>
+                          </>
+                        )}
                       </div>
+                    );
+                  })()}
+                </DialogDescription>
+              </DialogHeader>
 
-                      <div className="flex justify-end gap-2 mt-6">
-                        <Button 
-                          variant="outline" 
-                          onClick={() => setIsClaimModalOpen(false)}
-                          className="border-nfl-light-gray/20 text-gray-300 hover:bg-nfl-light-gray/10"
+              {userRoster.length >= 10 && (
+                <div className="mt-4">
+                  <label className="text-sm font-medium text-gray-300 mb-2 block">
+                    Soltar Jugador (Requerido)
+                  </label>
+                  <Select value={selectedDropPlayer} onValueChange={setSelectedDropPlayer}>
+                    <SelectTrigger className="bg-nfl-dark-gray border-nfl-light-gray/20 text-white">
+                      <SelectValue placeholder="Selecciona un jugador para soltar" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-nfl-gray border-nfl-light-gray/20">
+                      {userRoster.map((player) => (
+                        <SelectItem
+                          key={player.id}
+                          value={player.id}
+                          className="text-white hover:bg-nfl-light-gray/10"
                         >
-                          Cancel
-                        </Button>
-                        <Button 
-                          onClick={handleClaim}
-                          className="bg-nfl-accent hover:bg-nfl-accent/90 text-black"
-                          disabled={(() => {
-                            // Disable if no players selected
-                            if (selectedPlayers.length === 0) return true;
-                            
-                            // Disable if roster size would exceed limit
-                            if (userRoster.length - selectedDropPlayers.length + selectedPlayers.length > 10) return true;
-                            
-                            // Check position matching when both adding and dropping
-                            if (selectedPlayers.length > 0 && selectedDropPlayers.length > 0) {
-                              // Must have same number of adds and drops
-                              if (selectedPlayers.length !== selectedDropPlayers.length) return true;
-                              
-                              // Helper to check compatibility
-                              const isCompatible = (addPos: string, dropSlot: string) => {
-                                if (addPos === dropSlot) return true;
-                                if (dropSlot === 'FLEX' && (addPos === 'RB' || addPos === 'WR')) return true;
-                                return false;
-                              };
-                              
-                              // Get positions to add and slots to drop
-                              const addPositions = selectedPlayers.map(playerId => {
-                                const player = waiverPlayers.find(p => p.id === playerId);
-                                return player?.position || '';
-                              });
-                              
-                              const dropSlots = selectedDropPlayers.map(playerId => {
-                                const player = userRoster.find(p => p.id === playerId);
-                                return player?.slot || player?.position || '';
-                              });
-                              
-                              // For single swaps, check compatibility
-                              if (addPositions.length === 1) {
-                                if (!isCompatible(addPositions[0], dropSlots[0])) return true;
-                              } else {
-                                // For multiple, need more complex matching
-                                const sortedAdd = [...addPositions].sort();
-                                const sortedDrop = [...dropSlots].sort();
-                                const match = sortedAdd.every((pos, i) => isCompatible(pos, sortedDrop[i]));
-                                if (!match) return true;
-                              }
-                            }
-                            
-                            return false;
-                          })()}
-                        >
-                          Submit Claim
-                        </Button>
-                      </div>
-                    </div>
-                  </DialogContent>
-                </Dialog>
-                <Button 
-                  variant="outline" 
-                  className="border-nfl-blue text-nfl-blue hover:bg-nfl-blue/10"
-                  onClick={() => setIsHistoryModalOpen(true)}
+                          <div className="flex items-center justify-between w-full">
+                            <span>{player.name}</span>
+                            <div className="flex items-center gap-2 ml-4">
+                              <Badge variant="outline" className="text-xs">
+                                {player.slot || player.position}
+                              </Badge>
+                              <span className="text-gray-400 text-sm">{player.team}</span>
+                            </div>
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
+              <div className="flex justify-end gap-2 mt-6">
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setShowClaimDialog(false);
+                    setSelectedPlayer(null);
+                    setSelectedDropPlayer("");
+                  }}
+                  className="border-nfl-light-gray/20 text-gray-300 hover:bg-nfl-light-gray/10"
                 >
-                  <Clock className="w-4 h-4 mr-2" />
-                  View Waiver History
+                  Cancelar
+                </Button>
+                <Button
+                  onClick={handleClaim}
+                  disabled={userRoster.length >= 10 && !selectedDropPlayer}
+                  className="bg-nfl-accent hover:bg-nfl-accent/90 text-black"
+                >
+                  {isFreeAgency ? 'Agregar Jugador' : 'Enviar Solicitud'}
                 </Button>
               </div>
+            </DialogContent>
+          </Dialog>
+
+          <SectionHeader
+            title="Waiver Wire Priority"
+            subtitle="Waiver priority is based on last week's performance. Only active teams are shown. Teams with fewer points from the previous week have higher priority."
+            action={
+              <Button
+                variant="outline"
+                className="border-nfl-blue text-nfl-blue hover:bg-nfl-blue/10"
+                onClick={() => setIsHistoryModalOpen(true)}
+              >
+                <Clock className="w-4 h-4 mr-2" />
+                Ver Historial de Waivers
+              </Button>
             }
           />
           
@@ -778,18 +637,17 @@ export default function Waivers() {
                   <TableHead className="text-gray-400 font-medium w-20">Priority</TableHead>
                   <TableHead className="text-gray-400 font-medium">Team</TableHead>
                   <TableHead className="text-gray-400 font-medium">Owner</TableHead>
-                  <TableHead className="text-gray-400 font-medium text-center">Weekly PTS | Projected</TableHead>
-                  <TableHead className="text-gray-400 font-medium">Top Available Player</TableHead>
+                  <TableHead className="text-gray-400 font-medium text-center">Weekly Points</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {displayPriorities.map((priority, index) => {
                   const isUserTeam = priority.team_id === userTeam?.id;
                   const isTopThree = index < 3;
-                  
+
                   return (
-                    <TableRow 
-                      key={priority.team_id} 
+                    <TableRow
+                      key={priority.team_id}
                       className={`border-nfl-light-gray/20 hover:bg-nfl-light-gray/10 transition-colors ${
                         isUserTeam ? 'bg-nfl-blue/5' : ''
                       }`}
@@ -805,8 +663,8 @@ export default function Waivers() {
                         <div className="flex items-center gap-2">
                           <span className="text-white">{priority.team_name}</span>
                           {isUserTeam && (
-                            <Badge 
-                              variant="outline" 
+                            <Badge
+                              variant="outline"
                               className="text-xs border-nfl-blue text-nfl-blue bg-nfl-blue/10"
                             >
                               YOU
@@ -818,28 +676,7 @@ export default function Waivers() {
                         {priority.owner_name}
                       </TableCell>
                       <TableCell className="text-center">
-                        <span className="text-white font-medium">{priority.weekly_points.toFixed(1)}</span>
-                        <span className="text-gray-400"> | {priority.projected_points.toFixed(1)}</span>
-                      </TableCell>
-                      <TableCell>
-                        {topAvailablePlayers[index] ? (
-                          <div className="flex items-center gap-2">
-                            <span className="font-medium text-white">
-                              {topAvailablePlayers[index].name}
-                            </span>
-                            <Badge variant="outline" className="text-xs">
-                              {topAvailablePlayers[index].position}
-                            </Badge>
-                            <span className="text-gray-400 text-sm">
-                              | {topAvailablePlayers[index].team}
-                            </span>
-                            <span className="text-gray-400 text-sm">
-                              ({topAvailablePlayers[index].points?.toFixed(1) || '0.0'} pts)
-                            </span>
-                          </div>
-                        ) : (
-                          <span className="text-gray-500">-</span>
-                        )}
+                        <span className="text-white font-medium text-lg">{priority.weekly_points.toFixed(1)}</span>
                       </TableCell>
                     </TableRow>
                   );
@@ -898,69 +735,6 @@ export default function Waivers() {
             </div>
           )}
 
-          {/* Waiver Tips */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-8">
-            <Card className="bg-nfl-gray border-nfl-light-gray/20">
-              <CardContent className="p-6">
-                <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
-                  <AlertTriangle className="w-5 h-5 text-yellow-400" />
-                  Waiver Strategy Tips
-                </h3>
-                <ul className="space-y-2 text-gray-300 text-sm">
-                  <li className="flex items-start gap-2">
-                    <span className="text-nfl-green mt-0.5">•</span>
-                    <span>Higher priority teams should target impact players</span>
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <span className="text-nfl-green mt-0.5">•</span>
-                    <span>Consider saving priority for emergencies</span>
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <span className="text-nfl-green mt-0.5">•</span>
-                    <span>Check injury reports before claiming</span>
-                  </li>
-                </ul>
-              </CardContent>
-            </Card>
-            
-            <Card className="bg-nfl-gray border-nfl-light-gray/20">
-              <CardContent className="p-6">
-                <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
-                  <Timer className="w-5 h-5 text-nfl-blue" />
-                  Processing Schedule
-                </h3>
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-gray-400">Claim Period Ends</span>
-                    <span className="text-white font-medium">
-                      {waiverDeadline ? 
-                        new Date(waiverDeadline.deadline).toLocaleString('en-US', { 
-                          weekday: 'long', 
-                          hour: 'numeric', 
-                          minute: 'numeric',
-                          timeZoneName: 'short'
-                        }) 
-                        : "Tuesday 3:00 AM ET"}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-gray-400">Processing Day</span>
-                    <span className="text-white font-medium">
-                      {waiverDeadline ? 
-                        ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][waiverDeadline.deadline_day]
-                        : "Tuesday"}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-gray-400">Status</span>
-                    <span className={`font-medium ${waiverDeadline?.deadline_passed ? 'text-yellow-400' : 'text-nfl-green'}`}>
-                      {waiverDeadline?.deadline_passed ? 'Processing Soon' : 'Accepting Claims'}
-                    </span>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
         </div>
       </div>
 

@@ -205,27 +205,27 @@ export function useRosterWithPlayerDetails(fantasyTeamId: string, week: number) 
         }
       }
 
-      // Create opponent lookup from schedule
+      // Create opponent lookup from schedule (fallback method)
       const getOpponent = (teamAbbr: string) => {
-        const game = scheduleData.find(g => 
+        const game = scheduleData.find(g =>
           g.home_team === teamAbbr || g.away_team === teamAbbr
         );
         if (!game) return null;
         return game.home_team === teamAbbr ? game.away_team : game.home_team;
       };
-      
+
       // Combine roster with player details and stats
       return roster.map(rosterItem => {
         const player = playersMap.get(rosterItem.player_id);
         const playerStats = statsMap.get(rosterItem.player_id);
-        
+
         // If we have statistics, update the player points
         if (player && playerStats) {
           player.points = playerStats.fantasy_points || 0;
         }
-        
-        // Get opponent info
-        const opponent = player ? getOpponent(player.team) : null;
+
+        // Get opponent info - prefer from player_stats, fallback to schedule lookup
+        const opponent = playerStats?.opponent || (player ? getOpponent(player.team) : null);
         
         return {
           ...rosterItem,

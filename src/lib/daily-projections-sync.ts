@@ -273,6 +273,7 @@ export class DailyProjectionsSync {
               if (playerProjection.PassingTouchdowns !== undefined) projectionData.pass_td = playerProjection.PassingTouchdowns;
 
               if (playerProjection.Name) projectionData.player_name = playerProjection.Name;
+              if (playerProjection.Opponent) projectionData.opponent = playerProjection.Opponent;
 
               directProjections[playerId] = {
                 player_id: playerId,
@@ -463,6 +464,7 @@ export class DailyProjectionsSync {
             projected_receiving_yards: Math.round(Number(stats.rec_yd) || 0),
             projected_receiving_td: Math.round(Number(stats.rec_td) || 0),
             projected_receptions: Math.round(Number(stats.rec) || 0),
+            opponent: stats.opponent || null,
             is_projection_updated: true,
             projection_last_updated: new Date().toISOString()
           });

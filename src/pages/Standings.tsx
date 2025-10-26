@@ -4,7 +4,7 @@ import { useUserFantasyTeam } from "@/hooks/useUserFantasyTeam";
 import { useLocation } from "react-router-dom";
 import { LeagueHeader } from "@/components/LeagueHeader";
 import { LeagueTabs } from "@/components/LeagueTabs";
-import { Trophy, TrendingUp, Users, Shield } from "lucide-react";
+import { Trophy, TrendingUp, Users, Shield, Eye, EyeOff } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useAuth } from "@/hooks/useAuth";
@@ -15,12 +15,15 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useWeeklyPoints } from "@/hooks/useWeeklyPoints";
 import { useLeagueInfo } from "@/hooks/useLeagueInfo";
+import { useState } from "react";
+import { Button } from "@/components/ui/button";
 
 export default function Standings() {
   const location = useLocation();
   const searchParams = new URLSearchParams(location.search);
   const leagueId = searchParams.get("league") || "";
   const { user } = useAuth();
+  const [showEliminatedTeams, setShowEliminatedTeams] = useState(false);
   
   // Determine if we're in game week (Thu night - Mon) or non-game week (Tue - Thu day)
   const isGameWeek = () => {
@@ -175,35 +178,57 @@ export default function Standings() {
               icon={Trophy}
               iconColor="text-yellow-400"
               label="League Leader"
-              value={sortedTeams[0]?.name || "TBD"}
-              subValue={sortedTeams[0] ? `${(sortedTeams[0].weekly_points || 0).toFixed(1)} points this week` : ""}
+              value={sortedActiveTeams[0]?.name || "TBD"}
+              subValue={sortedActiveTeams[0] ? `${(sortedActiveTeams[0].weekly_points || 0).toFixed(1)} points this week` : ""}
             />
             <StatCard
               icon={Users}
               iconColor="text-nfl-blue"
               label="Teams Remaining"
-              value={`${teams.filter(t => !t.eliminated).length} of ${leagueInfo?.max_members || teams.length}`}
+              value={`${sortedActiveTeams.length} of ${leagueInfo?.max_members || teams.length}`}
               subValue="teams left in competition"
             />
             <StatCard
               icon={TrendingUp}
               iconColor="text-nfl-green"
               label="Avg Points/Week"
-              value={(teams.reduce((sum, t) => sum + (t.weekly_points || 0), 0) / teams.length).toFixed(1)}
-              subValue="League average"
+              value={sortedActiveTeams.length > 0 ? (sortedActiveTeams.reduce((sum, t) => sum + (t.weekly_points || 0), 0) / sortedActiveTeams.length).toFixed(1) : "0.0"}
+              subValue="Active teams average"
             />
             <StatCard
               icon={Shield}
               iconColor="text-purple-400"
               label="Survival Rate"
-              value={`${Math.round((teams.filter(t => !t.eliminated).length / teams.length) * 100)}%`}
-              subValue="This week"
+              value={`${Math.round((sortedActiveTeams.length / teams.length) * 100)}%`}
+              subValue="Teams still competing"
             />
           </div>
 
           <SectionHeader
             title="Full League Standings"
             subtitle={`Week ${currentWeek} Rankings - Sorting by ${sortingMode === 'projected' ? 'Projected' : 'Weekly'} Points ${sortingMode === 'actual' ? '(Resets Tuesday 3 AM)' : ''}`}
+            action={
+              sortedEliminatedTeams.length > 0 && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowEliminatedTeams(!showEliminatedTeams)}
+                  className="border-nfl-light-gray/20 text-gray-300 hover:bg-nfl-light-gray/10"
+                >
+                  {showEliminatedTeams ? (
+                    <>
+                      <EyeOff className="w-4 h-4 mr-2" />
+                      Hide Eliminated
+                    </>
+                  ) : (
+                    <>
+                      <Eye className="w-4 h-4 mr-2" />
+                      Show Eliminated ({sortedEliminatedTeams.length})
+                    </>
+                  )}
+                </Button>
+              )
+            }
           />
           
           {/* Standings Table */}
@@ -345,10 +370,10 @@ export default function Standings() {
                   })}
                   
                   {/* Eliminated Teams Section */}
-                  {sortedEliminatedTeams.length > 0 && (
+                  {showEliminatedTeams && sortedEliminatedTeams.length > 0 && (
                     <>
                       <TableRow>
-                        <TableCell colSpan={6} className="py-4 px-4 border-t-2 border-nfl-red/30">
+                        <TableCell colSpan={8} className="py-4 px-4 border-t-2 border-nfl-red/30">
                           <div className="flex items-center gap-2 text-nfl-red font-semibold">
                             <Shield className="w-4 h-4" />
                             Eliminated Teams ({sortedEliminatedTeams.length})

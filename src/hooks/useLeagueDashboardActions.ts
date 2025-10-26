@@ -420,6 +420,94 @@ export function useLeagueDashboardActions(leagueId: string) {
     },
   });
 
+  // Eliminar equipo manualmente
+  const eliminateTeam = useMutation({
+    mutationFn: async ({
+      teamId,
+      week,
+    }: {
+      teamId: string;
+      week: number;
+    }) => {
+      if (!user?.id) throw new Error("Usuario no autenticado");
+
+      const { error } = await supabase
+        .from("fantasy_teams")
+        .update({
+          eliminated: true,
+          eliminated_week: week,
+        })
+        .eq("id", teamId)
+        .eq("league_id", leagueId);
+
+      if (error) throw error;
+
+      // Registrar la acción del administrador
+      const { error: actionError } = await supabase
+        .from("admin_actions")
+        .insert({
+          admin_user_id: user.id,
+          action_type: "eliminate_team",
+          target_league_id: leagueId,
+          reason: "Eliminación manual por el administrador",
+          action_details: { team_id: teamId, week },
+        });
+
+      if (actionError) console.error("Error registrando acción:", actionError);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["leagueTeams", leagueId] });
+      queryClient.invalidateQueries({ queryKey: ["fantasyTeams", leagueId] });
+      toast.success("Equipo eliminado exitosamente");
+    },
+    onError: (error) => {
+      toast.error(`Error al eliminar equipo: ${error.message}`);
+    },
+  });
+
+  // Restaurar equipo eliminado
+  const restoreTeam = useMutation({
+    mutationFn: async ({
+      teamId,
+    }: {
+      teamId: string;
+    }) => {
+      if (!user?.id) throw new Error("Usuario no autenticado");
+
+      const { error } = await supabase
+        .from("fantasy_teams")
+        .update({
+          eliminated: false,
+          eliminated_week: null,
+        })
+        .eq("id", teamId)
+        .eq("league_id", leagueId);
+
+      if (error) throw error;
+
+      // Registrar la acción del administrador
+      const { error: actionError } = await supabase
+        .from("admin_actions")
+        .insert({
+          admin_user_id: user.id,
+          action_type: "restore_team",
+          target_league_id: leagueId,
+          reason: "Restauración manual por el administrador",
+          action_details: { team_id: teamId },
+        });
+
+      if (actionError) console.error("Error registrando acción:", actionError);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["leagueTeams", leagueId] });
+      queryClient.invalidateQueries({ queryKey: ["fantasyTeams", leagueId] });
+      toast.success("Equipo restaurado exitosamente");
+    },
+    onError: (error) => {
+      toast.error(`Error al restaurar equipo: ${error.message}`);
+    },
+  });
+
   return {
     banUser: banUser.mutate,
     unbanUser: unbanUser.mutate,
@@ -432,6 +520,8 @@ export function useLeagueDashboardActions(leagueId: string) {
     removeUserFromLeague: removeUserFromLeague.mutate,
     deleteLeague: deleteLeague.mutate,
     editLeague: editLeague.mutate,
+    eliminateTeam: eliminateTeam.mutate,
+    restoreTeam: restoreTeam.mutate,
     isLoading:
       banUser.isPending ||
       unbanUser.isPending ||
@@ -443,6 +533,8 @@ export function useLeagueDashboardActions(leagueId: string) {
       recalculateTeamScores.isPending ||
       removeUserFromLeague.isPending ||
       deleteLeague.isPending ||
-      editLeague.isPending,
+      editLeague.isPending ||
+      eliminateTeam.isPending ||
+      restoreTeam.isPending,
   };
 }
