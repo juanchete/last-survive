@@ -3,6 +3,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { LeagueTeam } from "@/hooks/useLeagueDashboardData";
 import { useAuth } from "@/hooks/useAuth";
+import { cn } from "@/lib/utils";
 
 interface LeagueStandingsTableProps {
   teams: LeagueTeam[] | undefined;
@@ -26,8 +27,9 @@ export function LeagueStandingsTable({ teams, isLoading }: LeagueStandingsTableP
     );
   }
 
-  // Sort teams by points and assign proper ranks
-  const sortedTeams = [...teams]
+  // Filter out eliminated teams and sort by points
+  const activeTeams = [...teams]
+    .filter(team => !team.eliminated)
     .sort((a, b) => {
       // Sort by points (descending)
       if (b.points !== a.points) {
@@ -38,92 +40,97 @@ export function LeagueStandingsTable({ teams, isLoading }: LeagueStandingsTableP
     })
     .map((team, index) => ({ ...team, rank: index + 1 }));
 
-  // Show all teams (not just top 5)
   const currentWeek = Math.max(1, 1); // This should come from actual week data
-  
-  // Find team in last place among non-eliminated teams
-  const activeTeams = sortedTeams.filter(t => !t.eliminated);
+
+  // Find team in last place among active teams
   const lastPlaceTeam = activeTeams.length > 0 ? activeTeams[activeTeams.length - 1] : null;
 
   return (
     <Card className="bg-nfl-gray border-nfl-light-gray/20 overflow-hidden">
-      {/* Horizontal Scrolling Container */}
-      <div className="overflow-x-auto">
-        <div className="flex gap-4 p-4 min-w-max">
-          {sortedTeams.map((team) => {
+      <Table>
+        <TableHeader>
+          <TableRow className="border-nfl-light-gray/20 hover:bg-transparent">
+            <TableHead className="text-gray-400 font-semibold w-16 text-center">Rank</TableHead>
+            <TableHead className="text-gray-400 font-semibold">Team</TableHead>
+            <TableHead className="text-gray-400 font-semibold">Owner</TableHead>
+            <TableHead className="text-gray-400 font-semibold text-right">Total Points</TableHead>
+            <TableHead className="text-gray-400 font-semibold text-right">Avg/Week</TableHead>
+            <TableHead className="text-gray-400 font-semibold text-center">Status</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {activeTeams.map((team) => {
             const isUserTeam = team.owner_id === user?.id;
             const avgPoints = (team.points / currentWeek).toFixed(1);
-            const isInDanger = !team.eliminated && lastPlaceTeam && team.id === lastPlaceTeam.id;
-            
+            const isInDanger = lastPlaceTeam && team.id === lastPlaceTeam.id;
+
             return (
-              <div 
-                key={team.id} 
-                className={`
-                  flex-shrink-0 w-64 bg-nfl-dark/50 border rounded-lg p-4 transition-all duration-300
-                  ${isUserTeam 
-                    ? 'border-nfl-blue ring-2 ring-nfl-blue/30 bg-nfl-blue/5' 
-                    : 'border-nfl-light-gray/20 hover:border-nfl-blue/30'
-                  }
-                  ${isInDanger ? 'ring-2 ring-orange-500/30' : ''}
-                `}
+              <TableRow
+                key={team.id}
+                className={cn(
+                  "border-nfl-light-gray/20 transition-colors",
+                  isUserTeam && "bg-nfl-blue/10 hover:bg-nfl-blue/15",
+                  isInDanger && "bg-orange-500/10 hover:bg-orange-500/15",
+                  !isUserTeam && !isInDanger && "hover:bg-nfl-light-gray/10"
+                )}
               >
-                {/* Position Badge */}
-                <div className="flex items-center justify-between mb-3">
-                  <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-lg
-                    ${team.rank === 1 ? 'bg-gradient-to-br from-yellow-400 to-yellow-600 text-yellow-900' : 
-                      team.rank === 2 ? 'bg-gradient-to-br from-gray-300 to-gray-500 text-gray-900' : 
-                      team.rank === 3 ? 'bg-gradient-to-br from-amber-600 to-amber-800 text-amber-100' :
-                      'bg-gradient-to-br from-nfl-gray to-nfl-light-gray text-white'}`}>
+                {/* Rank */}
+                <TableCell className="text-center font-bold">
+                  <div className={cn(
+                    "w-8 h-8 rounded-full flex items-center justify-center mx-auto font-bold text-sm",
+                    team.rank === 1 && "bg-gradient-to-br from-yellow-400 to-yellow-600 text-yellow-900",
+                    team.rank === 2 && "bg-gradient-to-br from-gray-300 to-gray-500 text-gray-900",
+                    team.rank === 3 && "bg-gradient-to-br from-amber-600 to-amber-800 text-amber-100",
+                    team.rank > 3 && "bg-nfl-light-gray/30 text-white"
+                  )}>
                     {team.rank}
                   </div>
-                  
-                  <Badge 
-                    variant={team.eliminated ? "destructive" : isInDanger ? "warning" : "default"}
-                    className={`
-                      ${team.eliminated 
-                        ? 'bg-nfl-red/20 text-nfl-red border-nfl-red/30' 
-                        : isInDanger
-                        ? 'bg-orange-500/20 text-orange-500 border-orange-500/30'
-                        : 'bg-nfl-green/20 text-nfl-green border-nfl-green/30'
-                      }
-                    `}
-                  >
-                    {team.eliminated ? 'Eliminated' : isInDanger ? 'IN DANGER' : 'Safe'}
-                  </Badge>
-                </div>
+                </TableCell>
 
-                {/* Team Info */}
-                <div className="space-y-2">
-                  <div>
-                    <h4 className="font-bold text-white text-sm leading-tight">{team.name}</h4>
+                {/* Team Name */}
+                <TableCell>
+                  <div className="flex flex-col">
+                    <span className="font-semibold text-white">{team.name}</span>
                     {isUserTeam && (
-                      <Badge variant="outline" className="text-xs border-nfl-blue text-nfl-blue mt-1">
+                      <Badge variant="outline" className="text-xs border-nfl-blue text-nfl-blue w-fit mt-1">
                         YOUR TEAM
                       </Badge>
                     )}
                   </div>
-                  
-                  <div className="text-xs text-gray-400 truncate">
-                    Owner: {team.owner}
-                  </div>
-                  
-                  <div className="flex justify-between items-center pt-2 border-t border-nfl-light-gray/20">
-                    <span className="text-xs text-gray-400">Avg Points</span>
-                    <span className="font-bold text-white text-lg">{avgPoints}</span>
-                  </div>
-                </div>
-              </div>
+                </TableCell>
+
+                {/* Owner */}
+                <TableCell className="text-gray-300">
+                  {team.owner}
+                </TableCell>
+
+                {/* Total Points */}
+                <TableCell className="text-right font-bold text-white">
+                  {team.points.toFixed(1)}
+                </TableCell>
+
+                {/* Average Points */}
+                <TableCell className="text-right font-semibold text-gray-300">
+                  {avgPoints}
+                </TableCell>
+
+                {/* Status */}
+                <TableCell className="text-center">
+                  <Badge
+                    variant={isInDanger ? "warning" : "default"}
+                    className={cn(
+                      isInDanger && "bg-orange-500/20 text-orange-500 border-orange-500/30",
+                      !isInDanger && "bg-nfl-green/20 text-nfl-green border-nfl-green/30"
+                    )}
+                  >
+                    {isInDanger ? 'In Danger' : 'Safe'}
+                  </Badge>
+                </TableCell>
+              </TableRow>
             );
           })}
-        </div>
-      </div>
-      
-      {/* Scroll Hint */}
-      <div className="bg-nfl-dark/30 border-t border-nfl-light-gray/20 px-4 py-2">
-        <p className="text-xs text-gray-400 text-center">
-          ← Desliza horizontalmente para ver todos los equipos →
-        </p>
-      </div>
+        </TableBody>
+      </Table>
     </Card>
   );
 }
