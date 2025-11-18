@@ -26,7 +26,6 @@ export function LeagueTabs({ leagueId, activeTab }: LeagueTabsProps) {
     { id: "overview", label: "Overview", icon: LayoutGrid, path: `/league-dashboard?league=${leagueId}` },
     { id: "standings", label: "Standings", icon: Trophy, path: `/standings?league=${leagueId}` },
     { id: "team", label: "Team", icon: Users, path: `/team?league=${leagueId}` },
-    { id: "draft", label: "Draft", icon: UserPlus, path: `/league/${leagueId}/draft` },
     { id: "team-battle", label: "Team Battle", icon: Swords, path: `/team-battle?league=${leagueId}` },
     { id: "trades", label: "Trades", icon: ArrowLeftRight, path: `/trades?league=${leagueId}` },
     { id: "waivers", label: "Waivers", icon: FileText, path: `/waivers?league=${leagueId}` },

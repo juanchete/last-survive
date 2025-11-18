@@ -126,7 +126,39 @@ serve(async (req) => {
       // 2. Wait a moment for any database triggers to complete
       await new Promise(resolve => setTimeout(resolve, 2000));
 
-      // 3. Proceed with elimination process
+      // 3. Update weekly_points for all teams before elimination
+      console.log("📊 Updating weekly_points for all teams...");
+      try {
+        // Get current week
+        const { data: currentWeekData } = await supabase
+          .from('weeks')
+          .select('number')
+          .eq('status', 'active')
+          .single();
+
+        const currentWeek = currentWeekData?.number || 1;
+
+        // Update weekly_points for all active leagues
+        const { data: updateResult, error: updateError } = await supabase.rpc(
+          "update_all_leagues_weekly_points",
+          {
+            p_week: currentWeek,
+            p_season: season
+          }
+        );
+
+        if (updateError) {
+          console.warn("⚠️ Error updating weekly_points:", updateError);
+          console.warn("⚠️ Continuing with elimination using calculated points...");
+        } else {
+          console.log("✅ Weekly points updated for all leagues:", updateResult);
+        }
+      } catch (updateError) {
+        console.warn("⚠️ Failed to update weekly_points:", updateError);
+        console.warn("⚠️ Continuing with elimination...");
+      }
+
+      // 4. Proceed with elimination process
       console.log("🏈 Starting elimination process...");
       const { data, error } = await supabase.rpc("process_all_leagues_tuesday_3am", {
         season_year: season

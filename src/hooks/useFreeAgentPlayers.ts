@@ -46,11 +46,15 @@ export function useFreeAgentPlayers(leagueId: string, week: number) {
       const { data: players, error } = await query;
       if (error) throw error;
 
+      // Get current season (2025 for now)
+      const currentSeason = 2025;
+
       // Get player stats for the current week
       const { data: stats, error: statsError } = await supabase
         .from("player_stats")
         .select("player_id, fantasy_points")
-        .eq("week", week);
+        .eq("week", week)
+        .eq("season", currentSeason);
 
       if (statsError) throw statsError;
 
@@ -58,7 +62,8 @@ export function useFreeAgentPlayers(leagueId: string, week: number) {
       const { data: projections, error: projectionsError } = await supabase
         .from("player_stats")
         .select("player_id, projected_points")
-        .eq("week", week);
+        .eq("week", week)
+        .eq("season", currentSeason);
 
       if (projectionsError) console.warn("Projections not available:", projectionsError);
 
@@ -166,11 +171,15 @@ export function useAvailablePlayers(week: number) {
       const { data: players, error } = await query;
       if (error) throw error;
 
+      // Get current season (2025 for now)
+      const currentSeason = 2025;
+
       // Get player stats for the current week
       const { data: stats, error: statsError } = await supabase
         .from("player_stats")
         .select("player_id, fantasy_points")
-        .eq("week", week);
+        .eq("week", week)
+        .eq("season", currentSeason);
 
       if (statsError) throw statsError;
 
@@ -178,7 +187,8 @@ export function useAvailablePlayers(week: number) {
       const { data: projections, error: projectionsError } = await supabase
         .from("player_stats")
         .select("player_id, projected_points")
-        .eq("week", week);
+        .eq("week", week)
+        .eq("season", currentSeason);
 
       if (projectionsError) console.warn("Projections not available:", projectionsError);
 

@@ -4,12 +4,11 @@ import { useLocation } from "react-router-dom";
 import { LeagueHeader } from "@/components/LeagueHeader";
 import { LeagueTabs } from "@/components/LeagueTabs";
 import { Button } from "@/components/ui/button";
-import { AlertTriangle, Clock, Trophy, Timer, UserPlus, Shield, Plus, Search, ChevronLeft, ChevronRight } from "lucide-react";
+import { AlertTriangle, Clock, Trophy, Timer, UserPlus, Shield, Plus } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Input } from "@/components/ui/input";
-import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
+import { DraftPlayerList } from "@/components/DraftPlayerList";
 import {
   Dialog,
   DialogContent,
@@ -37,7 +36,6 @@ import { StatCard } from "@/components/ui/stat-card";
 import { useWaiverPriority } from "@/hooks/useWaiverPriority";
 import { useMyWaiverRequests } from "@/hooks/useMyWaiverRequests";
 import { useWaiverDeadline } from "@/hooks/useWaiverDeadline";
-import { useTeamWeeklyPoints } from "@/hooks/useTeamWeeklyPoints";
 import { useWaiverPlayers } from "@/hooks/useWaiverPlayers";
 import { useRosterWithPlayerDetails } from "@/hooks/useRosterWithPlayerDetails";
 import { useWaiverHistory } from "@/hooks/useWaiverHistory";
@@ -45,6 +43,7 @@ import { WaiverPlayerCard } from "@/components/WaiverPlayerCard";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { WaiverStatusBadge, WaiverPriorityList } from "@/components/WaiverStatusBadge";
 import { useWaiverStatus } from "@/hooks/useWaiverStatus";
+import { useWeeklyPoints } from "@/hooks/useWeeklyPoints";
 
 interface IWaiverPriority {
   priority: number;
@@ -53,6 +52,7 @@ interface IWaiverPriority {
   owner_name: string;
   weekly_points: number;
   projected_points: number;
+  isInDanger?: boolean;
 }
 
 export default function Waivers() {
@@ -61,13 +61,10 @@ export default function Waivers() {
   const leagueId = searchParams.get("league") || "";
   const { user } = useAuth();
   const [selectedPlayer, setSelectedPlayer] = useState<string | null>(null);
+  const [selectedPlayerName, setSelectedPlayerName] = useState<string>("");
   const [selectedDropPlayer, setSelectedDropPlayer] = useState<string>("");
   const [showClaimDialog, setShowClaimDialog] = useState(false);
   const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
-  const [playerSearch, setPlayerSearch] = useState("");
-  const [positionFilter, setPositionFilter] = useState<string>("ALL");
-  const [page, setPage] = useState(1);
-  const pageSize = 25;
 
   const { data: teams = [] } = useFantasyTeams(leagueId);
   const { data: userTeam } = useUserFantasyTeam(leagueId);
@@ -110,9 +107,8 @@ export default function Waivers() {
   // Get waiver deadline info
   const { data: waiverDeadline } = useWaiverDeadline(leagueId);
 
-  // Get team weekly points from PREVIOUS week for waiver priority
-  const previousWeek = weekNumber > 1 ? weekNumber - 1 : 1;
-  const { data: teamWeeklyPoints = [] } = useTeamWeeklyPoints(leagueId, previousWeek);
+  // Get team weekly points for waiver priority
+  const { weeklyStandings } = useWeeklyPoints(leagueId);
 
   // Get available players on waivers
   const { data: waiverPlayers = [] } = useWaiverPlayers(leagueId, weekNumber);
@@ -138,21 +134,6 @@ export default function Waivers() {
   // Get waiver history
   const { data: waiverHistory = [] } = useWaiverHistory(leagueId);
 
-  // Filter and sort waiver players
-  const filteredWaiverPlayers = waiverPlayers.filter(player => {
-    const matchesSearch = player.name.toLowerCase().includes(playerSearch.toLowerCase()) ||
-                         player.team.toLowerCase().includes(playerSearch.toLowerCase());
-    const matchesPosition = positionFilter === "ALL" || player.position === positionFilter;
-    return matchesSearch && matchesPosition;
-  }).sort((a, b) => (b.points || 0) - (a.points || 0));
-
-  // Pagination
-  const totalPages = Math.ceil(filteredWaiverPlayers.length / pageSize);
-  const paginatedPlayers = filteredWaiverPlayers.slice(
-    (page - 1) * pageSize,
-    page * pageSize
-  );
-
   // Filter only alive teams (not eliminated)
   const aliveTeams = teams.filter(team => !team.eliminated);
 
@@ -160,7 +141,7 @@ export default function Waivers() {
   const waiverPriorities: IWaiverPriority[] = waiverPriorityData
     .map(wp => {
       const team = aliveTeams.find(t => t.id === wp.fantasy_team_id);
-      const weeklyPoints = teamWeeklyPoints.find(twp => twp.fantasy_team_id === wp.fantasy_team_id);
+      const weeklyData = weeklyStandings?.find(ws => ws.id === wp.fantasy_team_id);
 
       if (!team) return null;
 
@@ -169,21 +150,21 @@ export default function Waivers() {
         team_id: wp.fantasy_team_id,
         team_name: team.name,
         owner_name: team.owner,
-        weekly_points: weeklyPoints?.total_points || 0,
-        projected_points: weeklyPoints?.projected_points || 0
+        weekly_points: parseFloat(weeklyData?.weekly_points || '0'),
+        projected_points: 0
       };
     })
     .filter(Boolean) as IWaiverPriority[];
 
-  // If no waiver priority data exists, fall back to sorting by previous week points
-  const displayPriorities = waiverPriorities.length > 0
+  // If no waiver priority data exists, fall back to sorting by weekly points
+  const basePriorities = waiverPriorities.length > 0
     ? waiverPriorities
     : aliveTeams
         .map(team => {
-          const weeklyPoints = teamWeeklyPoints.find(twp => twp.fantasy_team_id === team.id);
+          const weeklyData = weeklyStandings?.find(ws => ws.id === team.id);
           return {
             team,
-            weeklyPoints: weeklyPoints?.total_points || 0
+            weeklyPoints: parseFloat(weeklyData?.weekly_points || '0')
           };
         })
         .sort((a, b) => a.weeklyPoints - b.weeklyPoints)
@@ -199,8 +180,17 @@ export default function Waivers() {
           };
         });
 
-  const handlePlayerClick = (playerId: string) => {
-    setSelectedPlayer(playerId);
+  // Sort by priority and adjust: first team (lowest points) is #1 in danger, rest get -1 priority
+  const sortedByPriority = [...basePriorities].sort((a, b) => a.priority - b.priority);
+  const displayPriorities = sortedByPriority.map((item, index) => ({
+    ...item,
+    priority: index === 0 ? 1 : item.priority - 1, // First stays as #1, rest subtract 1
+    isInDanger: index === 0 // Mark first team as in danger
+  }));
+
+  const handlePlayerClick = (playerId: number | string, playerName?: string) => {
+    setSelectedPlayer(String(playerId));
+    setSelectedPlayerName(playerName || "");
     setShowClaimDialog(true);
   };
 
@@ -326,7 +316,7 @@ export default function Waivers() {
               icon={Trophy}
               iconColor="text-yellow-400"
               label="Your Priority"
-              value={`#${displayPriorities.findIndex(p => p.team_id === userTeam?.id) + 1 || '-'}`}
+              value={`#${displayPriorities.find(p => p.team_id === userTeam?.id)?.priority || '-'}`}
               subValue={userTeam ? "Based on weekly points" : "Join league"}
             />
             <StatCard
@@ -355,172 +345,38 @@ export default function Waivers() {
           </div>
 
           {/* Available Players Section */}
-          <Card className="bg-nfl-gray border-nfl-light-gray/20 p-6 mb-8">
-            <div className="space-y-4 mb-6">
-              <div>
-                <h2 className="text-xl font-bold text-white mb-2">
-                  {isFreeAgency ? 'Agentes Libres Disponibles' : 'Jugadores en Waivers'}
-                </h2>
-                <p className="text-sm text-gray-400">
-                  {isFreeAgency
-                    ? 'Haz clic en un jugador para agregarlo inmediatamente a tu roster'
-                    : 'Haz clic en un jugador para enviar una solicitud de waiver'}
-                </p>
-              </div>
-
-              <div className="flex gap-4">
-                <div className="flex-1 relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-                  <Input
-                    placeholder="Buscar jugador por nombre..."
-                    value={playerSearch}
-                    onChange={(e) => {
-                      setPlayerSearch(e.target.value);
-                      setPage(1);
-                    }}
-                    className="pl-9 bg-nfl-dark-gray border-nfl-light-gray/20 text-white"
-                  />
-                </div>
-                <Select value={positionFilter} onValueChange={(val) => {
-                  setPositionFilter(val);
-                  setPage(1);
-                }}>
-                  <SelectTrigger className="w-[180px] bg-nfl-dark-gray border-nfl-light-gray/20 text-white">
-                    <SelectValue placeholder="Todas las posiciones" />
-                  </SelectTrigger>
-                  <SelectContent className="bg-nfl-gray border-nfl-light-gray/20">
-                    <SelectItem value="ALL" className="text-white">Todas las posiciones</SelectItem>
-                    <SelectItem value="QB" className="text-white">QB - Quarterback</SelectItem>
-                    <SelectItem value="RB" className="text-white">RB - Running Back</SelectItem>
-                    <SelectItem value="WR" className="text-white">WR - Wide Receiver</SelectItem>
-                    <SelectItem value="TE" className="text-white">TE - Tight End</SelectItem>
-                    <SelectItem value="K" className="text-white">K - Kicker</SelectItem>
-                    <SelectItem value="DEF" className="text-white">DEF - Defensa</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="flex justify-between items-center">
-                <p className="text-sm text-gray-400">
-                  {filteredWaiverPlayers.length} jugadores disponibles
-                </p>
-                {totalPages > 1 && (
-                  <div className="flex items-center gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setPage(Math.max(1, page - 1))}
-                      disabled={page === 1}
-                      className="border-nfl-light-gray/20 text-gray-300 hover:bg-nfl-light-gray/10"
-                    >
-                      <ChevronLeft className="h-4 w-4" />
-                    </Button>
-                    <span className="text-sm text-gray-400">
-                      Página {page} de {totalPages}
-                    </span>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setPage(Math.min(totalPages, page + 1))}
-                      disabled={page === totalPages}
-                      className="border-nfl-light-gray/20 text-gray-300 hover:bg-nfl-light-gray/10"
-                    >
-                      <ChevronRight className="h-4 w-4" />
-                    </Button>
-                  </div>
-                )}
-              </div>
+          <div className="mb-8">
+            <div className="mb-6">
+              <h2 className="text-xl font-bold text-white mb-2">
+                {isFreeAgency ? 'Agentes Libres Disponibles' : 'Jugadores en Waivers'}
+              </h2>
+              <p className="text-sm text-gray-400">
+                {isFreeAgency
+                  ? 'Haz clic en un jugador para agregarlo inmediatamente a tu roster'
+                  : 'Haz clic en un jugador para enviar una solicitud de waiver'}
+              </p>
             </div>
 
-            {/* Players Table */}
-            <div className="rounded-lg border border-nfl-light-gray/20 overflow-hidden">
-              <Table>
-                <TableHeader>
-                  <TableRow className="hover:bg-transparent border-nfl-light-gray/20">
-                    <TableHead className="w-[50px]"></TableHead>
-                    <TableHead className="text-gray-300">Jugador</TableHead>
-                    <TableHead className="text-gray-300">Pos</TableHead>
-                    <TableHead className="text-gray-300">Equipo</TableHead>
-                    <TableHead className="text-gray-300 text-right">Puntos</TableHead>
-                    <TableHead className="text-gray-300 text-right">Proyección</TableHead>
-                    <TableHead className="text-gray-300 text-center">Acción</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {paginatedPlayers.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={7} className="text-center py-12 text-gray-400">
-                        No se encontraron jugadores
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    paginatedPlayers.map((player) => (
-                      <TableRow
-                        key={player.id}
-                        className="hover:bg-nfl-light-gray/10 border-nfl-light-gray/20 cursor-pointer"
-                        onClick={() => handlePlayerClick(player.id)}
-                      >
-                        <TableCell>
-                          <Avatar className="h-10 w-10">
-                            <AvatarImage src={player.photo} alt={player.name} />
-                            <AvatarFallback className="bg-nfl-blue text-white text-xs">
-                              {player.name.substring(0, 2).toUpperCase()}
-                            </AvatarFallback>
-                          </Avatar>
-                        </TableCell>
-                        <TableCell className="font-medium text-white">
-                          {player.name}
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant="outline" className={cn(
-                            'text-xs',
-                            player.position === 'QB' && 'bg-red-500/10 text-red-500 border-red-500/20',
-                            player.position === 'RB' && 'bg-green-500/10 text-green-500 border-green-500/20',
-                            player.position === 'WR' && 'bg-blue-500/10 text-blue-500 border-blue-500/20',
-                            player.position === 'TE' && 'bg-yellow-500/10 text-yellow-500 border-yellow-500/20',
-                            player.position === 'K' && 'bg-purple-500/10 text-purple-500 border-purple-500/20',
-                            player.position === 'DEF' && 'bg-orange-500/10 text-orange-500 border-orange-500/20'
-                          )}>
-                            {player.position}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-2">
-                            {(player as any).nfl_team_logo && (
-                              <img
-                                src={(player as any).nfl_team_logo}
-                                alt={player.team}
-                                className="h-6 w-6 object-contain"
-                              />
-                            )}
-                            <span className="text-sm font-medium text-gray-300">{player.team}</span>
-                          </div>
-                        </TableCell>
-                        <TableCell className="text-right text-gray-300">
-                          {player.points?.toFixed(1) || '0.0'}
-                        </TableCell>
-                        <TableCell className="text-right text-nfl-accent">
-                          {player.projected_points?.toFixed(1) || '0.0'}
-                        </TableCell>
-                        <TableCell className="text-center">
-                          <Button
-                            size="sm"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handlePlayerClick(player.id);
-                            }}
-                            className="bg-nfl-accent hover:bg-nfl-accent/90 text-black"
-                          >
-                            {isFreeAgency ? 'Agregar' : 'Reclamar'}
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
-            </div>
-          </Card>
+            <DraftPlayerList
+              leagueId={leagueId}
+              week={weekNumber}
+              onSelectPlayer={handlePlayerClick}
+              config={{
+                showADP: false,
+                showSeasonPoints: false,
+                showWeekPoints: true,
+                buttonText: isFreeAgency ? 'Agregar' : 'Reclamar',
+                buttonIcon: <UserPlus className="h-4 w-4" />,
+                validateTurn: false,
+                validateSlots: false,
+                useExternalData: true,
+                externalPlayers: waiverPlayers,
+                externalTotalCount: waiverPlayers.length,
+                externalTotalPages: Math.ceil(waiverPlayers.length / 25),
+                externalIsLoading: false,
+              }}
+            />
+          </div>
 
           {/* Drop Player Dialog */}
           <Dialog open={showClaimDialog} onOpenChange={setShowClaimDialog}>
@@ -643,7 +499,8 @@ export default function Waivers() {
               <TableBody>
                 {displayPriorities.map((priority, index) => {
                   const isUserTeam = priority.team_id === userTeam?.id;
-                  const isTopThree = index < 3;
+                  const isInDanger = priority.isInDanger;
+                  const isTopThree = index > 0 && index < 3; // Skip first (in danger) for green highlighting
 
                   return (
                     <TableRow
@@ -654,7 +511,11 @@ export default function Waivers() {
                     >
                       <TableCell className="text-center">
                         <div className={`inline-flex items-center justify-center w-8 h-8 rounded-full ${
-                          isTopThree ? 'bg-nfl-green/20 text-nfl-green border border-nfl-green/30' : 'bg-gray-800 text-gray-400'
+                          isInDanger
+                            ? 'bg-red-500/20 text-red-400 border border-red-500/30'
+                            : isTopThree
+                              ? 'bg-nfl-green/20 text-nfl-green border border-nfl-green/30'
+                              : 'bg-gray-800 text-gray-400'
                         } font-bold`}>
                           {priority.priority}
                         </div>

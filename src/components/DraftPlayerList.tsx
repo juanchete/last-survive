@@ -12,24 +12,68 @@ import { useAvailablePlayersPaginated } from "@/hooks/useAvailablePlayersPaginat
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
+interface IDraftPlayerListConfig {
+  showADP?: boolean; // Show ADP column
+  showSeasonPoints?: boolean; // Show last season points column
+  showWeekPoints?: boolean; // Show current week points column
+  buttonText?: string; // Button text (default: "Seleccionar")
+  buttonIcon?: React.ReactNode; // Optional button icon
+  validateTurn?: boolean; // Validate turn (default: true)
+  validateSlots?: boolean; // Validate position slots (default: true)
+  useExternalData?: boolean; // Use external player data instead of hook (default: false)
+  externalPlayers?: any[]; // External player data
+  externalTotalCount?: number; // Total count for external data
+  externalTotalPages?: number; // Total pages for external data
+  externalIsLoading?: boolean; // Loading state for external data
+}
+
 interface DraftPlayerListProps {
   leagueId: string;
   week: number;
-  onSelectPlayer: (playerId: number) => void;
-  isMyTurn: boolean;
+  onSelectPlayer: (playerId: number | string, playerName?: string, position?: string) => void;
+  isMyTurn?: boolean;
   myRoster?: any[]; // Current roster to check slot limits
   slotCounts?: Record<string, number>; // Current count of each position
   slotLimits?: Record<string, number>; // Max allowed for each position
+  config?: IDraftPlayerListConfig; // Configuration options
 }
 
-export function DraftPlayerList({ leagueId, week, onSelectPlayer, isMyTurn, myRoster = [], slotCounts = {}, slotLimits = {} }: DraftPlayerListProps) {
+export function DraftPlayerList({
+  leagueId,
+  week,
+  onSelectPlayer,
+  isMyTurn = true,
+  myRoster = [],
+  slotCounts = {},
+  slotLimits = {},
+  config = {}
+}: DraftPlayerListProps) {
+  // Default config values
+  const {
+    showADP = true,
+    showSeasonPoints = true,
+    showWeekPoints = false,
+    buttonText = "Seleccionar",
+    buttonIcon = null,
+    validateTurn = true,
+    validateSlots = true,
+    useExternalData = false,
+    externalPlayers = [],
+    externalTotalCount = 0,
+    externalTotalPages = 1,
+    externalIsLoading = false,
+  } = config;
+
   const [searchTerm, setSearchTerm] = useState("");
   const [position, setPosition] = useState("all");
   const [page, setPage] = useState(1);
-  const [sortBy, setSortBy] = useState<'name' | 'projected_points' | 'position' | 'team' | 'adp'>('adp');
-  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
+  // Default sort: use projected_points if ADP is not shown, otherwise use adp
+  const defaultSort = showADP ? 'adp' : 'projected_points';
+  const [sortBy, setSortBy] = useState<'name' | 'projected_points' | 'position' | 'team' | 'adp' | 'points'>(defaultSort);
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>(showADP ? 'asc' : 'desc');
 
-  const { data, isLoading, error } = useAvailablePlayersPaginated({
+  // Use hook only if not using external data
+  const hookData = useAvailablePlayersPaginated({
     leagueId,
     week,
     position,
@@ -39,6 +83,64 @@ export function DraftPlayerList({ leagueId, week, onSelectPlayer, isMyTurn, myRo
     sortBy,
     sortOrder
   });
+
+  // If using external data, apply filtering, sorting, and pagination manually
+  let processedData = useExternalData ? externalPlayers : null;
+
+  if (useExternalData && processedData) {
+    // Apply position filter
+    processedData = processedData.filter(player => {
+      const matchesPosition = position === "all" || player.position === position;
+      const matchesSearch = !searchTerm ||
+        player.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        player.team.toLowerCase().includes(searchTerm.toLowerCase());
+      return matchesPosition && matchesSearch;
+    });
+
+    // Apply sorting
+    processedData = [...processedData].sort((a, b) => {
+      let comparison = 0;
+      switch (sortBy) {
+        case 'name':
+          comparison = a.name.localeCompare(b.name);
+          break;
+        case 'position':
+          comparison = a.position.localeCompare(b.position);
+          break;
+        case 'team':
+          comparison = a.team.localeCompare(b.team);
+          break;
+        case 'adp':
+          comparison = (a.adp || 0) - (b.adp || 0);
+          break;
+        case 'points':
+          comparison = (a.points || 0) - (b.points || 0);
+          break;
+        case 'projected_points':
+        default:
+          comparison = (a.projected_points || a.projectedPoints || 0) - (b.projected_points || b.projectedPoints || 0);
+          break;
+      }
+      return sortOrder === 'desc' ? -comparison : comparison;
+    });
+
+    // Calculate pagination
+    const totalCount = processedData.length;
+    const totalPages = Math.ceil(totalCount / 25);
+    const paginatedPlayers = processedData.slice((page - 1) * 25, page * 25);
+
+    // Choose data source based on config
+    var data = {
+      players: paginatedPlayers,
+      totalCount: totalCount,
+      totalPages: totalPages,
+    };
+  } else {
+    var data = hookData.data;
+  }
+
+  const isLoading = useExternalData ? externalIsLoading : hookData.isLoading;
+  const error = useExternalData ? null : hookData.error;
 
   const handleSort = (column: typeof sortBy) => {
     if (sortBy === column) {
@@ -93,17 +195,17 @@ export function DraftPlayerList({ leagueId, week, onSelectPlayer, isMyTurn, myRo
 
   // Get reason why player can't be drafted
   const getDraftDisabledReason = (player: any) => {
-    if (!player.available) {
+    if (!player.available && player.available !== undefined) {
       // Check if drafted by current user
       if (isDraftedByMe(player.id)) {
         return "Ya seleccionado por ti";
       }
       return "Ya seleccionado";
     }
-    if (!isMyTurn) {
+    if (validateTurn && !isMyTurn) {
       return "No es tu turno";
     }
-    if (!canDraftPosition(player.position)) {
+    if (validateSlots && !canDraftPosition(player.position)) {
       const limit = finalSlotLimits[player.position] || 0;
       const current = slotCounts[player.position] || 0;
       return `Límite alcanzado (${current}/${limit})`;
@@ -111,17 +213,19 @@ export function DraftPlayerList({ leagueId, week, onSelectPlayer, isMyTurn, myRo
     return null;
   };
 
-  const handleDraft = (playerId: number, playerName: string, position: string) => {
-    if (!isMyTurn) {
+  const handleDraft = (playerId: number | string, playerName: string, position: string) => {
+    if (validateTurn && !isMyTurn) {
       toast.error("No es tu turno para seleccionar");
       return;
     }
-    if (!canDraftPosition(position)) {
+    if (validateSlots && !canDraftPosition(position)) {
       toast.error(`Ya tienes el límite de jugadores en posición ${position}`);
       return;
     }
-    onSelectPlayer(playerId);
-    toast.success(`Seleccionaste a ${playerName}`);
+    onSelectPlayer(playerId, playerName, position);
+    if (buttonText === "Seleccionar") {
+      toast.success(`Seleccionaste a ${playerName}`);
+    }
   };
 
   const getPositionColor = (position: string) => {
@@ -239,37 +343,39 @@ export function DraftPlayerList({ leagueId, week, onSelectPlayer, isMyTurn, myRo
           <TableHeader>
             <TableRow>
               <TableHead className="w-[50px]"></TableHead>
-              <TableHead 
+              <TableHead
                 className="cursor-pointer hover:bg-muted/50"
                 onClick={() => handleSort('name')}
               >
                 Jugador
                 {sortBy === 'name' && (sortOrder === 'asc' ? ' ↑' : ' ↓')}
               </TableHead>
-              <TableHead 
+              <TableHead
                 className="cursor-pointer hover:bg-muted/50"
                 onClick={() => handleSort('position')}
               >
                 Pos
                 {sortBy === 'position' && (sortOrder === 'asc' ? ' ↑' : ' ↓')}
               </TableHead>
-              <TableHead 
+              <TableHead
                 className="cursor-pointer hover:bg-muted/50"
                 onClick={() => handleSort('team')}
               >
                 Equipo
                 {sortBy === 'team' && (sortOrder === 'asc' ? ' ↑' : ' ↓')}
               </TableHead>
-              <TableHead 
-                className="cursor-pointer hover:bg-muted/50 text-right"
-                onClick={() => handleSort('adp')}
-              >
-                <div className="flex items-center justify-end gap-1">
-                  ADP
-                  {sortBy === 'adp' && (sortOrder === 'asc' ? ' ↑' : ' ↓')}
-                </div>
-              </TableHead>
-              <TableHead 
+              {showADP && (
+                <TableHead
+                  className="cursor-pointer hover:bg-muted/50 text-right"
+                  onClick={() => handleSort('adp')}
+                >
+                  <div className="flex items-center justify-end gap-1">
+                    ADP
+                    {sortBy === 'adp' && (sortOrder === 'asc' ? ' ↑' : ' ↓')}
+                  </div>
+                </TableHead>
+              )}
+              <TableHead
                 className="cursor-pointer hover:bg-muted/50 text-right"
                 onClick={() => handleSort('projected_points')}
               >
@@ -279,20 +385,31 @@ export function DraftPlayerList({ leagueId, week, onSelectPlayer, isMyTurn, myRo
                   {sortBy === 'projected_points' && (sortOrder === 'asc' ? ' ↑' : ' ↓')}
                 </div>
               </TableHead>
-              <TableHead className="text-right">2024</TableHead>
+              {showSeasonPoints && <TableHead className="text-right">2024</TableHead>}
+              {showWeekPoints && (
+                <TableHead
+                  className="cursor-pointer hover:bg-muted/50 text-right"
+                  onClick={() => handleSort('points')}
+                >
+                  <div className="flex items-center justify-end gap-1">
+                    Pts Semana
+                    {sortBy === 'points' && (sortOrder === 'asc' ? ' ↑' : ' ↓')}
+                  </div>
+                </TableHead>
+              )}
               <TableHead className="text-center">Acción</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {isLoading ? (
               <TableRow>
-                <TableCell colSpan={9} className="text-center py-8">
+                <TableCell colSpan={8 + (showADP ? 1 : 0) + (showSeasonPoints ? 1 : 0) + (showWeekPoints ? 1 : 0)} className="text-center py-8">
                   Cargando jugadores...
                 </TableCell>
               </TableRow>
             ) : data?.players.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={9} className="text-center py-8">
+                <TableCell colSpan={8 + (showADP ? 1 : 0) + (showSeasonPoints ? 1 : 0) + (showWeekPoints ? 1 : 0)} className="text-center py-8">
                   No se encontraron jugadores disponibles
                 </TableCell>
               </TableRow>
@@ -349,20 +466,22 @@ export function DraftPlayerList({ leagueId, week, onSelectPlayer, isMyTurn, myRo
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-2">
-                      {player.teamLogo && (
-                        <img src={player.teamLogo} alt={player.team} className="h-6 w-6" />
+                      {(player.teamLogo || player.nfl_team_logo) && (
+                        <img src={player.teamLogo || player.nfl_team_logo} alt={player.team} className="h-6 w-6" />
                       )}
                       <span className="text-sm font-medium">{player.team}</span>
                     </div>
                   </TableCell>
-                  <TableCell className="text-right">
-                    <span className="text-sm font-medium">
-                      {player.adp ? player.adp.toFixed(0) : '-'}
-                    </span>
-                  </TableCell>
+                  {showADP && (
+                    <TableCell className="text-right">
+                      <span className="text-sm font-medium">
+                        {player.adp ? player.adp.toFixed(0) : '-'}
+                      </span>
+                    </TableCell>
+                  )}
                   <TableCell className="text-right">
                     <div className="text-sm">
-                      <p className="font-bold">{player.projectedPoints.toFixed(1)}</p>
+                      <p className="font-bold">{(player.projectedPoints || player.projected_points || 0).toFixed(1)}</p>
                       {player.position === 'QB' && player.projectedPassingYards > 0 && (
                         <p className="text-xs text-muted-foreground">{player.projectedPassingYards} yds</p>
                       )}
@@ -381,18 +500,26 @@ export function DraftPlayerList({ leagueId, week, onSelectPlayer, isMyTurn, myRo
                       )}
                     </div>
                   </TableCell>
-                  <TableCell className="text-right">
-                    <p className="text-sm text-muted-foreground">{player.lastSeasonPoints.toFixed(1)}</p>
-                  </TableCell>
+                  {showSeasonPoints && (
+                    <TableCell className="text-right">
+                      <p className="text-sm text-muted-foreground">{(player.lastSeasonPoints || 0).toFixed(1)}</p>
+                    </TableCell>
+                  )}
+                  {showWeekPoints && (
+                    <TableCell className="text-right">
+                      <span className="text-sm font-medium">{(player.points || 0).toFixed(1)}</span>
+                    </TableCell>
+                  )}
                   <TableCell className="text-center">
                     <Button
                       size="sm"
-                      variant={player.available && canDraftPosition(player.position) ? "default" : "outline"}
-                      disabled={!player.available || !isMyTurn || !canDraftPosition(player.position)}
+                      variant={(player.available === undefined || player.available) && (validateSlots ? canDraftPosition(player.position) : true) ? "default" : "outline"}
+                      disabled={(player.available !== undefined && !player.available) || (validateTurn && !isMyTurn) || (validateSlots && !canDraftPosition(player.position))}
                       onClick={() => handleDraft(player.id, player.name, player.position)}
                       title={getDraftDisabledReason(player) || undefined}
                     >
-                      {getDraftDisabledReason(player) || 'Seleccionar'}
+                      {buttonIcon && <span className="mr-1">{buttonIcon}</span>}
+                      {getDraftDisabledReason(player) || buttonText}
                     </Button>
                   </TableCell>
                 </TableRow>

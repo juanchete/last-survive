@@ -1,0 +1,151 @@
+name: Weekly NFL Process (Elimination & Projections)
+
+on:
+  schedule:
+    # Martes a las 6:00 AM EST (11:00 UTC)
+    - cron: '0 11 * * 2'
+  workflow_dispatch: # Permitir ejecución manual
+    inputs:
+      season:
+        description: 'NFL Season Year (deja vacío para año actual)'
+        required: false
+        type: string
+
+jobs:
+  weekly-process:
+    runs-on: ubuntu-latest
+    name: Proceso Semanal NFL
+
+    steps:
+      - name: Determinar temporada NFL
+        id: season
+        run: |
+          if [ -n "${{ github.event.inputs.season }}" ]; then
+            echo "SEASON=${{ github.event.inputs.season }}" >> $GITHUB_OUTPUT
+          else
+            echo "SEASON=$(date +%Y)" >> $GITHUB_OUTPUT
+          fi
+          echo "📅 Temporada NFL: $(cat $GITHUB_OUTPUT | grep SEASON | cut -d= -f2)"
+
+      - name: Step 1 - Ejecutar proceso de eliminación semanal
+        id: elimination
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET || secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          SEASON: ${{ steps.season.outputs.SEASON }}
+        run: |
+          echo "🏈 Iniciando proceso de eliminación semanal para temporada $SEASON..."
+          echo "🔄 Secuencia: Stats → Puntos → Eliminación → Avance de semana"
+          echo ""
+
+          # Llamar a la Edge Function con mejor manejo de errores
+          response=$(curl -X POST "$SUPABASE_URL/functions/v1/weekly-elimination" \
+            -H "Authorization: Bearer $CRON_SECRET" \
+            -H "Content-Type: application/json" \
+            -d "{\"action\": \"tuesday_3am_process\", \"season\": $SEASON}" \
+            --fail-with-body \
+            --max-time 120 \
+            -w "\n\nHTTP_STATUS:%{http_code}\nTIME_TOTAL:%{time_total}s\n")
+
+          # Extraer código HTTP y tiempo
+          http_status=$(echo "$response" | grep "HTTP_STATUS:" | cut -d: -f2)
+          time_total=$(echo "$response" | grep "TIME_TOTAL:" | cut -d: -f2)
+
+          # Mostrar resultado
+          echo "📊 Respuesta del servidor:"
+          echo "$response" | head -n -2
+          echo ""
+          echo "⏱️ Tiempo de respuesta: $time_total"
+          echo "📡 Código HTTP: $http_status"
+
+          # Verificar éxito
+          if [ "$http_status" = "200" ]; then
+            echo "✅ Proceso de eliminación completado exitosamente"
+
+            # Parsear métricas (opcional)
+            eliminations=$(echo "$response" | head -n -2 | jq -r '.successful_eliminations // 0')
+            advancements=$(echo "$response" | head -n -2 | jq -r '.successful_advancements // 0')
+            total=$(echo "$response" | head -n -2 | jq -r '.total_processed // 0')
+
+            echo "📈 Métricas:"
+            echo "  - Ligas procesadas: $total"
+            echo "  - Eliminaciones exitosas: $eliminations"
+            echo "  - Avances de semana: $advancements"
+          else
+            echo "❌ Error en proceso de eliminación"
+            exit 1
+          fi
+
+      - name: Esperar completación de operaciones de base de datos
+        run: |
+          echo "⏳ Esperando 10 segundos para completar operaciones de DB..."
+          sleep 10
+
+      - name: Step 2 - Sincronizar proyecciones semanales
+        id: projections
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET || secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          SEASON: ${{ steps.season.outputs.SEASON }}
+        run: |
+          echo "📊 Iniciando sincronización de proyecciones para nueva semana (temporada $SEASON)..."
+          echo ""
+
+          # Llamar a la Edge Function de proyecciones
+          response=$(curl -X POST "$SUPABASE_URL/functions/v1/sync-projections" \
+            -H "Authorization: Bearer $CRON_SECRET" \
+            -H "Content-Type: application/json" \
+            -d "{\"season\": $SEASON, \"seasonType\": \"REG\"}" \
+            --fail-with-body \
+            --max-time 120 \
+            -w "\n\nHTTP_STATUS:%{http_code}\nTIME_TOTAL:%{time_total}s\n")
+
+          # Extraer código HTTP y tiempo
+          http_status=$(echo "$response" | grep "HTTP_STATUS:" | cut -d: -f2)
+          time_total=$(echo "$response" | grep "TIME_TOTAL:" | cut -d: -f2)
+
+          # Mostrar resultado
+          echo "📊 Respuesta del servidor:"
+          echo "$response" | head -n -2
+          echo ""
+          echo "⏱️ Tiempo de respuesta: $time_total"
+          echo "📡 Código HTTP: $http_status"
+
+          # Verificar éxito (no falla el workflow si esto falla)
+          if [ "$http_status" = "200" ]; then
+            echo "✅ Sincronización de proyecciones completada exitosamente"
+
+            # Parsear métricas
+            updated=$(echo "$response" | head -n -2 | jq -r '.updatedPlayers // 0')
+            week=$(echo "$response" | head -n -2 | jq -r '.week // 0')
+
+            echo "📈 Métricas:"
+            echo "  - Jugadores actualizados: $updated"
+            echo "  - Semana: $week"
+          else
+            echo "⚠️ Error en sincronización de proyecciones (no crítico, continuando)"
+            # No hacer exit 1 aquí - las proyecciones son opcionales
+          fi
+
+      - name: Resumen del proceso semanal
+        if: always()
+        run: |
+          echo ""
+          echo "=========================================="
+          echo "📋 RESUMEN - Proceso Semanal NFL"
+          echo "=========================================="
+          echo "📅 Temporada: ${{ steps.season.outputs.SEASON }}"
+          echo "🕐 Timestamp: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          echo ""
+          echo "📊 Estado de los pasos:"
+          echo "  1. Eliminación semanal: ${{ steps.elimination.outcome }}"
+          echo "  2. Proyecciones: ${{ steps.projections.outcome }}"
+          echo ""
+          if [ "${{ steps.elimination.outcome }}" = "success" ]; then
+            echo "✅ Proceso semanal completado exitosamente"
+          else
+            echo "❌ Proceso semanal falló en eliminación"
+          fi
+          echo "=========================================="

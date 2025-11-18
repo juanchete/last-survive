@@ -2,7 +2,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { Settings } from "lucide-react";
+import { Settings, UserPlus } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 
@@ -125,20 +125,34 @@ export function LeagueHeader({ leagueId }: LeagueHeaderProps) {
             <div>
               <p className="text-gray-400 text-sm">Teams Remaining</p>
               <p className="text-2xl font-bold mb-4">{remainingTeams} / {totalTeams}</p>
-              {/* League Settings button - only show for league owner */}
-              {user?.id === league.owner_id && (
-                <Button 
+              <div className="flex flex-col gap-2">
+                {/* Draft button */}
+                <Button
                   asChild
-                  variant="outline" 
-                  className="border-nfl-blue text-nfl-blue hover:bg-nfl-blue hover:text-white transition-all duration-200"
+                  variant="outline"
+                  className="border-nfl-green text-nfl-green hover:bg-nfl-green hover:text-white transition-all duration-200"
                   size="sm"
                 >
-                  <Link to={`/league/${leagueId}/manage`}>
-                    <Settings className="w-4 h-4 mr-2" />
-                    League Settings
+                  <Link to={`/league/${leagueId}/draft`}>
+                    <UserPlus className="w-4 h-4 mr-2" />
+                    Draft
                   </Link>
                 </Button>
-              )}
+                {/* League Settings button - only show for league owner */}
+                {user?.id === league.owner_id && (
+                  <Button
+                    asChild
+                    variant="outline"
+                    className="border-nfl-blue text-nfl-blue hover:bg-nfl-blue hover:text-white transition-all duration-200"
+                    size="sm"
+                  >
+                    <Link to={`/league/${leagueId}/manage`}>
+                      <Settings className="w-4 h-4 mr-2" />
+                      League Settings
+                    </Link>
+                  </Button>
+                )}
+              </div>
             </div>
           </div>
         </div>

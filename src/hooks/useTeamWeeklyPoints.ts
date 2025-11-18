@@ -34,11 +34,13 @@ export function useTeamWeeklyPoints(leagueId: string, week: number) {
 
       // Get player stats for this week
       const playerIds = [...new Set(rosters.map(r => r.player_id))];
+      const currentSeason = 2025;
       const { data: playerStats, error: statsError } = await supabase
         .from("player_stats")
         .select("player_id, fantasy_points, projected_points")
         .in("player_id", playerIds)
-        .eq("week", week);
+        .eq("week", week)
+        .eq("season", currentSeason);
 
       if (statsError) throw statsError;
 

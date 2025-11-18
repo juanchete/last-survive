@@ -89,14 +89,17 @@ export function TeamBattlePlayerCard({ player, isDrafted = true }: TeamBattlePla
     return stats.join(" • ");
   };
 
+  const isBye = player.opponent === "BYE";
+
   return (
     <div
       className={cn(
         "flex items-center gap-2 p-3 rounded-lg border transition-all",
-        player.is_playing 
-          ? "bg-nfl-dark-gray/80 border-nfl-light-gray/20" 
+        player.is_playing
+          ? "bg-nfl-dark-gray/80 border-nfl-light-gray/20"
           : "bg-nfl-dark-gray/50 border-nfl-light-gray/10 opacity-75",
-        isDrafted && "border-green-500/30 bg-green-900/10"
+        isDrafted && "border-green-500/30 bg-green-900/10",
+        isBye && "border-amber-500/50"
       )}
     >
       {/* Position Badge */}
@@ -141,20 +144,20 @@ export function TeamBattlePlayerCard({ player, isDrafted = true }: TeamBattlePla
 
       {/* Opponent Info */}
       <div className="flex items-center gap-1 flex-shrink-0 min-w-[70px] justify-end">
-        {player.opponent ? (
+        {player.opponent === "BYE" ? (
+          <span className="text-xs font-bold text-amber-500">BYE</span>
+        ) : (
           <>
             <span className="text-xs text-gray-400">vs</span>
             {player.opponent_logo && (
-              <img 
-                src={player.opponent_logo} 
-                alt={player.opponent} 
+              <img
+                src={player.opponent_logo}
+                alt={player.opponent}
                 className="h-4 w-4 object-contain"
               />
             )}
             <span className="text-xs text-gray-300">{player.opponent}</span>
           </>
-        ) : (
-          <span className="text-xs text-gray-300">BYE</span>
         )}
       </div>
 
