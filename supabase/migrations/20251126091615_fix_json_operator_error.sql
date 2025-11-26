@@ -80,14 +80,16 @@ BEGIN
   WHERE fantasy_teams.league_id = advance_league_week.league_id
     AND eliminated = false;
 
-  -- Crear rosters para la nueva semana (copiar de semana anterior)
-  INSERT INTO team_rosters (fantasy_team_id, player_id, week, slot, is_active)
+  -- Crear rosters para la nueva semana (copiar de semana anterior incluyendo acquired_type y acquired_week)
+  INSERT INTO team_rosters (fantasy_team_id, player_id, week, slot, is_active, acquired_type, acquired_week)
   SELECT
     tr.fantasy_team_id,
     tr.player_id,
     next_week_number as week,
     tr.slot,
-    tr.is_active
+    tr.is_active,
+    tr.acquired_type,
+    tr.acquired_week  -- Mantener la semana original de adquisición
   FROM team_rosters tr
   JOIN fantasy_teams ft ON tr.fantasy_team_id = ft.id
   WHERE tr.week = current_week_record.number
