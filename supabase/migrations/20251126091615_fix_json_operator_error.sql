@@ -1,9 +1,13 @@
 -- ============================================
 -- FIX: Corregir error "operator does not exist: json ? unknown"
 -- Cambiar tipo JSON a JSONB para soportar operador ?
+-- Permitir NULL en admin_user_id para acciones automatizadas del sistema
 -- ============================================
 
--- Primero, eliminar las funciones existentes para cambiar tipo de retorno
+-- Permitir NULL en admin_user_id para acciones del sistema automatizadas
+ALTER TABLE admin_actions ALTER COLUMN admin_user_id DROP NOT NULL;
+
+-- Eliminar las funciones existentes para cambiar tipo de retorno
 DROP FUNCTION IF EXISTS advance_league_week(UUID);
 DROP FUNCTION IF EXISTS process_weekly_elimination(UUID, INTEGER, INTEGER);
 DROP FUNCTION IF EXISTS process_weekly_elimination_and_advance(UUID, INTEGER, INTEGER);
@@ -293,10 +297,10 @@ DECLARE
   results JSONB[] DEFAULT '{}';
   current_week INTEGER;
 BEGIN
-  -- Log del inicio
+  -- Log del inicio (NULL = acción automatizada del sistema)
   INSERT INTO admin_actions (admin_user_id, target_league_id, action_type, action_details)
   VALUES (
-    '00000000-0000-0000-0000-000000000000', -- Sistema
+    NULL, -- Sistema automatizado
     NULL,
     'tuesday_3am_process',
     jsonb_build_object('message', format('Iniciando procesamiento automático martes 3 AM - temporada %s', season_year))
@@ -348,7 +352,7 @@ BEGIN
   -- Log del resultado
   INSERT INTO admin_actions (admin_user_id, target_league_id, action_type, action_details)
   VALUES (
-    '00000000-0000-0000-0000-000000000000', -- Sistema
+    NULL, -- Sistema automatizado
     NULL,
     'tuesday_3am_complete',
     jsonb_build_object('message', format('Procesadas %s ligas: %s eliminaciones, %s avances de semana',
@@ -372,7 +376,7 @@ EXCEPTION
     -- Log del error
     INSERT INTO admin_actions (admin_user_id, target_league_id, action_type, action_details)
     VALUES (
-      '00000000-0000-0000-0000-000000000000', -- Sistema
+      NULL, -- Sistema automatizado
       NULL,
       'tuesday_3am_error',
       jsonb_build_object('message', format('Error en procesamiento martes 3 AM: %s', SQLERRM))

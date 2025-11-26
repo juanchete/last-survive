@@ -166,7 +166,8 @@ serve(async (req) => {
 
       if (error) {
         console.error("❌ Error en función SQL:", error);
-        throw new Error(`Error procesando martes 3 AM: ${error.message}`);
+        console.error("❌ Error details:", JSON.stringify(error, null, 2));
+        throw new Error(`Error procesando martes 3 AM: ${error.message} | Code: ${error.code} | Details: ${error.details} | Hint: ${error.hint}`);
       }
 
       result = data as TuesdayProcessResult;
@@ -215,11 +216,15 @@ serve(async (req) => {
 
   } catch (error) {
     console.error("💥 Error crítico en weekly-elimination:", error);
-    
+
+    const errorMessage = error instanceof Error ? error.message : "Error desconocido";
+    const errorStack = error instanceof Error ? error.stack : undefined;
+
     return new Response(
       JSON.stringify({
         success: false,
-        error: error instanceof Error ? error.message : "Error desconocido",
+        error: errorMessage,
+        stack: errorStack,
         timestamp: new Date().toISOString(),
       }),
       {
