@@ -80,7 +80,7 @@ BEGIN
   WHERE fantasy_teams.league_id = advance_league_week.league_id
     AND eliminated = false;
 
-  -- Crear rosters para la nueva semana (copiar de semana anterior incluyendo acquired_type y acquired_week)
+  -- Crear rosters para la nueva semana - SOLO COPIAR JUGADORES ACTIVOS
   INSERT INTO team_rosters (fantasy_team_id, player_id, week, slot, is_active, acquired_type, acquired_week)
   SELECT
     tr.fantasy_team_id,
@@ -94,7 +94,8 @@ BEGIN
   JOIN fantasy_teams ft ON tr.fantasy_team_id = ft.id
   WHERE tr.week = current_week_record.number
     AND ft.league_id = advance_league_week.league_id
-    AND ft.eliminated = false;
+    AND ft.eliminated = false
+    AND tr.is_active = true;  -- SOLO copiar jugadores activos (no bench)
 
   -- Resetear priority de waivers para la nueva semana
   UPDATE waiver_priority
