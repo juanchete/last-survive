@@ -276,6 +276,7 @@ export class RealtimeStatsSync {
             tackles: stat.Tackles || 0,
             sacks: stat.Sacks || 0,
             interceptions: stat.Interceptions || 0,
+            opponent: stat.Opponent || null,
             // Don't mark as final during live games
             is_final: false
           });

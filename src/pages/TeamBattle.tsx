@@ -156,29 +156,31 @@ function TeamRosterDisplay({
         </div>
       </div>
 
-      {/* Players List */}
-      <div className="p-2 space-y-1">
-        {isLoading ? (
-          // Loading skeleton for players
-          Array(10).fill(0).map((_, i) => (
-            <div key={i} className="p-3 rounded-lg bg-nfl-dark-gray/50 animate-pulse">
-              <div className="h-4 bg-gray-700 rounded mb-2"></div>
-              <div className="h-3 bg-gray-700 rounded w-3/4"></div>
+      {/* Players List - Solo mostrar si el equipo NO está eliminado */}
+      {!team.eliminated && (
+        <div className="p-2 space-y-1">
+          {isLoading ? (
+            // Loading skeleton for players
+            Array(10).fill(0).map((_, i) => (
+              <div key={i} className="p-3 rounded-lg bg-nfl-dark-gray/50 animate-pulse">
+                <div className="h-4 bg-gray-700 rounded mb-2"></div>
+                <div className="h-3 bg-gray-700 rounded w-3/4"></div>
+              </div>
+            ))
+          ) : players.length === 0 ? (
+            <div className="p-3 text-center text-gray-400 text-sm">
+              No players in roster
             </div>
-          ))
-        ) : players.length === 0 ? (
-          <div className="p-3 text-center text-gray-400 text-sm">
-            No players in roster
-          </div>
-        ) : (
-          players.map((player) => (
-            <TeamBattlePlayerCard
-              key={player.player_id}
-              player={player}
-            />
-          ))
-        )}
-      </div>
+          ) : (
+            players.map((player) => (
+              <TeamBattlePlayerCard
+                key={player.player_id}
+                player={player}
+              />
+            ))
+          )}
+        </div>
+      )}
     </div>
   );
 }

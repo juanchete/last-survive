@@ -126,6 +126,41 @@ serve(async (req) => {
       // 2. Wait a moment for any database triggers to complete
       await new Promise(resolve => setTimeout(resolve, 2000));
 
+      // 2.5. Sync projections for current week BEFORE elimination
+      console.log("📊 Syncing projections for current week BEFORE elimination...");
+      try {
+        const syncProjectionsResponse = await fetch(
+          `${supabaseUrl}/functions/v1/sync-projections`,
+          {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${supabaseServiceKey}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              season: season,
+              seasonType: 'REG',
+              automated: true,
+              trigger: 'pre-elimination',
+              note: 'Current week projections before elimination'
+            })
+          }
+        );
+
+        if (syncProjectionsResponse.ok) {
+          const syncResult = await syncProjectionsResponse.json();
+          console.log("✅ Current week projections synced:", syncResult);
+        } else {
+          console.warn("⚠️ Current week projections sync failed, continuing...");
+        }
+      } catch (syncError) {
+        console.warn("⚠️ Projections sync error:", syncError);
+        // Continue with elimination even if projections sync fails
+      }
+
+      // Wait for database operations to complete
+      await new Promise(resolve => setTimeout(resolve, 2000));
+
       // 3. Update weekly_points for all teams before elimination
       console.log("📊 Updating weekly_points for all teams...");
       try {
@@ -176,6 +211,48 @@ serve(async (req) => {
         advancements: result.successful_advancements,
         total: result.total_processed
       });
+
+      // 5. Sync projections for NEXT week after advancement
+      console.log("📊 Syncing projections for NEXT week after advancement...");
+      try {
+        // Get NEW current week after advancement
+        const { data: newWeekData } = await supabase
+          .from('weeks')
+          .select('number')
+          .eq('status', 'active')
+          .single();
+
+        const newWeek = newWeekData?.number || 1;
+        console.log(`📅 New active week after advancement: ${newWeek}`);
+
+        const syncNextWeekResponse = await fetch(
+          `${supabaseUrl}/functions/v1/sync-projections`,
+          {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${supabaseServiceKey}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              season: season,
+              seasonType: 'REG',
+              automated: true,
+              trigger: 'post-advancement',
+              note: `Next week (${newWeek}) projections after advancement`
+            })
+          }
+        );
+
+        if (syncNextWeekResponse.ok) {
+          const syncResult = await syncNextWeekResponse.json();
+          console.log("✅ Next week projections synced:", syncResult);
+        } else {
+          console.warn("⚠️ Next week projections sync failed");
+        }
+      } catch (syncError) {
+        console.warn("⚠️ Next week projections sync error:", syncError);
+        // Don't fail the entire process if projections sync fails
+      }
 
     } else if (action === "test_single_league" && leagueId) {
       // Testing para una liga específica

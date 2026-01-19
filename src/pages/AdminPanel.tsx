@@ -837,14 +837,22 @@ export default function AdminPanel() {
     mutationFn: async () => {
       if (!selectedLeague?.id) throw new Error("No league selected");
 
+      console.log('🚀 Iniciando avance de semana para liga:', selectedLeague.id);
+
       const { data, error } = await supabase.functions.invoke('advance-week', {
         body: { leagueId: selectedLeague.id }
       });
 
-      if (error) throw error;
+      console.log('📊 Respuesta de advance-week:', { data, error });
+
+      if (error) {
+        console.error('❌ Error en advance-week:', error);
+        throw error;
+      }
       return data;
     },
     onSuccess: (data) => {
+      console.log('✅ Advance-week completado exitosamente:', data);
       queryClient.invalidateQueries({ queryKey: ["adminLeagues"] });
       queryClient.invalidateQueries({ queryKey: ["leagueDetails", selectedLeague?.id] });
       queryClient.invalidateQueries({ queryKey: ["currentWeek", selectedLeague?.id] });
@@ -854,6 +862,7 @@ export default function AdminPanel() {
       });
     },
     onError: (error: Error) => {
+      console.error('❌ Error en mutation:', error);
       toast({
         title: "Error al avanzar semana",
         description: error.message,

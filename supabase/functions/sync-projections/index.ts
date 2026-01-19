@@ -82,28 +82,61 @@ serve(async (req) => {
     const apiData = await apiResponse.json();
     console.log(`📊 Received ${apiData.length} player projections`);
 
-    // 3. Get all players from database for mapping
-    const { data: players, error: playersError } = await supabase
-      .from('players')
-      .select('id, stats_id, sportsdata_id, name, position');
+    // 3. Get all players from database for mapping (with batching to handle 1800+ players)
+    const allPlayers: any[] = [];
+    const batchSize = 1000;
+    let offset = 0;
+    let hasMore = true;
 
-    if (playersError) {
-      console.error("❌ Error fetching players:", playersError);
-      throw playersError;
+    console.log('🔄 Fetching all players from database in batches...');
+
+    while (hasMore) {
+      const { data: batch, error: playersError } = await supabase
+        .from('players')
+        .select('id, stats_id, sportsdata_id, name, position')
+        .range(offset, offset + batchSize - 1);
+
+      if (playersError) {
+        console.error('❌ Error fetching players:', playersError);
+        throw playersError;
+      }
+
+      if (batch && batch.length > 0) {
+        allPlayers.push(...batch);
+        console.log(`   📦 Batch ${Math.floor(offset / batchSize) + 1}: ${batch.length} players (total: ${allPlayers.length})`);
+
+        if (batch.length < batchSize) {
+          hasMore = false; // Less than full batch means we've reached the end
+        } else {
+          offset += batchSize;
+        }
+      } else {
+        hasMore = false;
+      }
     }
 
-    console.log(`📊 Found ${players?.length || 0} players in database`);
+    const players = allPlayers;
+    console.log(`📊 Total players loaded: ${players.length}`);
 
-    // 4. Create mapping by SportsData ID, Stats ID, and Name
-    const sportsDataIdMap = new Map(
-      players?.map(p => [p.sportsdata_id, p]).filter(([k]) => k) || []
-    );
+    // 4. Create mapping by SportsData ID (string AND number), Stats ID, and Name
+    // This ensures we match regardless of type inconsistencies between API and DB
+    const sportsDataIdMap = new Map();
+    players?.forEach(p => {
+      if (p.sportsdata_id) {
+        sportsDataIdMap.set(String(p.sportsdata_id), p); // String version
+        sportsDataIdMap.set(parseInt(p.sportsdata_id), p); // Number version
+      }
+    });
+
     const statsIdMap = new Map(
       players?.map(p => [p.stats_id, p]).filter(([k]) => k) || []
     );
+
     const nameMap = new Map(
       players?.map(p => [p.name?.toLowerCase(), p]).filter(([k]) => k) || []
     );
+
+    console.log(`🗺️ Created mappings: ${sportsDataIdMap.size / 2} SportsData IDs, ${statsIdMap.size} Stats IDs, ${nameMap.size} Names`);
 
     // 5. Process projections and prepare updates
     const projectionsToUpdate: any[] = [];
@@ -112,12 +145,16 @@ serve(async (req) => {
 
     for (const projection of apiData) {
       // Try to find player by PlayerID (SportsData ID) first, then StatsID, then name
-      const playerKey = projection.PlayerID?.toString();
-      const statsKey = projection.StatsID?.toString();
+      // Use multiple strategies to maximize match rate
+      const playerKey = projection.PlayerID;
+      const statsKey = projection.StatsID;
       const playerName = projection.Name?.toLowerCase();
 
-      let player = sportsDataIdMap.get(playerKey) ||
+      let player = sportsDataIdMap.get(playerKey) ||  // Try as-is (number)
+                   sportsDataIdMap.get(String(playerKey)) ||  // Try as string
+                   sportsDataIdMap.get(parseInt(playerKey)) ||  // Try as parsed number
                    statsIdMap.get(statsKey) ||
+                   statsIdMap.get(String(statsKey)) ||
                    (playerName ? nameMap.get(playerName) : null);
 
       if (player) {
@@ -139,6 +176,9 @@ serve(async (req) => {
           projected_receiving_td: Math.round(Number(projection.ReceivingTouchdowns) || 0),
           projected_receptions: Math.round(Number(projection.Receptions) || 0),
 
+          // Opponent (CRITICAL: prevents "BYE" display)
+          opponent: projection.Opponent || null,
+
           // Mark as updated
           is_projection_updated: true,
           projection_last_updated: new Date().toISOString()
@@ -152,32 +192,76 @@ serve(async (req) => {
 
     console.log(`📈 Prepared ${projectionsToUpdate.length} projection updates (${notFoundCount} players not found)`);
 
-    // 6. Batch update projections in database
+    // 6. Robust batch update projections in database with fallback strategy
+    let successCount = 0;
+    let errorCount = 0;
+
     if (projectionsToUpdate.length > 0) {
-      const chunkSize = 500;
+      const chunkSize = 100; // Reduced from 500 to 100 for better reliability
 
       for (let i = 0; i < projectionsToUpdate.length; i += chunkSize) {
         const chunk = projectionsToUpdate.slice(i, i + chunkSize);
+        const batchNum = Math.floor(i / chunkSize) + 1;
 
-        const { error } = await supabase
-          .from('player_stats')
-          .upsert(chunk, {
-            onConflict: 'player_id,week,season'
-          });
+        try {
+          const { error: upsertError } = await supabase
+            .from('player_stats')
+            .upsert(chunk, {
+              onConflict: 'player_id,week,season',
+              ignoreDuplicates: false
+            });
 
-        if (error) {
-          console.error(`❌ Error updating projections batch ${i + 1}-${i + chunk.length}:`, error);
-          throw error;
+          if (upsertError) {
+            // If batch upsert fails, try individual delete + insert
+            console.warn(`⚠️ Batch ${batchNum} upsert failed, trying individual operations...`);
+
+            for (const projection of chunk) {
+              try {
+                // First delete existing record
+                await supabase
+                  .from('player_stats')
+                  .delete()
+                  .eq('player_id', projection.player_id)
+                  .eq('week', projection.week)
+                  .eq('season', projection.season);
+
+                // Then insert new record
+                const { error: insertError } = await supabase
+                  .from('player_stats')
+                  .insert(projection);
+
+                if (insertError) {
+                  console.error(`❌ Failed to insert projection for player ${projection.player_id}:`, insertError);
+                  errorCount++;
+                } else {
+                  successCount++;
+                }
+              } catch (individualError) {
+                console.error(`❌ Individual operation failed for player ${projection.player_id}:`, individualError);
+                errorCount++;
+              }
+            }
+          } else {
+            successCount += chunk.length;
+            console.log(`✅ Batch ${batchNum}: Updated ${chunk.length} projections (${successCount}/${projectionsToUpdate.length} total)`);
+          }
+        } catch (batchError) {
+          console.error(`❌ Batch ${batchNum} error:`, batchError);
+          errorCount += chunk.length;
         }
 
-        console.log(`✅ Updated projections batch ${i + 1}-${Math.min(i + chunk.length, projectionsToUpdate.length)}`);
+        // Pause between batches to prevent overwhelming the database
+        await new Promise(resolve => setTimeout(resolve, 100));
       }
+
+      console.log(`✅ Projections sync complete: ${successCount} success, ${errorCount} errors`);
     }
 
     const result = {
       success: true,
-      message: `Successfully synced projections for ${updatedCount} players (Week ${currentWeek}, Season ${season})`,
-      updatedPlayers: updatedCount,
+      message: `Successfully synced projections for ${successCount} players (${errorCount} errors, ${notFoundCount} not found) - Week ${currentWeek}, Season ${season}`,
+      updatedPlayers: successCount,
+      errorPlayers: errorCount,
       notFoundPlayers: notFoundCount,
       week: currentWeek,
       season: season,
